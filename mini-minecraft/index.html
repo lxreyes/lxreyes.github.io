@@ -289,16 +289,71 @@
   #crafting h2 .table-status { font-size: 11px; opacity: 0.8; padding: 3px 8px; border-radius: 3px; letter-spacing: 1px; font-weight: normal; }
   #crafting h2 .table-status.near { background: #2d7a31; }
   #crafting h2 .table-status.far  { background: #7a3a2d; }
-  #crafting .inv-section { margin-bottom: 14px; }
-  #crafting .inv-section-title { font-size: 10px; letter-spacing: 3px; opacity: 0.65; margin-bottom: 6px; text-shadow: 1px 1px 0 #000; }
-  #crafting .inv-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; padding: 6px; background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; }
-  #crafting .inv-grid .inv-slot { aspect-ratio: 1; background: rgba(255,255,255,0.04); border: 2px solid rgba(255,255,255,0.18); border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-  #crafting .inv-grid .inv-slot:hover { border-color: rgba(255,255,255,0.5); }
-  #crafting .inv-grid .inv-slot.active { border-color: #fff; background: rgba(255,255,255,0.16); box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
-  #crafting .inv-grid .inv-slot canvas { width: 70%; height: 70%; image-rendering: pixelated; pointer-events: none; }
-  #crafting .inv-grid .inv-slot .num { position: absolute; top: 2px; left: 4px; font-size: 9px; color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none; }
-  #crafting .inv-grid .inv-slot .cnt { position: absolute; bottom: 2px; right: 4px; font-size: 12px; font-weight: bold; color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; pointer-events: none; }
-  #crafting .recipes { display: flex; flex-direction: column; gap: 8px; }
+  /* Grid-based crafting layout */
+  #crafting .craft-area {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 14px; background: rgba(0,0,0,0.4);
+    border: 2px solid rgba(255,255,255,0.18); border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  #crafting .craft-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  #crafting .grid-label { font-size: 10px; letter-spacing: 3px; opacity: 0.65; text-shadow: 1px 1px 0 #000; }
+  #crafting .hotbar-label { margin-top: 10px; }
+  #crafting .craft-arrow { font-size: 28px; opacity: 0.7; margin: 0 6px; }
+  #crafting .craft-grid {
+    display: grid; gap: 3px; padding: 4px;
+    background: rgba(255,255,255,0.04); border: 2px solid rgba(255,255,255,0.18);
+    border-radius: 4px;
+  }
+  #crafting .craft-grid.size-2 { grid-template-columns: repeat(2, 38px); grid-template-rows: repeat(2, 38px); }
+  #crafting .craft-grid.size-3 { grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 38px); }
+  .craft-cell, .craft-result-slot, .inv-cell {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.18); border-radius: 4px;
+    position: relative; cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .craft-cell:hover, .inv-cell:hover, .craft-result-slot:hover { border-color: rgba(255,255,255,0.5); }
+  .craft-cell canvas, .craft-result-slot canvas, .inv-cell canvas {
+    width: 78%; height: 78%; image-rendering: pixelated; pointer-events: none;
+  }
+  .craft-cell .cnt, .craft-result-slot .cnt, .inv-cell .cnt {
+    position: absolute; bottom: 1px; right: 3px;
+    font-size: 12px; font-weight: bold; color: #fff;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    pointer-events: none;
+  }
+  #crafting .craft-result-slot {
+    width: 54px; height: 54px;
+    background: rgba(80,60,30,0.55); border-color: #c8a060;
+  }
+  #crafting .craft-result-slot.has-result { box-shadow: 0 0 0 2px rgba(255,210,120,0.45); }
+  #crafting .main-inv-grid {
+    display: grid; grid-template-columns: repeat(9, 38px); grid-auto-rows: 38px;
+    gap: 3px; padding: 4px; background: rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.18); border-radius: 6px;
+  }
+  #crafting .hotbar-inv-grid {
+    display: grid; grid-template-columns: repeat(9, 38px); grid-auto-rows: 38px;
+    gap: 3px; padding: 4px; background: rgba(0,0,0,0.5);
+    border: 2px solid #c8a060; border-radius: 6px;
+  }
+  .inv-cell .num { position: absolute; top: 1px; left: 3px; font-size: 9px; color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+
+  /* Floating cursor for held item */
+  #cursor {
+    position: fixed; width: 36px; height: 36px;
+    pointer-events: none; z-index: 25;
+    transform: translate(-50%, -50%);
+  }
+  #cursor.hidden { display: none; }
+  #cursor .icon-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  #cursor .icon-wrap canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+  #cursor .cnt {
+    position: absolute; bottom: -2px; right: -2px;
+    color: #fff; font-size: 13px; font-weight: bold; font-family: 'Courier New', monospace;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  }
   #crafting .recipe {
     display: flex; align-items: center; gap: 10px;
     padding: 8px; background: rgba(255,255,255,0.05);
@@ -371,19 +426,26 @@
 
 <div id="crafting" class="hidden">
   <div class="panel">
-    <h2><span>INVENTORY</span> <span class="table-status" id="tableStatus">no crafting table</span></h2>
-    <div class="inv-section">
-      <div class="inv-section-title">YOUR ITEMS</div>
-      <div class="inv-grid" id="invGrid"></div>
+    <h2><span>INVENTORY</span> <span class="table-status" id="tableStatus">2×2 grid</span></h2>
+    <div class="craft-area">
+      <div class="craft-side">
+        <div class="grid-label">CRAFT</div>
+        <div class="craft-grid" id="craftGrid"></div>
+      </div>
+      <div class="craft-arrow">→</div>
+      <div class="craft-side">
+        <div class="grid-label">RESULT</div>
+        <div class="craft-result-slot" id="craftResult"></div>
+      </div>
     </div>
-    <div class="inv-section">
-      <div class="inv-section-title">CRAFTING</div>
-      <div class="recipes" id="recipeList"></div>
-    </div>
+    <div class="grid-label">INVENTORY</div>
+    <div class="main-inv-grid" id="mainInvGrid"></div>
+    <div class="grid-label hotbar-label">HOTBAR</div>
+    <div class="hotbar-inv-grid" id="hotbarInvGrid"></div>
     <button class="close-btn">CLOSE (E or ESC)</button>
-    <div class="hint">Some recipes need a placed crafting table nearby.</div>
   </div>
 </div>
+<div id="cursor" class="hidden"><div class="icon-wrap"></div><div class="cnt"></div></div>
 
 <div id="menu">
   <h1><span class="a">MINI</span> <span class="b">MINECRAFT</span></h1>
@@ -526,30 +588,83 @@ const BLOCK_DROP = {
   [B.GRASS]: B.DIRT,
 };
 
-// Crafting recipes
+// Crafting recipes — Minecraft-style shape patterns
+// Each cell is a block/item id, or null for "must be empty".
+// Patterns are stored already trimmed (no blank rows/cols on the edges)
+// and the grid is trimmed to its bounding box for comparison.
+const _PLANK_ROW = [B.PLANKS, B.PLANKS, B.PLANKS];
+const _COBBLE_ROW = [B.COBBLE, B.COBBLE, B.COBBLE];
+const _IRON_ROW = [B.IRON, B.IRON, B.IRON];
+const _STICK_COL = [null, ITEM.STICK, null];
 const RECIPES = [
-  { in: [[B.WOOD, 1]],                          out: [B.PLANKS, 4],     table: false },
-  { in: [[B.PLANKS, 2]],                        out: [ITEM.STICK, 4],   table: false },
-  { in: [[B.PLANKS, 4]],                        out: [B.TABLE, 1],      table: false },
-  // Pickaxes
-  { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_PICK, 1],   table: true },
-  { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_PICK, 1],  table: true },
-  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_PICK, 1],   table: true },
-  // Swords
-  { in: [[B.PLANKS, 2], [ITEM.STICK, 1]],       out: [ITEM.WOOD_SWORD, 1],  table: true },
-  { in: [[B.COBBLE, 2], [ITEM.STICK, 1]],       out: [ITEM.STONE_SWORD, 1], table: true },
-  { in: [[B.IRON, 2],   [ITEM.STICK, 1]],       out: [ITEM.IRON_SWORD, 1],  table: true },
-  // Axes
-  { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_AXE, 1],    table: true },
-  { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_AXE, 1],   table: true },
-  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_AXE, 1],    table: true },
-  // Shovels
-  { in: [[B.PLANKS, 1], [ITEM.STICK, 2]],       out: [ITEM.WOOD_SHOVEL, 1], table: true },
-  { in: [[B.COBBLE, 1], [ITEM.STICK, 2]],       out: [ITEM.STONE_SHOVEL, 1],table: true },
-  { in: [[B.IRON, 1],   [ITEM.STICK, 2]],       out: [ITEM.IRON_SHOVEL, 1], table: true },
-  // Armor
-  { in: [[B.IRON, 5], [B.PLANKS, 2]],           out: [ITEM.IRON_ARMOR, 1],  table: true },
+  // 2x2-compatible
+  { pattern: [[B.WOOD]],                          out: [B.PLANKS, 4] },
+  { pattern: [[B.PLANKS], [B.PLANKS]],            out: [ITEM.STICK, 4] },
+  { pattern: [[B.PLANKS, B.PLANKS], [B.PLANKS, B.PLANKS]], out: [B.TABLE, 1] },
+  // Pickaxes (3x3 only)
+  { pattern: [_PLANK_ROW,  _STICK_COL, _STICK_COL], out: [ITEM.WOOD_PICK, 1] },
+  { pattern: [_COBBLE_ROW, _STICK_COL, _STICK_COL], out: [ITEM.STONE_PICK, 1] },
+  { pattern: [_IRON_ROW,   _STICK_COL, _STICK_COL], out: [ITEM.IRON_PICK, 1] },
+  // Swords (3x1)
+  { pattern: [[B.PLANKS], [B.PLANKS], [ITEM.STICK]], out: [ITEM.WOOD_SWORD, 1] },
+  { pattern: [[B.COBBLE], [B.COBBLE], [ITEM.STICK]], out: [ITEM.STONE_SWORD, 1] },
+  { pattern: [[B.IRON],   [B.IRON],   [ITEM.STICK]], out: [ITEM.IRON_SWORD, 1] },
+  // Shovels (3x1)
+  { pattern: [[B.PLANKS], [ITEM.STICK], [ITEM.STICK]], out: [ITEM.WOOD_SHOVEL, 1] },
+  { pattern: [[B.COBBLE], [ITEM.STICK], [ITEM.STICK]], out: [ITEM.STONE_SHOVEL, 1] },
+  { pattern: [[B.IRON],   [ITEM.STICK], [ITEM.STICK]], out: [ITEM.IRON_SHOVEL, 1] },
+  // Axes — Minecraft has two orientations; include both for player friendliness
+  { pattern: [[B.PLANKS, B.PLANKS], [B.PLANKS, ITEM.STICK], [null, ITEM.STICK]], out: [ITEM.WOOD_AXE, 1] },
+  { pattern: [[B.PLANKS, B.PLANKS], [ITEM.STICK, B.PLANKS], [ITEM.STICK, null]], out: [ITEM.WOOD_AXE, 1] },
+  { pattern: [[B.COBBLE, B.COBBLE], [B.COBBLE, ITEM.STICK], [null, ITEM.STICK]], out: [ITEM.STONE_AXE, 1] },
+  { pattern: [[B.COBBLE, B.COBBLE], [ITEM.STICK, B.COBBLE], [ITEM.STICK, null]], out: [ITEM.STONE_AXE, 1] },
+  { pattern: [[B.IRON, B.IRON],     [B.IRON, ITEM.STICK],   [null, ITEM.STICK]], out: [ITEM.IRON_AXE, 1] },
+  { pattern: [[B.IRON, B.IRON],     [ITEM.STICK, B.IRON],   [ITEM.STICK, null]], out: [ITEM.IRON_AXE, 1] },
+  // Iron chestplate
+  { pattern: [[B.IRON, null, B.IRON], [B.IRON, B.IRON, B.IRON], [B.IRON, B.IRON, B.IRON]], out: [ITEM.IRON_ARMOR, 1] },
 ];
+
+function trimPattern(grid, size) {
+  let minR = size, maxR = -1, minC = size, maxC = -1;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (grid[r * size + c] != null) {
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      }
+    }
+  }
+  if (maxR < 0) return null;
+  const rows = maxR - minR + 1, cols = maxC - minC + 1;
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) row.push(grid[(minR + r) * size + (minC + c)]);
+    out.push(row);
+  }
+  return { pattern: out, rows, cols };
+}
+
+function findRecipe(craftGrid, size) {
+  const ids = craftGrid.map(s => s ? s.id : null);
+  const t = trimPattern(ids, size);
+  if (!t) return null;
+  for (const recipe of RECIPES) {
+    const pRows = recipe.pattern.length;
+    const pCols = recipe.pattern[0].length;
+    if (pRows !== t.rows || pCols !== t.cols) continue;
+    let ok = true;
+    for (let r = 0; r < pRows && ok; r++) {
+      for (let c = 0; c < pCols && ok; c++) {
+        if (recipe.pattern[r][c] !== t.pattern[r][c]) ok = false;
+      }
+    }
+    if (ok) return recipe;
+  }
+  return null;
+}
 
 const world = new Uint8Array(WORLD_W * WORLD_H * WORLD_D);
 const wIdx = (x, y, z) => x + WORLD_W * (z + WORLD_D * y);
@@ -1695,7 +1810,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('wheel', e => {
   if (!gameActive || craftingOpen) return;
   const dir = Math.sign(e.deltaY);
-  const total = gameMode === 'survival' ? INV_SLOTS : PALETTE.length;
+  const total = gameMode === 'survival' ? HOTBAR_SLOTS : PALETTE.length;
   selectSlot((selected + dir + total) % total);
 }, { passive: true });
 
@@ -1741,7 +1856,8 @@ let selected = 0;
 // Game mode: 'creative' (default) or 'survival'
 let gameMode = 'creative';
 const STACK_MAX = 64;
-const INV_SLOTS = 9;
+const HOTBAR_SLOTS = 9;
+const INV_SLOTS = 36; // 4 rows × 9 — first 9 are the hotbar
 let inventory = new Array(INV_SLOTS).fill(null); // each: {id, count} or null
 
 function resetInventory() { inventory = new Array(INV_SLOTS).fill(null); }
@@ -1891,8 +2007,8 @@ function buildHotbar() {
       hb.appendChild(slot);
     });
   } else {
-    // Survival: 9 inventory slots, count badges
-    for (let i = 0; i < INV_SLOTS; i++) {
+    // Survival: hotbar shows the first 9 inventory slots
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
       const item = inventory[i];
       const slot = document.createElement('div');
       slot.className = 'slot' + (i === selected ? ' active' : '');
@@ -2449,138 +2565,199 @@ const music = {
 };
 
 // ============================================================
-// Crafting UI
+// Crafting UI — grid-based with click-to-pick-up cursor
 // ============================================================
 const craftingEl = document.getElementById('crafting');
-const recipeListEl = document.getElementById('recipeList');
+const craftGridEl = document.getElementById('craftGrid');
+const craftResultEl = document.getElementById('craftResult');
+const mainInvGridEl = document.getElementById('mainInvGrid');
+const hotbarInvGridEl = document.getElementById('hotbarInvGrid');
 const tableStatusEl = document.getElementById('tableStatus');
-const invGridEl = document.getElementById('invGrid');
 const craftingTitleEl = document.querySelector('#crafting h2 span:first-child');
+const cursorEl = document.getElementById('cursor');
+const cursorIconEl = cursorEl.querySelector('.icon-wrap');
+const cursorCntEl = cursorEl.querySelector('.cnt');
+
 let craftingOpen = false;
-let craftingMode = 'inventory'; // 'inventory' (E key) or 'table' (right-click table)
+let craftingMode = 'inventory'; // 'inventory' (2×2) or 'table' (3×3)
+let craftGrid = [];             // length = gridSize² ; each: {id, count} or null
+let heldItem = null;             // {id, count} or null — follows the cursor
 
-function renderInvGrid() {
-  invGridEl.innerHTML = '';
-  for (let i = 0; i < INV_SLOTS; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'inv-slot' + (i === selected ? ' active' : '');
-    const num = document.createElement('div');
-    num.className = 'num'; num.textContent = (i + 1).toString();
-    slot.appendChild(num);
-    const item = inventory[i];
-    if (item) {
-      slot.title = nameOf(item.id);
-      slot.appendChild(slotIcon(item.id));
+function gridSize() { return craftingMode === 'table' ? 3 : 2; }
+
+function clearCraftGrid() {
+  const n = gridSize();
+  craftGrid = new Array(n * n).fill(null);
+}
+
+function renderHeld() {
+  if (!heldItem) { cursorEl.classList.add('hidden'); return; }
+  cursorEl.classList.remove('hidden');
+  cursorIconEl.innerHTML = '';
+  cursorIconEl.appendChild(slotIcon(heldItem.id));
+  cursorCntEl.textContent = heldItem.count > 1 ? heldItem.count : '';
+}
+
+function renderSlotInto(el, item) {
+  el.innerHTML = '';
+  if (item) {
+    el.title = nameOf(item.id);
+    el.appendChild(slotIcon(item.id));
+    if (item.count > 1) {
       const cnt = document.createElement('div');
-      cnt.className = 'cnt'; cnt.textContent = item.count.toString();
-      slot.appendChild(cnt);
+      cnt.className = 'cnt'; cnt.textContent = item.count;
+      el.appendChild(cnt);
     }
-    slot.addEventListener('click', () => { selectSlot(i); renderInvGrid(); });
-    invGridEl.appendChild(slot);
-  }
-}
-
-function atTableNow() {
-  return craftingMode === 'table' || nearTable();
-}
-function canCraft(recipe) {
-  if (recipe.table && !atTableNow()) return false;
-  for (const [id, n] of recipe.in) if (invCount(id) < n) return false;
-  return true;
-}
-
-function renderCrafting() {
-  craftingTitleEl.textContent = craftingMode === 'table' ? 'CRAFTING TABLE' : 'INVENTORY';
-  const hasTable = atTableNow();
-  tableStatusEl.textContent = craftingMode === 'table'
-    ? 'at the crafting table ✓'
-    : (hasTable ? 'crafting table nearby ✓' : 'no crafting table');
-  tableStatusEl.className = 'table-status ' + (hasTable ? 'near' : 'far');
-
-  renderInvGrid();
-
-  recipeListEl.innerHTML = '';
-  RECIPES.forEach((recipe, idx) => {
-    // Inventory panel only shows recipes you can craft without a table
-    if (craftingMode === 'inventory' && recipe.table) return;
-    const row = document.createElement('div');
-    const ok = canCraft(recipe);
-    row.className = 'recipe' + (ok ? '' : ' locked');
-
-    const ings = document.createElement('div');
-    ings.className = 'ingredients';
-    recipe.in.forEach(([id, n]) => {
-      const have = invCount(id);
-      const ing = document.createElement('div');
-      ing.className = 'ing ' + (have >= n ? 'have' : 'need');
-      ing.appendChild(slotIcon(id));
-      const label = document.createElement('span');
-      label.textContent = `${have}/${n} ${nameOf(id)}`;
-      ing.appendChild(label);
-      ings.appendChild(ing);
-    });
-    if (recipe.table) {
-      const t = document.createElement('div');
-      t.className = 'ing ' + (nearTable() ? 'have' : 'need');
-      t.textContent = '+ Crafting Table';
-      ings.appendChild(t);
-    }
-    row.appendChild(ings);
-
-    const arrow = document.createElement('div'); arrow.className = 'arrow'; arrow.textContent = '→';
-    row.appendChild(arrow);
-
-    const result = document.createElement('div');
-    result.className = 'result';
-    result.appendChild(slotIcon(recipe.out[0]));
-    const rlabel = document.createElement('span');
-    rlabel.textContent = `${recipe.out[1]}× ${nameOf(recipe.out[0])}`;
-    result.appendChild(rlabel);
-    row.appendChild(result);
-
-    const btn = document.createElement('button');
-    btn.className = 'craft-btn';
-    btn.textContent = 'CRAFT';
-    btn.disabled = !ok;
-    btn.addEventListener('click', () => doCraft(idx));
-    row.appendChild(btn);
-
-    recipeListEl.appendChild(row);
-  });
-}
-
-function doCraft(idx) {
-  const recipe = RECIPES[idx];
-  if (!canCraft(recipe)) return;
-  for (const [id, n] of recipe.in) invRemove(id, n);
-  const overflow = invAdd(recipe.out[0], recipe.out[1]);
-  if (overflow > 0) {
-    // Refund — give ingredients back
-    for (const [id, n] of recipe.in) invAdd(id, n);
-    invRemove(recipe.out[0], recipe.out[1] - overflow);
-    sfx.tick(200, 0.08, 'square', 0.12);
   } else {
-    sfx.tick(720, 0.07, 'triangle', 0.14);
-    sfx.tick(960, 0.06, 'triangle', 0.12);
+    el.title = '';
   }
-  renderCrafting();
+}
+
+// Generic slot click: pick up / place / merge / swap
+function clickSlot(get, set) {
+  const slot = get();
+  if (heldItem) {
+    if (!slot) { set({ id: heldItem.id, count: heldItem.count }); heldItem = null; }
+    else if (slot.id === heldItem.id) {
+      const room = STACK_MAX - slot.count;
+      const move = Math.min(room, heldItem.count);
+      set({ id: slot.id, count: slot.count + move });
+      heldItem.count -= move;
+      if (heldItem.count <= 0) heldItem = null;
+    } else {
+      const tmp = { id: slot.id, count: slot.count };
+      set({ id: heldItem.id, count: heldItem.count });
+      heldItem = tmp;
+    }
+  } else if (slot) {
+    heldItem = { id: slot.id, count: slot.count };
+    set(null);
+  }
+  rerenderCrafting();
+}
+
+function takeResult() {
+  const recipe = findRecipe(craftGrid, gridSize());
+  if (!recipe) return;
+  const [outId, outCount] = recipe.out;
+  if (heldItem) {
+    if (heldItem.id !== outId) return;
+    if (heldItem.count + outCount > STACK_MAX) return;
+    heldItem.count += outCount;
+  } else {
+    heldItem = { id: outId, count: outCount };
+  }
+  // Consume one of each non-empty grid cell
+  for (let i = 0; i < craftGrid.length; i++) {
+    if (craftGrid[i]) {
+      craftGrid[i].count--;
+      if (craftGrid[i].count <= 0) craftGrid[i] = null;
+    }
+  }
+  sfx.tick(720, 0.06, 'triangle', 0.12);
+  sfx.tick(960, 0.06, 'triangle', 0.10);
+  rerenderCrafting();
   buildHotbar();
 }
+
+function renderCraftGrid() {
+  const n = gridSize();
+  craftGridEl.className = 'craft-grid size-' + n;
+  craftGridEl.innerHTML = '';
+  for (let i = 0; i < n * n; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'craft-cell';
+    renderSlotInto(cell, craftGrid[i]);
+    cell.addEventListener('click', () => clickSlot(() => craftGrid[i], v => { craftGrid[i] = v; }));
+    craftGridEl.appendChild(cell);
+  }
+}
+
+function renderResult() {
+  const recipe = findRecipe(craftGrid, gridSize());
+  craftResultEl.innerHTML = '';
+  craftResultEl.classList.toggle('has-result', !!recipe);
+  if (recipe) {
+    const previewItem = { id: recipe.out[0], count: recipe.out[1] };
+    renderSlotInto(craftResultEl, previewItem);
+  }
+}
+craftResultEl.addEventListener('click', takeResult);
+
+function renderInvCells(container, range) {
+  container.innerHTML = '';
+  for (const i of range) {
+    const cell = document.createElement('div');
+    cell.className = 'inv-cell';
+    if (i < HOTBAR_SLOTS) {
+      const num = document.createElement('div');
+      num.className = 'num'; num.textContent = (i + 1).toString();
+      cell.appendChild(num);
+    }
+    if (inventory[i]) {
+      cell.title = nameOf(inventory[i].id);
+      cell.appendChild(slotIcon(inventory[i].id));
+      if (inventory[i].count > 1) {
+        const cnt = document.createElement('div');
+        cnt.className = 'cnt'; cnt.textContent = inventory[i].count;
+        cell.appendChild(cnt);
+      }
+    }
+    cell.addEventListener('click', () => clickSlot(() => inventory[i], v => { inventory[i] = v; }));
+    container.appendChild(cell);
+  }
+}
+
+function rerenderCrafting() {
+  renderCraftGrid();
+  renderResult();
+  renderInvCells(mainInvGridEl, range(HOTBAR_SLOTS, INV_SLOTS));
+  renderInvCells(hotbarInvGridEl, range(0, HOTBAR_SLOTS));
+  renderHeld();
+}
+
+function range(a, b) { const out = []; for (let i = a; i < b; i++) out.push(i); return out; }
+
+function atTableNow() { return craftingMode === 'table' || nearTable(); }
 
 function openCrafting(mode = 'inventory') {
   if (gameMode !== 'survival') return;
   craftingMode = mode;
   craftingOpen = true;
   craftingEl.classList.remove('hidden');
-  renderCrafting();
+  craftingTitleEl.textContent = mode === 'table' ? 'CRAFTING TABLE' : 'INVENTORY';
+  tableStatusEl.textContent = mode === 'table' ? '3×3 grid' : '2×2 grid';
+  tableStatusEl.className = 'table-status near';
+  clearCraftGrid();
+  rerenderCrafting();
   leftHeld = false; mining = null;
   hideCracks();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
+
+// Return any items left in the crafting grid (and held cursor) to the inventory
+function returnCraftItemsToInv() {
+  for (let i = 0; i < craftGrid.length; i++) {
+    if (craftGrid[i]) { invAdd(craftGrid[i].id, craftGrid[i].count); craftGrid[i] = null; }
+  }
+  if (heldItem) { invAdd(heldItem.id, heldItem.count); heldItem = null; }
+  renderHeld();
+  buildHotbar();
+}
+
+// Track mouse to position the cursor element (only while the modal is open)
+document.addEventListener('mousemove', e => {
+  if (!craftingOpen) return;
+  cursorEl.style.left = e.clientX + 'px';
+  cursorEl.style.top = e.clientY + 'px';
+});
 let inventoryClosedAt = 0;
 function closeCrafting() {
+  // Move any items left in the crafting grid + cursor back to inventory
+  returnCraftItemsToInv();
   craftingOpen = false;
   craftingEl.classList.add('hidden');
+  cursorEl.classList.add('hidden');
   inventoryClosedAt = performance.now();
   if (gameActive) canvas.requestPointerLock();
 }
@@ -2619,8 +2796,10 @@ function startWorld(data) {
   }
 
   if (data.inventory) {
-    inventory = data.inventory.map(s => s ? { id: s.id, count: s.count } : null);
-    while (inventory.length < INV_SLOTS) inventory.push(null);
+    inventory = new Array(INV_SLOTS).fill(null);
+    data.inventory.forEach((s, i) => {
+      if (i < INV_SLOTS) inventory[i] = s ? { id: s.id, count: s.count } : null;
+    });
   } else {
     resetInventory();
   }
