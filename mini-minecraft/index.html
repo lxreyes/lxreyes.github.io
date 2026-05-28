@@ -470,7 +470,7 @@
     <div class="grid-label hotbar-label">HOTBAR</div>
     <div class="hotbar-inv-grid" id="hotbarInvGrid"></div>
     <button class="close-btn">CLOSE (E or ESC)</button>
-    <div class="hint">Shift+Click the result slot to craft as many as possible at once.</div>
+    <div class="hint">Left-click pick up · Right-click place 1 / pick half · Right-drag distribute · Shift-click quick-move · Shift+Click result to craft all</div>
   </div>
 </div>
 <div id="cursor" class="hidden"><div class="icon-wrap"></div><div class="cnt"></div></div>
@@ -1569,6 +1569,89 @@ function findGroundY(x, z) {
   return 0;
 }
 
+// ---- Zombie textures (procedural, one-time) ----
+function makeZombieHeadTexture(face) {
+  const SIZE = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  // Base skin with mottled variation
+  cx.fillStyle = '#4d7a3b'; cx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 22; i++) {
+    cx.fillStyle = ['#3e6630','#578f44','#4a7438','#406f33'][Math.floor(Math.random()*4)];
+    cx.fillRect(Math.floor(Math.random()*SIZE), Math.floor(Math.random()*SIZE), 1, 1);
+  }
+  if (face === 'front') {
+    // Eye sockets (dark)
+    cx.fillStyle = '#1a1f12';
+    cx.fillRect(3, 6, 3, 2);
+    cx.fillRect(10, 6, 3, 2);
+    // Pupils (slight cyan glow)
+    cx.fillStyle = '#a0e0c8'; cx.fillRect(4, 6, 1, 1); cx.fillRect(11, 6, 1, 1);
+    // Mouth — a torn slit
+    cx.fillStyle = '#1a1f12';
+    cx.fillRect(5, 11, 7, 1);
+    cx.fillRect(6, 12, 1, 1); cx.fillRect(8, 12, 1, 1); cx.fillRect(10, 12, 1, 1);
+    // Cheek shading
+    cx.fillStyle = '#3a5a2c'; cx.fillRect(2, 9, 1, 1); cx.fillRect(13, 9, 1, 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function makeZombieBodyTexture() {
+  const SIZE = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  cx.fillStyle = '#3a5a8a'; cx.fillRect(0, 0, SIZE, SIZE);
+  // Tattered shirt stripes
+  for (let i = 0; i < 28; i++) {
+    cx.fillStyle = ['#2e4870','#456caa','#39568a','#5070b0'][Math.floor(Math.random()*4)];
+    cx.fillRect(Math.floor(Math.random()*SIZE), Math.floor(Math.random()*SIZE), 1, 1);
+  }
+  // Tear at the bottom
+  cx.fillStyle = '#1d2a44';
+  cx.fillRect(2, 14, 2, 2); cx.fillRect(7, 13, 1, 3); cx.fillRect(11, 14, 3, 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function makeZombieLimbTexture(color, dark) {
+  const SIZE = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  cx.fillStyle = color; cx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 24; i++) {
+    cx.fillStyle = dark;
+    cx.fillRect(Math.floor(Math.random()*SIZE), Math.floor(Math.random()*SIZE), 1, 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const _ZOMBIE_HEAD_FRONT = makeZombieHeadTexture('front');
+const _ZOMBIE_HEAD_SIDE  = makeZombieHeadTexture('side');
+const _ZOMBIE_BODY_TEX   = makeZombieBodyTexture();
+const _ZOMBIE_SKIN_TEX   = makeZombieLimbTexture('#4d7a3b', '#3a5a2c');
+const _ZOMBIE_PANTS_TEX  = makeZombieLimbTexture('#3a4a52', '#2a3540');
+function zombieHeadMaterials() {
+  // [+x, -x, +y, -y, +z (front), -z (back)]
+  const side = new THREE.MeshLambertMaterial({ map: _ZOMBIE_HEAD_SIDE });
+  const front = new THREE.MeshLambertMaterial({ map: _ZOMBIE_HEAD_FRONT });
+  return [side, side.clone(), side.clone(), side.clone(), front, side.clone()];
+}
+
 class Zombie {
   constructor(x, y, z) {
     this.pos = new THREE.Vector3(x, y, z);
@@ -1579,35 +1662,46 @@ class Zombie {
     this.onGround = false;
 
     this.group = new THREE.Group();
-    const skin = 0x4f7a3a;
-    const skinDark = 0x375828;
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 1.0, 0.32),
-      new THREE.MeshLambertMaterial({ color: skin })
-    );
-    body.position.y = 0.5;
-    this.group.add(body);
-    const head = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.45, 0.45),
-      new THREE.MeshLambertMaterial({ color: skinDark })
-    );
-    head.position.y = 1.25;
+
+    // Head with pixel face on the front
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.48), zombieHeadMaterials());
+    head.position.y = 1.5;
     this.group.add(head);
-    const armL = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.7, 0.18),
-      new THREE.MeshLambertMaterial({ color: skin })
-    );
-    armL.position.set(-0.36, 0.7, 0); this.group.add(armL);
-    const armR = armL.clone(); armR.position.x = 0.36; this.group.add(armR);
-    const legL = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.5, 0.22),
-      new THREE.MeshLambertMaterial({ color: skinDark })
-    );
-    legL.position.set(-0.14, 0, 0); this.group.add(legL);
-    const legR = legL.clone(); legR.position.x = 0.14; this.group.add(legR);
-    // store for animation
-    this.armL = armL; this.armR = armR;
-    this.legL = legL; this.legR = legR;
+
+    // Body — slim torso in a tattered blue shirt
+    const bodyMat = new THREE.MeshLambertMaterial({ map: _ZOMBIE_BODY_TEX });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), bodyMat);
+    body.position.y = 0.9;
+    this.group.add(body);
+
+    // Arms — pivot from the shoulder so we can swing them and pose forward
+    const skinMat = new THREE.MeshLambertMaterial({ map: _ZOMBIE_SKIN_TEX });
+    const armGeo = new THREE.BoxGeometry(0.22, 0.7, 0.22);
+    const makeArm = (xOff) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(xOff, 1.25, 0);
+      const m = new THREE.Mesh(armGeo, skinMat);
+      m.position.y = -0.35; // arm hangs from shoulder pivot
+      pivot.add(m);
+      pivot.rotation.x = -Math.PI / 2; // classic zombie arms-forward pose
+      return pivot;
+    };
+    this.armL = makeArm(-0.36); this.group.add(this.armL);
+    this.armR = makeArm( 0.36); this.group.add(this.armR);
+
+    // Legs — pivot from the hip
+    const pantsMat = new THREE.MeshLambertMaterial({ map: _ZOMBIE_PANTS_TEX });
+    const legGeo = new THREE.BoxGeometry(0.22, 0.55, 0.22);
+    const makeLeg = (xOff) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(xOff, 0.55, 0);
+      const m = new THREE.Mesh(legGeo, pantsMat);
+      m.position.y = -0.275;
+      pivot.add(m);
+      return pivot;
+    };
+    this.legL = makeLeg(-0.13); this.group.add(this.legL);
+    this.legR = makeLeg( 0.13); this.group.add(this.legR);
 
     scene.add(this.group);
     this.refresh();
@@ -1688,13 +1782,14 @@ class Zombie {
 
     this.pos.set(nx, ny, nz);
 
-    // Walk wiggle
+    // Walk wiggle — limbs swing from the shoulder/hip pivots
     const phase = (now / 220) % (Math.PI * 2);
-    const wig = Math.sin(phase) * 0.35;
+    const wig = Math.sin(phase) * 0.4;
     this.legL.rotation.x =  wig;
     this.legR.rotation.x = -wig;
-    this.armL.rotation.x = -wig * 0.6;
-    this.armR.rotation.x =  wig * 0.6;
+    const ARM_FORWARD = -Math.PI / 2;
+    this.armL.rotation.x = ARM_FORWARD + wig * 0.25;
+    this.armR.rotation.x = ARM_FORWARD - wig * 0.25;
 
     // Occasional groan
     if (now - (this._lastGroan || 0) > 4000 + Math.random() * 4000) {
@@ -2686,8 +2781,8 @@ function renderSlotInto(el, item) {
   }
 }
 
-// Generic slot click: pick up / place / merge / swap
-function clickSlot(get, set) {
+// ---- Slot interactions: left/right/shift + drag-distribute ----
+function leftClickSlot(get, set) {
   const slot = get();
   if (heldItem) {
     if (!slot) { set({ id: heldItem.id, count: heldItem.count }); heldItem = null; }
@@ -2706,6 +2801,112 @@ function clickSlot(get, set) {
     heldItem = { id: slot.id, count: slot.count };
     set(null);
   }
+}
+
+// Right-click: place 1 from cursor, or pick up half the slot's stack
+function rightClickSlot(get, set) {
+  const slot = get();
+  if (heldItem) {
+    if (!slot) {
+      set({ id: heldItem.id, count: 1 });
+      heldItem.count--;
+      if (heldItem.count <= 0) heldItem = null;
+    } else if (slot.id === heldItem.id && slot.count < STACK_MAX) {
+      set({ id: slot.id, count: slot.count + 1 });
+      heldItem.count--;
+      if (heldItem.count <= 0) heldItem = null;
+    }
+    // else: different item, no-op
+  } else if (slot) {
+    const half = Math.ceil(slot.count / 2);
+    heldItem = { id: slot.id, count: half };
+    const remain = slot.count - half;
+    set(remain > 0 ? { id: slot.id, count: remain } : null);
+  }
+}
+
+// Shift+click "quick-move": send the slot's contents to the other inventory area.
+// Hotbar -> main inv; main inv -> hotbar; craft cell -> first space in inventory.
+function shiftMoveSlotByContext(get, set, ctx) {
+  let src = get();
+  if (!src) return;
+  let destSlots;
+  if (ctx === 'hotbar')   destSlots = range(HOTBAR_SLOTS, INV_SLOTS);
+  else if (ctx === 'main') destSlots = range(0, HOTBAR_SLOTS);
+  else                     destSlots = range(0, INV_SLOTS); // craft / other -> anywhere
+  shiftMoveInto(src, set, destSlots);
+}
+function shiftMoveInto(src, srcSet, destIdxs) {
+  // Fill existing matching stacks first
+  for (const idx of destIdxs) {
+    const d = inventory[idx];
+    if (d && d.id === src.id && d.count < STACK_MAX) {
+      const room = STACK_MAX - d.count;
+      const move = Math.min(room, src.count);
+      inventory[idx] = { id: d.id, count: d.count + move };
+      src.count -= move;
+      if (src.count <= 0) { srcSet(null); return; }
+    }
+  }
+  // Then empty slots
+  for (const idx of destIdxs) {
+    if (!inventory[idx]) {
+      const move = Math.min(STACK_MAX, src.count);
+      inventory[idx] = { id: src.id, count: move };
+      src.count -= move;
+      if (src.count <= 0) { srcSet(null); return; }
+    }
+  }
+  // Anything left stays in the source
+  srcSet(src.count > 0 ? src : null);
+}
+
+// ---- Drag state for right-drag distribute (1 per cell) ----
+let dragActive = false;
+let dragButton = -1;
+const dragTouched = new Set();
+function endDrag() { dragActive = false; dragButton = -1; dragTouched.clear(); }
+document.addEventListener('mouseup', endDrag);
+
+function tryPlaceOneInto(get, set) {
+  if (!heldItem) return;
+  const s = get();
+  if (!s) {
+    set({ id: heldItem.id, count: 1 });
+    heldItem.count--;
+  } else if (s.id === heldItem.id && s.count < STACK_MAX) {
+    set({ id: s.id, count: s.count + 1 });
+    heldItem.count--;
+  } else return;
+  if (heldItem.count <= 0) { heldItem = null; endDrag(); }
+}
+
+function handleSlotMouseDown(e, get, set, key, ctx) {
+  e.preventDefault();
+  if (e.button !== 0 && e.button !== 2) return;
+  if (e.button === 0) {
+    if (e.shiftKey) shiftMoveSlotByContext(get, set, ctx);
+    else            leftClickSlot(get, set);
+  } else {
+    // Only start drag-distribute if the user was *already* holding a stack;
+    // right-click on a stack with empty cursor just picks up half.
+    const hadHeldBefore = !!heldItem;
+    rightClickSlot(get, set);
+    if (hadHeldBefore && heldItem) {
+      dragActive = true;
+      dragButton = 2;
+      dragTouched.clear();
+      dragTouched.add(key);
+    }
+  }
+  rerenderCrafting();
+}
+
+function handleSlotMouseEnter(get, set, key) {
+  if (!dragActive || dragButton !== 2 || !heldItem) return;
+  if (dragTouched.has(key)) return;
+  dragTouched.add(key);
+  tryPlaceOneInto(get, set);
   rerenderCrafting();
 }
 
@@ -2771,7 +2972,12 @@ function renderCraftGrid() {
     const cell = document.createElement('div');
     cell.className = 'craft-cell';
     renderSlotInto(cell, craftGrid[i]);
-    cell.addEventListener('click', () => clickSlot(() => craftGrid[i], v => { craftGrid[i] = v; }));
+    const get = () => craftGrid[i];
+    const set = v => { craftGrid[i] = v; };
+    const key = 'craft:' + i;
+    cell.addEventListener('mousedown', e => handleSlotMouseDown(e, get, set, key, 'craft'));
+    cell.addEventListener('mouseenter', () => handleSlotMouseEnter(get, set, key));
+    cell.addEventListener('contextmenu', e => e.preventDefault());
     craftGridEl.appendChild(cell);
   }
 }
@@ -2789,6 +2995,8 @@ craftResultEl.addEventListener('click', (e) => {
   if (e.shiftKey) takeResultAll();
   else takeResult();
 });
+craftResultEl.addEventListener('contextmenu', e => e.preventDefault());
+craftingEl.addEventListener('contextmenu', e => e.preventDefault());
 
 function renderInvCells(container, range) {
   container.innerHTML = '';
@@ -2809,7 +3017,13 @@ function renderInvCells(container, range) {
         cell.appendChild(cnt);
       }
     }
-    cell.addEventListener('click', () => clickSlot(() => inventory[i], v => { inventory[i] = v; }));
+    const get = () => inventory[i];
+    const set = v => { inventory[i] = v; };
+    const key = 'inv:' + i;
+    const ctx = i < HOTBAR_SLOTS ? 'hotbar' : 'main';
+    cell.addEventListener('mousedown', e => handleSlotMouseDown(e, get, set, key, ctx));
+    cell.addEventListener('mouseenter', () => handleSlotMouseEnter(get, set, key));
+    cell.addEventListener('contextmenu', e => e.preventDefault());
     container.appendChild(cell);
   }
 }
