@@ -253,20 +253,43 @@
   #deathScreen.hidden { display: none; }
   #deathScreen .panel { text-align: center; color: #fff; padding: 32px; }
   #deathScreen h2 {
-    font-size: 56px; letter-spacing: 8px; color: #ff5555; font-weight: 700;
+    font-size: 64px; letter-spacing: 8px; color: #ff5555; font-weight: 700;
     text-shadow: 3px 3px 0 #000, 0 0 24px rgba(255,80,80,0.6);
     margin-bottom: 14px;
+    animation: death-pulse 1.6s ease-in-out infinite;
+    transform-origin: 50% 50%;
+  }
+  @keyframes death-pulse {
+    0%, 100% { transform: scale(1); text-shadow: 3px 3px 0 #000, 0 0 24px rgba(255,80,80,0.6); }
+    50% { transform: scale(1.06); text-shadow: 4px 4px 0 #000, 0 0 44px rgba(255,80,80,0.95); }
   }
   #deathScreen p { font-size: 14px; opacity: 0.85; margin-bottom: 22px; }
-  #deathScreen .respawn-btn {
-    font-family: inherit; font-size: 16px; font-weight: 700;
-    padding: 12px 28px; background: #5fc16d; color: #fff;
-    border: 0; border-radius: 14px; cursor: pointer; letter-spacing: 2px;
-    box-shadow: 0 4px 0 #3e9a4f;
+  #deathScreen .death-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  #deathScreen .respawn-btn, #deathScreen .back-menu-btn {
+    font-family: inherit; font-weight: 700;
+    border: 0; border-radius: 14px; cursor: pointer;
     transition: transform 0.12s;
+  }
+  #deathScreen .respawn-btn {
+    font-size: 16px; padding: 12px 28px; background: #5fc16d; color: #fff;
+    letter-spacing: 2px; box-shadow: 0 4px 0 #3e9a4f;
   }
   #deathScreen .respawn-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #3e9a4f; }
   #deathScreen .respawn-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3e9a4f; }
+  #deathScreen .back-menu-btn {
+    font-size: 13px; padding: 12px 20px; background: rgba(255,255,255,0.12);
+    color: #fff; letter-spacing: 1.5px;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.25);
+  }
+  #deathScreen .back-menu-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); box-shadow: 0 6px 0 rgba(0,0,0,0.35); }
+  #deathScreen .back-menu-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
+  #deathScreen .key-hint { margin-top: 16px; font-size: 11px; opacity: 0.6; letter-spacing: 1px; }
+  #deathScreen .key-hint .k {
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3);
+    padding: 2px 7px; border-radius: 4px; font-family: 'Courier New', monospace;
+    font-weight: 700; margin: 0 2px;
+  }
 
 
   /* Crafting modal */
@@ -404,9 +427,13 @@
   <div id="dayTag" class="day-tag hidden"></div>
   <div id="deathScreen" class="hidden">
     <div class="panel">
-      <h2>YOU DIED</h2>
+      <h2>YOU DIED!</h2>
       <p>The zombies got you. Your inventory was lost.</p>
-      <button class="respawn-btn">RESPAWN</button>
+      <div class="death-buttons">
+        <button class="respawn-btn">RESPAWN</button>
+        <button class="back-menu-btn">Back to Menu</button>
+      </div>
+      <div class="key-hint">or press <span class="k">ENTER</span></div>
     </div>
   </div>
   <button id="pauseBtn" title="Menu (Esc)">≡</button>
@@ -1516,6 +1543,14 @@ function respawnPlayer() {
   if (gameActive) canvas.requestPointerLock();
 }
 document.querySelector('#deathScreen .respawn-btn').addEventListener('click', respawnPlayer);
+document.querySelector('#deathScreen .back-menu-btn').addEventListener('click', () => {
+  // Keep dead=true so showMenu skips saving the corpse state — the saved file
+  // still holds the pre-death inventory and HP.
+  for (const z of zombies) z.die();
+  zombies.length = 0;
+  deathScreenEl.classList.add('hidden');
+  showMenu();
+});
 
 // ============================================================
 // Zombies — simple AABB entity, AI to chase player
@@ -1605,18 +1640,20 @@ class Zombie {
 
     const dx = player.pos.x - this.pos.x;
     const dz = player.pos.z - this.pos.z;
+    const dyAbs = Math.abs(player.pos.y - this.pos.y);
     const horizDist = Math.hypot(dx, dz);
 
     // Despawn if very far from player
     if (horizDist > 36) { this.die(); return; }
 
     const SPEED = 1.7;
-    if (horizDist > 1.05) {
+    const inMelee = horizDist <= 1.05 && dyAbs <= 1.5; // must be roughly at the same height
+    if (!inMelee && horizDist > 0.01) {
       this.vel.x = (dx / horizDist) * SPEED;
       this.vel.z = (dz / horizDist) * SPEED;
     } else {
       this.vel.x *= 0.6; this.vel.z *= 0.6;
-      if (gameMode === 'survival' && now - this.lastAttack > 1100) {
+      if (inMelee && gameMode === 'survival' && now - this.lastAttack > 1100) {
         damagePlayer(3);
         this.lastAttack = now;
       }
@@ -1771,6 +1808,11 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (e.code === 'Escape' && craftingOpen) { e.preventDefault(); closeCrafting(); return; }
+  // While dead, only respawn keys work
+  if (dead) {
+    if (e.code === 'Enter' || e.code === 'Space') { respawnPlayer(); e.preventDefault(); }
+    return;
+  }
   // While crafting is open, swallow gameplay keys
   if (craftingOpen) return;
   // Double-tap Space toggles flight (creative only)
