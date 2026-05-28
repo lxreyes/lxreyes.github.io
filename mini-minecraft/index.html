@@ -368,8 +368,8 @@
   <div class="controls">
     <div><span class="k">WASD</span> move &nbsp; <span class="k">SPACE</span> jump &nbsp; <span class="k">SHIFT</span> sprint</div>
     <div><span class="k">MOUSE</span> look (auto-locks on play)</div>
-    <div><span class="k">CLICK</span> hold to mine &nbsp; <span class="k">RIGHT-CLICK</span> place</div>
-    <div><span class="k">E</span> inventory + crafting <em>(survival)</em> &nbsp; <span class="k">F</span> fly <em>(creative)</em></div>
+    <div><span class="k">CLICK</span> hold to mine &nbsp; <span class="k">RIGHT-CLICK</span> place block · use crafting table</div>
+    <div><span class="k">E</span> inventory <em>(survival)</em> &nbsp; <span class="k">F</span> fly <em>(creative)</em></div>
     <div><span class="k">1</span>–<span class="k">9</span> select slot &nbsp; <span class="k">WHEEL</span> cycle slots</div>
     <div><span class="k">M</span> mute music &nbsp; <span class="k">ESC</span> close menu/save&amp;quit</div>
   </div>
@@ -962,6 +962,58 @@ const highlight = new THREE.LineSegments(
 highlight.visible = false;
 scene.add(highlight);
 
+// Border barrier — translucent walls around the world edges
+function makeBarrierTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const cx = c.getContext('2d');
+  cx.clearRect(0, 0, 64, 64);
+  // Soft glow tile
+  cx.fillStyle = 'rgba(180,210,250,0.08)';
+  cx.fillRect(0, 0, 64, 64);
+  cx.strokeStyle = 'rgba(255,255,255,0.35)';
+  cx.lineWidth = 1;
+  for (let i = 0; i <= 64; i += 16) {
+    cx.beginPath(); cx.moveTo(0, i); cx.lineTo(64, i); cx.stroke();
+    cx.beginPath(); cx.moveTo(i, 0); cx.lineTo(i, 64); cx.stroke();
+  }
+  return c;
+}
+const barrierTex = new THREE.CanvasTexture(makeBarrierTexture());
+barrierTex.wrapS = barrierTex.wrapT = THREE.RepeatWrapping;
+barrierTex.repeat.set(WORLD_W / 2, WORLD_H / 2);
+barrierTex.magFilter = THREE.LinearFilter;
+const barrierMat = new THREE.MeshBasicMaterial({
+  map: barrierTex,
+  transparent: true,
+  opacity: 0.45,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+
+function buildBorderWalls() {
+  // -X (left)
+  let m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_D, WORLD_H), barrierMat);
+  m.position.set(0, WORLD_H / 2, WORLD_D / 2);
+  m.rotation.y = Math.PI / 2;
+  scene.add(m);
+  // +X (right)
+  m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_D, WORLD_H), barrierMat);
+  m.position.set(WORLD_W, WORLD_H / 2, WORLD_D / 2);
+  m.rotation.y = -Math.PI / 2;
+  scene.add(m);
+  // -Z (back)
+  m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_H), barrierMat);
+  m.position.set(WORLD_W / 2, WORLD_H / 2, 0);
+  scene.add(m);
+  // +Z (front)
+  m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_H), barrierMat);
+  m.position.set(WORLD_W / 2, WORLD_H / 2, WORLD_D);
+  m.rotation.y = Math.PI;
+  scene.add(m);
+}
+buildBorderWalls();
+
 // ============================================================
 // Player
 // ============================================================
@@ -1425,6 +1477,11 @@ let leftHeldBonked = false;
 function placeBlock() {
   const hit = raycast();
   if (!hit) return;
+  // Right-click on a crafting table opens the crafting UI (survival only)
+  if (gameMode === 'survival' && getBlock(hit.x, hit.y, hit.z) === B.TABLE) {
+    openCrafting('table');
+    return;
+  }
   const nx = hit.x + hit.face[0], ny = hit.y + hit.face[1], nz = hit.z + hit.face[2];
   if (!inBounds(nx, ny, nz) || getBlock(nx, ny, nz) !== B.AIR) return;
   if (blockOverlapsPlayer(nx, ny, nz)) return;
@@ -1459,6 +1516,13 @@ const SPRINT = 1.6;
 const FLY_SPEED = 8;
 const FLY_SPRINT = 1.8;
 
+// Treat horizontal world edges as solid → invisible (and visible) barrier
+function isBlockedAt(x, y, z) {
+  if (x < 0 || x >= WORLD_W || z < 0 || z >= WORLD_D) return true;
+  if (y < 0 || y >= WORLD_H) return false;
+  return isSolid(getBlock(x, y, z));
+}
+
 function tryMove(axis, delta) {
   const orig = player.pos[axis];
   player.pos[axis] += delta;
@@ -1472,7 +1536,7 @@ function tryMove(axis, delta) {
   for (let xi = x0; xi <= x1; xi++)
     for (let yi = y0; yi <= y1; yi++)
       for (let zi = z0; zi <= z1; zi++)
-        if (isSolid(getBlock(xi, yi, zi))) {
+        if (isBlockedAt(xi, yi, zi)) {
           player.pos[axis] = orig;
           return false;
         }
@@ -1620,14 +1684,15 @@ const music = {
     if (this.started) return;
     if (!this.ctx) this.init();
     this.started = true;
-    // C major progression — feels brighter and calmer than minor
+    // C major progression — bright and gentle
     const chords = [
       [60, 64, 67],  // C
       [57, 60, 64],  // Am
       [65, 69, 72],  // F
       [55, 59, 62],  // G
     ];
-    const chordDur = 8;
+    const chordDur = 9.5;   // a bit slower
+    const padDur = 4.5;     // pad ends well before next chord — breath
     const pent = [60, 64, 67, 72, 76]; // C pentatonic
 
     let next = this.ctx.currentTime + 0.1;
@@ -1635,17 +1700,17 @@ const music = {
       let t = next;
       for (let ci = 0; ci < chords.length; ci++) {
         const chord = chords[ci];
-        // Soft pad — sine waves at chord notes
-        for (const note of chord) {
-          this.noteAt(note, t, chordDur, 0.10);
+        // Just root pad — staggered fifth on alternating chords for variety
+        this.noteAt(chord[0],     t + 0.4, padDur,        0.11);
+        if (ci % 2 === 0) {
+          this.noteAt(chord[2],   t + 1.4, padDur - 1.0,  0.06);
         }
-        // Quiet root drone an octave down
-        this.noteAt(chord[0] - 12, t, chordDur, 0.12);
-        // Very sparse melody — 60% chance of one gentle note this chord
-        if (Math.random() < 0.6) {
-          const mt = t + 2 + Math.random() * (chordDur - 4);
+        // No bass drone — was too constant
+        // Sparse single melody note, 50% chance
+        if (Math.random() < 0.5) {
+          const mt = t + 2.5 + Math.random() * 2.5;
           const m = pent[Math.floor(Math.random() * pent.length)] + 12;
-          this.noteAt(m, mt, 1.6, 0.07);
+          this.noteAt(m, mt, 2.0, 0.07);
         }
         t += chordDur;
       }
@@ -1663,7 +1728,9 @@ const craftingEl = document.getElementById('crafting');
 const recipeListEl = document.getElementById('recipeList');
 const tableStatusEl = document.getElementById('tableStatus');
 const invGridEl = document.getElementById('invGrid');
+const craftingTitleEl = document.querySelector('#crafting h2 span:first-child');
 let craftingOpen = false;
+let craftingMode = 'inventory'; // 'inventory' (E key) or 'table' (right-click table)
 
 function renderInvGrid() {
   invGridEl.innerHTML = '';
@@ -1686,21 +1753,29 @@ function renderInvGrid() {
   }
 }
 
+function atTableNow() {
+  return craftingMode === 'table' || nearTable();
+}
 function canCraft(recipe) {
-  if (recipe.table && !nearTable()) return false;
+  if (recipe.table && !atTableNow()) return false;
   for (const [id, n] of recipe.in) if (invCount(id) < n) return false;
   return true;
 }
 
 function renderCrafting() {
-  const hasTable = nearTable();
-  tableStatusEl.textContent = hasTable ? 'crafting table ✓' : 'no crafting table';
+  craftingTitleEl.textContent = craftingMode === 'table' ? 'CRAFTING TABLE' : 'INVENTORY';
+  const hasTable = atTableNow();
+  tableStatusEl.textContent = craftingMode === 'table'
+    ? 'at the crafting table ✓'
+    : (hasTable ? 'crafting table nearby ✓' : 'no crafting table');
   tableStatusEl.className = 'table-status ' + (hasTable ? 'near' : 'far');
 
   renderInvGrid();
 
   recipeListEl.innerHTML = '';
   RECIPES.forEach((recipe, idx) => {
+    // Inventory panel only shows recipes you can craft without a table
+    if (craftingMode === 'inventory' && recipe.table) return;
     const row = document.createElement('div');
     const ok = canCraft(recipe);
     row.className = 'recipe' + (ok ? '' : ' locked');
@@ -1765,8 +1840,9 @@ function doCraft(idx) {
   buildHotbar();
 }
 
-function openCrafting() {
+function openCrafting(mode = 'inventory') {
   if (gameMode !== 'survival') return;
+  craftingMode = mode;
   craftingOpen = true;
   craftingEl.classList.remove('hidden');
   renderCrafting();
@@ -1861,7 +1937,7 @@ function showMenu() {
 
 function updateHint() {
   if (gameMode === 'survival') {
-    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place · <span class="k">E</span> inventory · <span class="k">1-9</span> slot · <span class="k">M</span> mute';
+    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place / use table · <span class="k">E</span> inventory · <span class="k">M</span> mute';
   } else {
     hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute';
   }
