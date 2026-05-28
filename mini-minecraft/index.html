@@ -117,6 +117,20 @@
   }
   #pauseBtn:hover { background: rgba(0,0,0,0.6); }
 
+  #miningBar {
+    position: absolute; bottom: 88px; left: 50%; transform: translateX(-50%);
+    width: 180px; height: 8px;
+    background: rgba(0,0,0,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 4px;
+    overflow: hidden; pointer-events: none;
+    opacity: 0; transition: opacity 0.1s;
+  }
+  #miningBar.active { opacity: 1; }
+  #miningBar .fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(to right, #f0c850, #f88030);
+    transition: width 0.05s linear;
+  }
+
   /* Crafting modal */
   #crafting {
     position: fixed; inset: 0; z-index: 8;
@@ -184,6 +198,7 @@
     <span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute
   </div>
   <div id="hotbar"></div>
+  <div id="miningBar"><div class="fill"></div></div>
   <button id="pauseBtn" title="Menu (Esc)">≡</button>
 </div>
 
@@ -229,41 +244,52 @@ const WORLD_W = 56, WORLD_H = 32, WORLD_D = 56;
 const B = {
   AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, COBBLE: 4, SAND: 5,
   WOOD: 6, PLANKS: 7, LEAVES: 8, BRICK: 9, GLASS: 10,
-  SNOW: 11, ICE: 12, OBSIDIAN: 13, GOLD: 14, COAL: 15, DIAMOND: 16,
+  SNOW: 11, ICE: 12, OBSIDIAN: 13, IRON: 14, COAL: 15, DIAMOND: 16,
   TABLE: 17,
 };
 const BLOCK_NAMES = {
   [B.GRASS]: 'Grass', [B.DIRT]: 'Dirt', [B.STONE]: 'Stone', [B.COBBLE]: 'Cobble',
   [B.SAND]: 'Sand', [B.WOOD]: 'Wood', [B.PLANKS]: 'Planks', [B.LEAVES]: 'Leaves',
   [B.BRICK]: 'Brick', [B.GLASS]: 'Glass', [B.SNOW]: 'Snow', [B.ICE]: 'Ice',
-  [B.OBSIDIAN]: 'Obsidian', [B.GOLD]: 'Gold Ore', [B.COAL]: 'Coal Ore', [B.DIAMOND]: 'Diamond',
+  [B.OBSIDIAN]: 'Obsidian', [B.IRON]: 'Iron Ore', [B.COAL]: 'Coal Ore', [B.DIAMOND]: 'Diamond',
   [B.TABLE]: 'Crafting Table',
 };
 const TRANSPARENT = new Set([B.GLASS, B.ICE]);
 const NUM_BLOCKS = 17;
 
 // Non-block items (IDs >= 100 to distinguish from blocks)
-const ITEM = { STICK: 100, WOOD_PICK: 101, STONE_PICK: 102, GOLD_PICK: 103 };
+const ITEM = { STICK: 100, WOOD_PICK: 101, STONE_PICK: 102, IRON_PICK: 103 };
 const ITEM_NAMES = {
   [ITEM.STICK]: 'Stick',
   [ITEM.WOOD_PICK]: 'Wooden Pickaxe',
   [ITEM.STONE_PICK]: 'Stone Pickaxe',
-  [ITEM.GOLD_PICK]: 'Gold Pickaxe',
+  [ITEM.IRON_PICK]: 'Iron Pickaxe',
 };
 const isItem = (id) => id >= 100;
 const nameOf = (id) => isItem(id) ? ITEM_NAMES[id] : BLOCK_NAMES[id];
 
-// Tool tier (0=hand, 1=wood pick, 2=stone pick, 3=gold pick)
+// Tool tier (0=hand, 1=wood pick, 2=stone pick, 3=iron pick)
 function toolTier(id) {
   if (id === ITEM.WOOD_PICK) return 1;
   if (id === ITEM.STONE_PICK) return 2;
-  if (id === ITEM.GOLD_PICK) return 3;
+  if (id === ITEM.IRON_PICK) return 3;
   return 0;
+}
+
+// Mining time (seconds) based on block hardness and tool tier
+function miningTime(blockId, toolId) {
+  const blockT = BLOCK_TIER[blockId] || 0;
+  const toolT = toolTier(toolId);
+  if (toolT < blockT) return Infinity;
+  const BASE = [0.55, 1.0, 1.4, 2.0];
+  const base = BASE[blockT];
+  const speedMul = 1 + (toolT - blockT) * 0.7;
+  return base / speedMul;
 }
 // Min tier required to mine each block (default 0)
 const BLOCK_TIER = {
   [B.STONE]: 1, [B.COBBLE]: 1, [B.COAL]: 1, [B.ICE]: 1,
-  [B.GOLD]: 2, [B.BRICK]: 2,
+  [B.IRON]: 2, [B.BRICK]: 2,
   [B.OBSIDIAN]: 3, [B.DIAMOND]: 3,
 };
 // What a block drops when mined (default: itself). null = no drop.
@@ -282,7 +308,7 @@ const RECIPES = [
   { in: [[B.PLANKS, 4]],                        out: [B.TABLE, 1],      table: false },
   { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_PICK, 1],  table: true },
   { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_PICK, 1], table: true },
-  { in: [[B.GOLD, 3],   [ITEM.STICK, 2]],       out: [ITEM.GOLD_PICK, 1],  table: true },
+  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_PICK, 1],  table: true },
 ];
 
 const world = new Uint8Array(WORLD_W * WORLD_H * WORLD_D);
@@ -449,7 +475,7 @@ function buildAtlas() {
     }
     cx.globalAlpha = 1;
   };
-  const goldOre = oreOf('#f6d24a', 14);
+  const ironOre = oreOf('#c98166', 14);
   const coalOre = oreOf('#1a1a1a', 16);
   const diamondOre = oreOf('#76d6e7', 14);
 
@@ -501,7 +527,7 @@ function buildAtlas() {
   setAll(B.SNOW - 1, snow);
   setAll(B.ICE - 1, ice);
   setAll(B.OBSIDIAN - 1, obsidian);
-  setAll(B.GOLD - 1, goldOre);
+  setAll(B.IRON - 1, ironOre);
   setAll(B.COAL - 1, coalOre);
   setAll(B.DIAMOND - 1, diamondOre);
 
@@ -543,7 +569,7 @@ function itemIcon(itemId) {
     const palette = {
       [ITEM.WOOD_PICK]:  ['#a07238', '#6a4622'],
       [ITEM.STONE_PICK]: ['#9a9a9a', '#5a5a5a'],
-      [ITEM.GOLD_PICK]:  ['#f6d24a', '#b89a2a'],
+      [ITEM.IRON_PICK]:  ['#d4d4d4', '#7a7a7a'],
     }[itemId];
     if (!palette) return c;
     const [head, dark] = palette;
@@ -684,7 +710,7 @@ function generateTerrain() {
     const oz = Math.floor(Math.random() * WORLD_D);
     const oy = 1 + Math.floor(Math.random() * 6);
     const r = Math.random();
-    const ore = r < 0.55 ? B.COAL : r < 0.85 ? B.GOLD : B.DIAMOND;
+    const ore = r < 0.55 ? B.COAL : r < 0.85 ? B.IRON : B.DIAMOND;
     const len = 2 + Math.floor(Math.random() * 4);
     let cx = ox, cy = oy, cz = oz;
     for (let s = 0; s < len; s++) {
@@ -852,9 +878,9 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 // Pointer lock — mouse moves the camera without dragging
+let leftHeld = false;
 canvas.addEventListener('mousedown', e => {
   if (!gameActive) {
-    // Re-acquire pointer lock if it was lost while game is "running"
     if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
     return;
   }
@@ -862,8 +888,17 @@ canvas.addEventListener('mousedown', e => {
     canvas.requestPointerLock();
     return;
   }
-  if (e.button === 0) breakBlock();
-  else if (e.button === 2) { placeBlock(); e.preventDefault(); }
+  if (e.button === 0) {
+    if (gameMode === 'creative') breakBlock();
+    else leftHeld = true; // survival: hold to mine
+  } else if (e.button === 2) {
+    placeBlock();
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  if (e.button === 0) { leftHeld = false; mining = null; }
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -898,6 +933,7 @@ canvas.addEventListener('touchstart', e => {
   touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
   mouseX = t.clientX; mouseY = t.clientY;
   touchMoved = false;
+  if (gameMode === 'survival') leftHeld = true; // hold to mine on touch
   e.preventDefault();
 }, { passive: false });
 canvas.addEventListener('touchmove', e => {
@@ -913,7 +949,8 @@ canvas.addEventListener('touchmove', e => {
 }, { passive: false });
 canvas.addEventListener('touchend', e => {
   if (!gameActive || !touchStart) return;
-  if (!touchMoved && performance.now() - touchStart.t < 250) breakBlock();
+  if (gameMode === 'creative' && !touchMoved && performance.now() - touchStart.t < 250) breakBlock();
+  leftHeld = false; mining = null;
   touchStart = null;
 });
 
@@ -922,7 +959,7 @@ canvas.addEventListener('touchend', e => {
 // ============================================================
 const PALETTE = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.SAND, B.WOOD, B.PLANKS, B.LEAVES,
-  B.BRICK, B.GLASS, B.SNOW, B.ICE, B.OBSIDIAN, B.GOLD, B.COAL, B.DIAMOND, B.TABLE,
+  B.BRICK, B.GLASS, B.SNOW, B.ICE, B.OBSIDIAN, B.IRON, B.COAL, B.DIAMOND, B.TABLE,
 ];
 let selected = 0;
 
@@ -1074,32 +1111,71 @@ function selectedItemId() {
   return slot ? slot.id : null;
 }
 
+// Creative-mode instant break (used on click in creative)
 function breakBlock() {
   const hit = raycast();
   if (!hit) return;
   const b = getBlock(hit.x, hit.y, hit.z);
   if (b === B.AIR) return;
+  setBlock(hit.x, hit.y, hit.z, B.AIR);
+  rebuildMesh();
+  sfx.thud();
+}
 
-  if (gameMode === 'survival') {
+// Survival hold-to-mine state
+let mining = null; // { x, y, z, total, elapsed, lastTick }
+const miningBarEl = document.getElementById('miningBar');
+const miningBarFill = miningBarEl.querySelector('.fill');
+
+function updateMining(dt) {
+  if (gameMode !== 'survival' || !leftHeld) {
+    if (mining) { mining = null; miningBarEl.classList.remove('active'); }
+    return;
+  }
+  const hit = raycast();
+  if (!hit) { mining = null; miningBarEl.classList.remove('active'); return; }
+  const b = getBlock(hit.x, hit.y, hit.z);
+  if (b === B.AIR) { mining = null; miningBarEl.classList.remove('active'); return; }
+
+  // Start/restart if target changed
+  if (!mining || mining.x !== hit.x || mining.y !== hit.y || mining.z !== hit.z) {
     const needTier = BLOCK_TIER[b] || 0;
     const have = toolTier(selectedItemId());
     if (have < needTier) {
-      // Insufficient tool — bonk, don't break
-      sfx.tick(160, 0.05, 'square', 0.1);
+      // bonk and don't track
+      mining = null;
+      miningBarEl.classList.remove('active');
+      if (!leftHeldBonked) { sfx.tick(160, 0.05, 'square', 0.1); leftHeldBonked = true; }
       return;
     }
+    leftHeldBonked = false;
+    mining = { x: hit.x, y: hit.y, z: hit.z, total: miningTime(b, selectedItemId()), elapsed: 0, lastTick: 0 };
+  }
+
+  mining.elapsed += dt;
+  if (mining.elapsed - mining.lastTick > 0.13) {
+    sfx.tick(220 + Math.random() * 60, 0.03, 'square', 0.05);
+    mining.lastTick = mining.elapsed;
+  }
+
+  // Update bar
+  miningBarEl.classList.add('active');
+  miningBarFill.style.width = `${Math.min(100, (mining.elapsed / mining.total) * 100)}%`;
+
+  if (mining.elapsed >= mining.total) {
+    // Complete mining — drop + remove
     const drop = BLOCK_DROP[b] === undefined ? b : BLOCK_DROP[b];
     if (drop != null) invAdd(drop, 1);
-    setBlock(hit.x, hit.y, hit.z, B.AIR);
+    setBlock(mining.x, mining.y, mining.z, B.AIR);
     rebuildMesh();
     buildHotbar();
     sfx.thud();
-  } else {
-    setBlock(hit.x, hit.y, hit.z, B.AIR);
-    rebuildMesh();
-    sfx.thud();
+    mining = null;
+    miningBarEl.classList.remove('active');
   }
 }
+
+let leftHeldBonked = false;
 
 function placeBlock() {
   const hit = raycast();
@@ -1420,6 +1496,8 @@ function openCrafting() {
   craftingOpen = true;
   craftingEl.classList.remove('hidden');
   renderCrafting();
+  leftHeld = false; mining = null;
+  miningBarEl.classList.remove('active');
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
 function closeCrafting() {
@@ -1457,6 +1535,8 @@ function showMenu() {
   menuEl.classList.remove('hidden');
   if (craftingOpen) closeCrafting();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
+  leftHeld = false; mining = null;
+  miningBarEl.classList.remove('active');
 }
 function updateHint() {
   if (gameMode === 'survival') {
@@ -1480,6 +1560,7 @@ function loop(now) {
     updatePhysics(dt);
     updateCamera();
     updateHighlight();
+    updateMining(dt);
   }
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
