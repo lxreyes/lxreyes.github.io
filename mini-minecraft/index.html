@@ -228,6 +228,46 @@
   }
   #pauseBtn:hover { background: rgba(0,0,0,0.6); }
 
+  /* Hearts (player HP) */
+  .hearts { position: absolute; top: 14px; left: 14px; display: flex; gap: 2px; pointer-events: none; }
+  .hearts.hidden { display: none; }
+  .hearts canvas { width: 22px; height: 22px; image-rendering: pixelated; }
+  /* Day/night tag */
+  .day-tag {
+    position: absolute; top: 56px; left: 14px;
+    background: rgba(0,0,0,0.45); color: #fff; padding: 3px 9px;
+    border-radius: 4px; font-size: 10px; letter-spacing: 2px;
+    text-shadow: 1px 1px 0 #000; pointer-events: none;
+  }
+  .day-tag.hidden { display: none; }
+  .day-tag.night { background: rgba(40,30,80,0.7); color: #d5cfff; }
+  /* Death screen */
+  #deathScreen {
+    position: absolute; inset: 0; z-index: 9;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, rgba(120,0,0,0.5), rgba(20,0,0,0.92) 70%);
+    pointer-events: auto; font-family: 'Quicksand', system-ui, sans-serif;
+    animation: death-fade 0.4s ease;
+  }
+  @keyframes death-fade { from { opacity: 0; } to { opacity: 1; } }
+  #deathScreen.hidden { display: none; }
+  #deathScreen .panel { text-align: center; color: #fff; padding: 32px; }
+  #deathScreen h2 {
+    font-size: 56px; letter-spacing: 8px; color: #ff5555; font-weight: 700;
+    text-shadow: 3px 3px 0 #000, 0 0 24px rgba(255,80,80,0.6);
+    margin-bottom: 14px;
+  }
+  #deathScreen p { font-size: 14px; opacity: 0.85; margin-bottom: 22px; }
+  #deathScreen .respawn-btn {
+    font-family: inherit; font-size: 16px; font-weight: 700;
+    padding: 12px 28px; background: #5fc16d; color: #fff;
+    border: 0; border-radius: 14px; cursor: pointer; letter-spacing: 2px;
+    box-shadow: 0 4px 0 #3e9a4f;
+    transition: transform 0.12s;
+  }
+  #deathScreen .respawn-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #3e9a4f; }
+  #deathScreen .respawn-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3e9a4f; }
+
 
   /* Crafting modal */
   #crafting {
@@ -305,6 +345,15 @@
     <span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute
   </div>
   <div id="hotbar"></div>
+  <div id="hearts" class="hearts hidden"></div>
+  <div id="dayTag" class="day-tag hidden"></div>
+  <div id="deathScreen" class="hidden">
+    <div class="panel">
+      <h2>YOU DIED</h2>
+      <p>The zombies got you. Your inventory was lost.</p>
+      <button class="respawn-btn">RESPAWN</button>
+    </div>
+  </div>
   <button id="pauseBtn" title="Menu (Esc)">≡</button>
 </div>
 
@@ -391,33 +440,76 @@ const TRANSPARENT = new Set([B.GLASS, B.ICE]);
 const NUM_BLOCKS = 17;
 
 // Non-block items (IDs >= 100 to distinguish from blocks)
-const ITEM = { STICK: 100, WOOD_PICK: 101, STONE_PICK: 102, IRON_PICK: 103 };
+const ITEM = {
+  STICK: 100,
+  WOOD_PICK: 101,   STONE_PICK: 102,   IRON_PICK: 103,
+  WOOD_SWORD: 104,  STONE_SWORD: 105,  IRON_SWORD: 106,
+  WOOD_SHOVEL: 107, STONE_SHOVEL: 108, IRON_SHOVEL: 109,
+  WOOD_AXE: 110,    STONE_AXE: 111,    IRON_AXE: 112,
+  IRON_ARMOR: 113,
+};
 const ITEM_NAMES = {
   [ITEM.STICK]: 'Stick',
   [ITEM.WOOD_PICK]: 'Wooden Pickaxe',
   [ITEM.STONE_PICK]: 'Stone Pickaxe',
   [ITEM.IRON_PICK]: 'Iron Pickaxe',
+  [ITEM.WOOD_SWORD]: 'Wooden Sword',
+  [ITEM.STONE_SWORD]: 'Stone Sword',
+  [ITEM.IRON_SWORD]: 'Iron Sword',
+  [ITEM.WOOD_SHOVEL]: 'Wooden Shovel',
+  [ITEM.STONE_SHOVEL]: 'Stone Shovel',
+  [ITEM.IRON_SHOVEL]: 'Iron Shovel',
+  [ITEM.WOOD_AXE]: 'Wooden Axe',
+  [ITEM.STONE_AXE]: 'Stone Axe',
+  [ITEM.IRON_AXE]: 'Iron Axe',
+  [ITEM.IRON_ARMOR]: 'Iron Armor',
 };
 const isItem = (id) => id >= 100;
 const nameOf = (id) => isItem(id) ? ITEM_NAMES[id] : BLOCK_NAMES[id];
 
-// Tool tier (0=hand, 1=wood pick, 2=stone pick, 3=iron pick)
+// Tool material tier (0=hand, 1=wood, 2=stone, 3=iron)
+const _WOOD_TOOLS  = new Set([ITEM.WOOD_PICK,  ITEM.WOOD_SWORD,  ITEM.WOOD_SHOVEL,  ITEM.WOOD_AXE]);
+const _STONE_TOOLS = new Set([ITEM.STONE_PICK, ITEM.STONE_SWORD, ITEM.STONE_SHOVEL, ITEM.STONE_AXE]);
+const _IRON_TOOLS  = new Set([ITEM.IRON_PICK,  ITEM.IRON_SWORD,  ITEM.IRON_SHOVEL,  ITEM.IRON_AXE]);
 function toolTier(id) {
-  if (id === ITEM.WOOD_PICK) return 1;
-  if (id === ITEM.STONE_PICK) return 2;
-  if (id === ITEM.IRON_PICK) return 3;
+  if (_WOOD_TOOLS.has(id))  return 1;
+  if (_STONE_TOOLS.has(id)) return 2;
+  if (_IRON_TOOLS.has(id))  return 3;
   return 0;
 }
+// Tool type (pick / sword / shovel / axe / null)
+function toolType(id) {
+  if (id === ITEM.WOOD_PICK   || id === ITEM.STONE_PICK   || id === ITEM.IRON_PICK)   return 'pick';
+  if (id === ITEM.WOOD_SWORD  || id === ITEM.STONE_SWORD  || id === ITEM.IRON_SWORD)  return 'sword';
+  if (id === ITEM.WOOD_SHOVEL || id === ITEM.STONE_SHOVEL || id === ITEM.IRON_SHOVEL) return 'shovel';
+  if (id === ITEM.WOOD_AXE    || id === ITEM.STONE_AXE    || id === ITEM.IRON_AXE)    return 'axe';
+  return null;
+}
+function swordDamage(id) {
+  if (id === ITEM.WOOD_SWORD)  return 4;
+  if (id === ITEM.STONE_SWORD) return 5;
+  if (id === ITEM.IRON_SWORD)  return 7;
+  return 1; // bare hand
+}
 
-// Mining time (seconds) based on block hardness and tool tier
+// Preferred tool type per block — matching tool mines much faster
+const BLOCK_TOOL = {
+  [B.STONE]:'pick', [B.COBBLE]:'pick', [B.COAL]:'pick', [B.IRON]:'pick',
+  [B.BRICK]:'pick', [B.OBSIDIAN]:'pick', [B.DIAMOND]:'pick', [B.ICE]:'pick',
+  [B.DIRT]:'shovel', [B.GRASS]:'shovel', [B.SAND]:'shovel', [B.SNOW]:'shovel',
+  [B.WOOD]:'axe', [B.PLANKS]:'axe', [B.LEAVES]:'axe', [B.TABLE]:'axe',
+};
+
+// Mining time (seconds) — block hardness, tool tier bonus, tool-type bonus
 function miningTime(blockId, toolId) {
   const blockT = BLOCK_TIER[blockId] || 0;
   const toolT = toolTier(toolId);
   if (toolT < blockT) return Infinity;
   const BASE = [0.55, 1.0, 1.4, 2.0];
   const base = BASE[blockT];
-  const speedMul = 1 + (toolT - blockT) * 0.7;
-  return base / speedMul;
+  const tierMul = 1 + (toolT - blockT) * 0.7;
+  const typeMul = (BLOCK_TOOL[blockId] && BLOCK_TOOL[blockId] === toolType(toolId)) ? 1.9 : 1;
+  return base / (tierMul * typeMul);
 }
 // Min tier required to mine each block (default 0)
 const BLOCK_TIER = {
@@ -439,9 +531,24 @@ const RECIPES = [
   { in: [[B.WOOD, 1]],                          out: [B.PLANKS, 4],     table: false },
   { in: [[B.PLANKS, 2]],                        out: [ITEM.STICK, 4],   table: false },
   { in: [[B.PLANKS, 4]],                        out: [B.TABLE, 1],      table: false },
-  { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_PICK, 1],  table: true },
-  { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_PICK, 1], table: true },
-  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_PICK, 1],  table: true },
+  // Pickaxes
+  { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_PICK, 1],   table: true },
+  { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_PICK, 1],  table: true },
+  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_PICK, 1],   table: true },
+  // Swords
+  { in: [[B.PLANKS, 2], [ITEM.STICK, 1]],       out: [ITEM.WOOD_SWORD, 1],  table: true },
+  { in: [[B.COBBLE, 2], [ITEM.STICK, 1]],       out: [ITEM.STONE_SWORD, 1], table: true },
+  { in: [[B.IRON, 2],   [ITEM.STICK, 1]],       out: [ITEM.IRON_SWORD, 1],  table: true },
+  // Axes
+  { in: [[B.PLANKS, 3], [ITEM.STICK, 2]],       out: [ITEM.WOOD_AXE, 1],    table: true },
+  { in: [[B.COBBLE, 3], [ITEM.STICK, 2]],       out: [ITEM.STONE_AXE, 1],   table: true },
+  { in: [[B.IRON, 3],   [ITEM.STICK, 2]],       out: [ITEM.IRON_AXE, 1],    table: true },
+  // Shovels
+  { in: [[B.PLANKS, 1], [ITEM.STICK, 2]],       out: [ITEM.WOOD_SHOVEL, 1], table: true },
+  { in: [[B.COBBLE, 1], [ITEM.STICK, 2]],       out: [ITEM.STONE_SHOVEL, 1],table: true },
+  { in: [[B.IRON, 1],   [ITEM.STICK, 2]],       out: [ITEM.IRON_SHOVEL, 1], table: true },
+  // Armor
+  { in: [[B.IRON, 5], [B.PLANKS, 2]],           out: [ITEM.IRON_ARMOR, 1],  table: true },
 ];
 
 const world = new Uint8Array(WORLD_W * WORLD_H * WORLD_D);
@@ -698,26 +805,79 @@ function itemIcon(itemId) {
     cx.fillStyle = '#8b5a2b'; cx.fillRect(28, 8, 6, 48);
     cx.fillStyle = '#6a3f1c'; cx.fillRect(32, 10, 2, 44);
     cx.fillStyle = '#a87340'; cx.fillRect(29, 9, 1, 46);
-  } else {
-    const palette = {
-      [ITEM.WOOD_PICK]:  ['#a07238', '#6a4622'],
-      [ITEM.STONE_PICK]: ['#9a9a9a', '#5a5a5a'],
-      [ITEM.IRON_PICK]:  ['#d4d4d4', '#7a7a7a'],
-    }[itemId];
-    if (!palette) return c;
-    const [head, dark] = palette;
-    // Handle (stick)
+    return c;
+  }
+  // Pick material palette
+  let pal = null;
+  if (_WOOD_TOOLS.has(itemId))  pal = ['#a07238', '#6a4622'];
+  else if (_STONE_TOOLS.has(itemId)) pal = ['#9a9a9a', '#5a5a5a'];
+  else if (_IRON_TOOLS.has(itemId) || itemId === ITEM.IRON_ARMOR) pal = ['#d4d4d4', '#7a7a7a'];
+  if (!pal) return c;
+  const [head, dark] = pal;
+  const type = toolType(itemId);
+
+  // Common handle (stick) for tools
+  if (itemId !== ITEM.IRON_ARMOR) {
     cx.fillStyle = '#8b5a2b'; cx.fillRect(30, 26, 6, 32);
     cx.fillStyle = '#6a3f1c'; cx.fillRect(34, 28, 2, 28);
-    // Pickaxe head
+  }
+
+  if (type === 'pick') {
     cx.fillStyle = head;
     cx.fillRect(8, 10, 48, 8);
     cx.fillRect(22, 18, 20, 8);
     cx.fillStyle = dark;
     cx.fillRect(8, 16, 48, 2);
     cx.fillRect(22, 24, 20, 2);
-    cx.fillRect(8, 10, 2, 8);
-    cx.fillRect(54, 10, 2, 8);
+    cx.fillRect(8, 10, 2, 8); cx.fillRect(54, 10, 2, 8);
+  } else if (type === 'sword') {
+    // Long vertical blade with guard
+    cx.fillStyle = head;
+    cx.fillRect(28, 6, 8, 30);     // blade body
+    cx.fillRect(30, 4, 4, 2);       // tip
+    cx.fillRect(22, 36, 20, 4);     // guard
+    cx.fillStyle = dark;
+    cx.fillRect(28, 6, 2, 30);
+    cx.fillRect(34, 6, 2, 30);
+    cx.fillRect(22, 38, 20, 2);
+  } else if (type === 'shovel') {
+    // Square blade
+    cx.fillStyle = head;
+    cx.fillRect(22, 8, 20, 22);
+    cx.fillRect(26, 6, 12, 2);
+    cx.fillStyle = dark;
+    cx.fillRect(22, 28, 20, 2);
+    cx.fillRect(22, 8, 2, 22);
+    cx.fillRect(40, 8, 2, 22);
+    cx.fillRect(26, 14, 12, 1);
+  } else if (type === 'axe') {
+    // Asymmetric axe head, wider toward bottom
+    cx.fillStyle = head;
+    cx.fillRect(20, 8, 22, 6);
+    cx.fillRect(14, 12, 28, 14);
+    cx.fillRect(18, 26, 24, 4);
+    cx.fillStyle = dark;
+    cx.fillRect(14, 24, 28, 2);
+    cx.fillRect(14, 12, 2, 14);
+    cx.fillRect(40, 12, 2, 14);
+  } else if (itemId === ITEM.IRON_ARMOR) {
+    // Chestplate silhouette
+    cx.fillStyle = head;
+    cx.fillRect(14, 14, 36, 38);   // body
+    cx.fillRect(6, 18, 8, 28);     // left pauldron
+    cx.fillRect(50, 18, 8, 28);    // right pauldron
+    cx.fillStyle = dark;
+    cx.fillRect(14, 50, 36, 2);
+    cx.fillRect(14, 14, 2, 38);
+    cx.fillRect(48, 14, 2, 38);
+    cx.fillRect(6, 44, 8, 2);
+    cx.fillRect(50, 44, 8, 2);
+    // Neck cut-out
+    cx.fillStyle = '#222';
+    cx.fillRect(26, 14, 12, 6);
+    // Belt
+    cx.fillStyle = dark;
+    cx.fillRect(14, 36, 36, 2);
   }
   return c;
 }
@@ -1068,6 +1228,345 @@ crackMesh.visible = false;
 scene.add(crackMesh);
 
 // ============================================================
+// Day / night cycle
+// ============================================================
+const DAY_LENGTH = 300; // 5 minutes per full day-night cycle
+let worldTime = 60;     // seconds into day; start at morning
+
+const SKY_DAY    = new THREE.Color(0x88c8ff);
+const SKY_SUNSET = new THREE.Color(0xff9070);
+const SKY_NIGHT  = new THREE.Color(0x0c1430);
+function lerpColor(a, b, t) { return a.clone().lerp(b, Math.max(0, Math.min(1, t))); }
+function isNight() {
+  const t = worldTime / DAY_LENGTH;
+  return t >= 0.6 && t < 0.9;
+}
+function updateDayNight(dt) {
+  worldTime = (worldTime + dt) % DAY_LENGTH;
+  const t = worldTime / DAY_LENGTH;
+  let sky;
+  if (t < 0.45)      sky = SKY_DAY;
+  else if (t < 0.55) sky = lerpColor(SKY_DAY, SKY_SUNSET, (t - 0.45) / 0.10);
+  else if (t < 0.62) sky = lerpColor(SKY_SUNSET, SKY_NIGHT, (t - 0.55) / 0.07);
+  else if (t < 0.86) sky = SKY_NIGHT;
+  else if (t < 0.95) sky = lerpColor(SKY_NIGHT, SKY_SUNSET, (t - 0.86) / 0.09);
+  else               sky = lerpColor(SKY_SUNSET, SKY_DAY, (t - 0.95) / 0.05);
+  scene.background = sky;
+  scene.fog.color = sky;
+
+  const dayness = isNight() ? 0 : (t < 0.55 || t > 0.9 ? 1 : 0.4);
+  sun.intensity = 0.18 + dayness * 0.62;
+  ambient.intensity = 0.32 + dayness * 0.5;
+
+  // Update the day/night tag
+  if (gameMode === 'survival' && gameActive) {
+    const tag = isNight() ? 'NIGHT' : 'DAY';
+    dayTagEl.textContent = tag;
+    dayTagEl.classList.toggle('night', isNight());
+    dayTagEl.classList.remove('hidden');
+  } else {
+    dayTagEl.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// Player HP + hearts UI
+// ============================================================
+const heartsEl = document.getElementById('hearts');
+const dayTagEl = document.getElementById('dayTag');
+const deathScreenEl = document.getElementById('deathScreen');
+const MAX_HP = 20;
+let playerHP = MAX_HP;
+let lastHurt = 0;
+let dead = false;
+
+function makeHeartCanvas(state) { // 0 empty, 1 half, 2 full
+  const c = document.createElement('canvas');
+  c.width = c.height = 14;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  const outline = [
+    [3,2],[4,2],[8,2],[9,2],
+    [2,3],[5,3],[7,3],[10,3],
+    [2,4],[10,4],
+    [2,5],[10,5],
+    [3,6],[9,6],
+    [4,7],[8,7],
+    [5,8],[7,8],
+    [6,9],
+  ];
+  cx.fillStyle = '#000';
+  for (const [x,y] of outline) cx.fillRect(x, y, 1, 1);
+  if (state >= 1) {
+    const fillL = [[3,3],[4,3],[3,4],[4,4],[5,4],[3,5],[4,5],[5,5],[6,5],[4,6],[5,6],[6,6],[7,6],[5,7],[6,7],[7,7],[6,8]];
+    cx.fillStyle = '#dc2424';
+    for (const [x,y] of fillL) cx.fillRect(x, y, 1, 1);
+    // Highlight
+    cx.fillStyle = '#ff8080'; cx.fillRect(3, 3, 1, 1);
+  }
+  if (state >= 2) {
+    const fillR = [[8,3],[9,3],[7,4],[8,4],[9,4],[6,5],[7,5],[8,5],[9,5],[7,6],[8,6],[6,7],[7,7]];
+    cx.fillStyle = '#dc2424';
+    for (const [x,y] of fillR) cx.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
+const HEART_CANVAS = [makeHeartCanvas(0), makeHeartCanvas(1), makeHeartCanvas(2)];
+const HEART_DATA_URL = HEART_CANVAS.map(c => c.toDataURL());
+
+function renderHearts() {
+  if (gameMode !== 'survival' || !gameActive) { heartsEl.classList.add('hidden'); return; }
+  heartsEl.classList.remove('hidden');
+  heartsEl.innerHTML = '';
+  for (let i = 0; i < 10; i++) {
+    const hp = Math.max(0, Math.min(2, playerHP - i * 2));
+    const img = document.createElement('img');
+    img.src = HEART_DATA_URL[hp];
+    img.alt = '';
+    img.style.width = '22px';
+    img.style.height = '22px';
+    img.style.imageRendering = 'pixelated';
+    heartsEl.appendChild(img);
+  }
+}
+
+function getArmorDefense() {
+  for (const slot of inventory) if (slot && slot.id === ITEM.IRON_ARMOR) return 4;
+  return 0;
+}
+function damagePlayer(amount) {
+  if (dead || gameMode !== 'survival') return;
+  const def = getArmorDefense();
+  const taken = Math.max(1, amount - def);
+  playerHP = Math.max(0, playerHP - taken);
+  lastHurt = performance.now();
+  sfx.playerHurt();
+  renderHearts();
+  if (playerHP <= 0) playerDeath();
+}
+function healPlayer(amount) {
+  playerHP = Math.min(MAX_HP, playerHP + amount);
+  renderHearts();
+}
+function playerDeath() {
+  dead = true;
+  resetInventory();
+  buildHotbar();
+  deathScreenEl.classList.remove('hidden');
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  sfx.death();
+}
+function respawnPlayer() {
+  dead = false;
+  playerHP = MAX_HP;
+  // Force day on respawn so zombies despawn around the player
+  worldTime = 30;
+  // Clear zombies near spawn
+  for (const z of zombies) z.die();
+  zombies.length = 0;
+  spawnPlayer();
+  deathScreenEl.classList.add('hidden');
+  renderHearts();
+  if (gameActive) canvas.requestPointerLock();
+}
+document.querySelector('#deathScreen .respawn-btn').addEventListener('click', respawnPlayer);
+
+// ============================================================
+// Zombies — simple AABB entity, AI to chase player
+// ============================================================
+const zombies = [];
+let lastZombieSpawn = 0;
+const ZOMBIE_MAX = 6;
+const ZOMBIE_SPAWN_COOLDOWN = 4500; // ms
+
+function findGroundY(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  if (!inBounds(xi, 0, zi)) return 0;
+  for (let y = WORLD_H - 1; y >= 0; y--) {
+    if (isSolid(getBlock(xi, y, zi))) return y + 1;
+  }
+  return 0;
+}
+
+class Zombie {
+  constructor(x, y, z) {
+    this.pos = new THREE.Vector3(x, y, z);
+    this.vel = new THREE.Vector3();
+    this.hp = 16;
+    this.lastAttack = 0;
+    this.dead = false;
+    this.onGround = false;
+
+    this.group = new THREE.Group();
+    const skin = 0x4f7a3a;
+    const skinDark = 0x375828;
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 1.0, 0.32),
+      new THREE.MeshLambertMaterial({ color: skin })
+    );
+    body.position.y = 0.5;
+    this.group.add(body);
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.45, 0.45),
+      new THREE.MeshLambertMaterial({ color: skinDark })
+    );
+    head.position.y = 1.25;
+    this.group.add(head);
+    const armL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.7, 0.18),
+      new THREE.MeshLambertMaterial({ color: skin })
+    );
+    armL.position.set(-0.36, 0.7, 0); this.group.add(armL);
+    const armR = armL.clone(); armR.position.x = 0.36; this.group.add(armR);
+    const legL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.5, 0.22),
+      new THREE.MeshLambertMaterial({ color: skinDark })
+    );
+    legL.position.set(-0.14, 0, 0); this.group.add(legL);
+    const legR = legL.clone(); legR.position.x = 0.14; this.group.add(legR);
+    // store for animation
+    this.armL = armL; this.armR = armR;
+    this.legL = legL; this.legR = legR;
+
+    scene.add(this.group);
+    this.refresh();
+  }
+  refresh() {
+    this.group.position.copy(this.pos);
+    this.group.lookAt(player.pos.x, this.pos.y, player.pos.z);
+  }
+  takeDamage(dmg, fromX, fromZ) {
+    this.hp -= dmg;
+    sfx.zombieHit();
+    // Knockback
+    const dx = this.pos.x - fromX, dz = this.pos.z - fromZ;
+    const d = Math.hypot(dx, dz) || 1;
+    this.vel.x += (dx / d) * 4;
+    this.vel.z += (dz / d) * 4;
+    if (this.hp <= 0) this.die();
+  }
+  die() {
+    if (this.dead) return;
+    this.dead = true;
+    scene.remove(this.group);
+    sfx.zombieDie();
+  }
+  update(dt, now) {
+    if (this.dead) return;
+
+    // Daylight burns zombies after a delay
+    if (!isNight() && Math.random() < 0.012) { this.die(); return; }
+
+    const dx = player.pos.x - this.pos.x;
+    const dz = player.pos.z - this.pos.z;
+    const horizDist = Math.hypot(dx, dz);
+
+    // Despawn if very far from player
+    if (horizDist > 36) { this.die(); return; }
+
+    const SPEED = 1.7;
+    if (horizDist > 1.05) {
+      this.vel.x = (dx / horizDist) * SPEED;
+      this.vel.z = (dz / horizDist) * SPEED;
+    } else {
+      this.vel.x *= 0.6; this.vel.z *= 0.6;
+      if (gameMode === 'survival' && now - this.lastAttack > 1100) {
+        damagePlayer(3);
+        this.lastAttack = now;
+      }
+    }
+
+    // Gravity
+    this.vel.y -= 24 * dt;
+    if (this.vel.y < -40) this.vel.y = -40;
+
+    // Tentative position
+    let nx = this.pos.x + this.vel.x * dt;
+    let nz = this.pos.z + this.vel.z * dt;
+    let ny = this.pos.y + this.vel.y * dt;
+
+    // Clamp horizontally to world bounds
+    nx = Math.max(0.3, Math.min(WORLD_W - 0.3, nx));
+    nz = Math.max(0.3, Math.min(WORLD_D - 0.3, nz));
+
+    // Snap to ground level
+    const ground = findGroundY(nx, nz);
+    if (ny < ground) { ny = ground; this.vel.y = 0; this.onGround = true; }
+    else this.onGround = false;
+
+    // If a solid block is in the way at body level, try to step up; else just stop horizontally
+    const bodyY = Math.floor(ny + 0.5);
+    if (isSolid(getBlock(Math.floor(nx), bodyY, Math.floor(nz)))) {
+      // try to climb 1 block
+      const above = findGroundY(nx, nz);
+      if (above - this.pos.y <= 1.05) ny = above;
+      else { nx = this.pos.x; nz = this.pos.z; }
+    }
+
+    this.pos.set(nx, ny, nz);
+
+    // Walk wiggle
+    const phase = (now / 220) % (Math.PI * 2);
+    const wig = Math.sin(phase) * 0.35;
+    this.legL.rotation.x =  wig;
+    this.legR.rotation.x = -wig;
+    this.armL.rotation.x = -wig * 0.6;
+    this.armR.rotation.x =  wig * 0.6;
+
+    // Occasional groan
+    if (now - (this._lastGroan || 0) > 4000 + Math.random() * 4000) {
+      sfx.zombieGroan();
+      this._lastGroan = now;
+    }
+
+    this.refresh();
+  }
+}
+
+function trySpawnZombie(now) {
+  if (gameMode !== 'survival' || dead) return;
+  if (!isNight()) return;
+  if (now - lastZombieSpawn < ZOMBIE_SPAWN_COOLDOWN) return;
+  if (zombies.filter(z => !z.dead).length >= ZOMBIE_MAX) return;
+  for (let a = 0; a < 12; a++) {
+    const x = 1 + Math.random() * (WORLD_W - 2);
+    const z = 1 + Math.random() * (WORLD_D - 2);
+    const dist = Math.hypot(x - player.pos.x, z - player.pos.z);
+    if (dist < 10 || dist > 28) continue;
+    const y = findGroundY(x, z);
+    if (y < 2) continue;
+    zombies.push(new Zombie(x, y + 0.05, z));
+    lastZombieSpawn = now;
+    return;
+  }
+}
+
+function attackTargetZombie() {
+  // Raycast from camera and find any zombie within 4 blocks in a small cone
+  const origin = new THREE.Vector3(player.pos.x, player.pos.y + player.eyeHeight, player.pos.z);
+  const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
+  let best = null, bestDist = 4;
+  for (const z of zombies) {
+    if (z.dead) continue;
+    const center = new THREE.Vector3(z.pos.x, z.pos.y + 1.0, z.pos.z);
+    const toZ = center.clone().sub(origin);
+    const dist = toZ.length();
+    if (dist > bestDist) continue;
+    toZ.normalize();
+    const cos = toZ.dot(dir);
+    if (cos < 0.85) continue; // within ~32° cone
+    if (dist < bestDist) { best = z; bestDist = dist; }
+  }
+  if (best) {
+    const dmg = swordDamage(selectedItemId());
+    best.takeDamage(dmg, player.pos.x, player.pos.z);
+    sfx.swing();
+    return true;
+  }
+  return false;
+}
+
+// ============================================================
 // Player
 // ============================================================
 const player = {
@@ -1158,7 +1657,10 @@ canvas.addEventListener('mousedown', e => {
   }
   if (e.button === 0) {
     if (gameMode === 'creative') breakBlock();
-    else leftHeld = true; // survival: hold to mine
+    else {
+      // Survival: try attacking a zombie first; otherwise start mining
+      if (!attackTargetZombie()) leftHeld = true;
+    }
   } else if (e.button === 2) {
     placeBlock();
     e.preventDefault();
@@ -1362,6 +1864,8 @@ function saveCurrentWorld() {
       yaw: player.yaw, pitch: player.pitch,
     },
     inventory: inventory.map(s => s ? { id: s.id, count: s.count } : null),
+    hp: playerHP,
+    worldTime: worldTime,
     lastPlayed: Date.now(),
   });
 }
@@ -1771,6 +2275,105 @@ const sfx = {
     n.connect(f); f.connect(g); g.connect(ctx.destination);
     n.start(t0); n.stop(t0 + 0.06);
   },
+
+  // ---- combat ----
+  swing() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(), buf = getNoiseBuffer();
+    if (!buf) return;
+    const t0 = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = buf; n.playbackRate.value = 1.6;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 2800; f.Q.value = 1.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.07, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+    n.connect(f); f.connect(g); g.connect(ctx.destination);
+    n.start(t0); n.stop(t0 + 0.14);
+  },
+  playerHurt() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(); const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'square';
+    o.frequency.setValueAtTime(220, t0);
+    o.frequency.exponentialRampToValueAtTime(140, t0 + 0.12);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.18, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.16);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 0.18);
+  },
+  zombieHit() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(), buf = getNoiseBuffer();
+    if (!buf) return;
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(360, t0);
+    o.frequency.exponentialRampToValueAtTime(120, t0 + 0.12);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0, t0); og.gain.linearRampToValueAtTime(0.18, t0 + 0.005);
+    og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
+    o.connect(og); og.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 0.18);
+    const n = ctx.createBufferSource();
+    n.buffer = buf; n.playbackRate.value = 0.7;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 600; f.Q.value = 2;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0, t0); ng.gain.linearRampToValueAtTime(0.09, t0 + 0.005);
+    ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+    n.connect(f); f.connect(ng); ng.connect(ctx.destination);
+    n.start(t0); n.stop(t0 + 0.14);
+  },
+  zombieDie() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(); const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(180, t0);
+    o.frequency.exponentialRampToValueAtTime(40, t0 + 0.45);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 500;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.18, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    o.connect(f); f.connect(g); g.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 0.55);
+  },
+  zombieGroan() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(); const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    const base = 70 + Math.random() * 30;
+    o.frequency.setValueAtTime(base, t0);
+    o.frequency.linearRampToValueAtTime(base * 1.3, t0 + 0.3);
+    o.frequency.linearRampToValueAtTime(base, t0 + 0.7);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 350;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.07, t0 + 0.1);
+    g.gain.linearRampToValueAtTime(0.05, t0 + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.85);
+    o.connect(f); f.connect(g); g.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 0.9);
+  },
+  death() {
+    if (!gameActive) return;
+    const ctx = ensureAudio(); const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'square';
+    o.frequency.setValueAtTime(440, t0);
+    o.frequency.exponentialRampToValueAtTime(55, t0 + 1.0);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.1);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 1.15);
+  },
 };
 
 const music = {
@@ -1993,7 +2596,7 @@ const hintEl = document.getElementById('hint');
 const worldListEl = document.getElementById('worldList');
 
 function startWorld(data) {
-  // data: { id, name, mode, seed, world?, player?, inventory? }
+  // data: { id, name, mode, seed, world?, player?, inventory?, hp?, worldTime? }
   currentWorld = { id: data.id, name: data.name, mode: data.mode, seed: data.seed };
   gameMode = data.mode;
   selected = 0;
@@ -2022,8 +2625,18 @@ function startWorld(data) {
     resetInventory();
   }
 
+  // Reset combat / time state
+  playerHP = data.hp != null && data.hp > 0 ? data.hp : MAX_HP;
+  worldTime = data.worldTime != null ? data.worldTime : 60;
+  dead = false;
+  deathScreenEl.classList.add('hidden');
+  for (const z of zombies) z.die();
+  zombies.length = 0;
+  lastZombieSpawn = 0;
+
   rebuildMesh();
   buildHotbar();
+  renderHearts();
   updateHint();
   ensureAudio();
   music.start();
@@ -2049,13 +2662,15 @@ function loadWorldById(id) {
 }
 
 function showMenu() {
-  if (gameActive && currentWorld) saveCurrentWorld();
+  if (gameActive && currentWorld && !dead) saveCurrentWorld();
   gameActive = false;
   menuEl.classList.remove('hidden');
   if (craftingOpen) closeCrafting();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   leftHeld = false; mining = null;
   hideCracks();
+  heartsEl.classList.add('hidden');
+  dayTagEl.classList.add('hidden');
   populateWorldList();
 }
 
@@ -2147,9 +2762,9 @@ confirmModalEl.addEventListener('click', e => {
 
 populateWorldList();
 
-// Auto-save on tab close / reload
+// Auto-save on tab close / reload (skip if dead so we keep the pre-death save)
 window.addEventListener('beforeunload', () => {
-  if (gameActive && currentWorld) saveCurrentWorld();
+  if (gameActive && currentWorld && !dead) saveCurrentWorld();
 });
 
 // ============================================================
@@ -2161,10 +2776,21 @@ function loop(now) {
   lastT = now;
 
   if (gameActive && !craftingOpen) {
-    updatePhysics(dt);
-    updateCamera();
-    updateHighlight();
-    updateMining(dt);
+    if (!dead) {
+      updatePhysics(dt);
+      updateCamera();
+      updateHighlight();
+      updateMining(dt);
+    }
+    updateDayNight(dt);
+    if (gameMode === 'survival' && !dead) {
+      trySpawnZombie(now);
+      for (const z of zombies) z.update(dt, now);
+      // Clean up dead zombies occasionally
+      if (Math.random() < 0.05) {
+        for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].dead) zombies.splice(i, 1);
+      }
+    }
   }
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
