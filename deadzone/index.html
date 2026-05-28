@@ -1103,19 +1103,21 @@ const PETS = {
     orbitRadius: 60, orbitSpeed: 2.4,
     desc: 'Orbits you · auto-shoots the nearest threat',
   },
-  // Apex pet — the dragon. Kites at long range and breathes a sustained
-  // laser-ray every few seconds (a tight burst of high-pierce laser bullets
-  // that read as a single red beam). Extremely expensive — meant to be the
-  // capstone "save up your whole run" purchase. Drawn larger than other pets.
+  // Apex pet — the dragon. Kites at long range and snipes with a single
+  // bright laser shot every few seconds. Uses bulletKind 'rail' (tapered
+  // streak + white core + glow) so the shot reads as one continuous
+  // energy beam crossing the screen instantly, not a spray of projectiles.
+  // Extremely expensive — capstone "save up your whole run" purchase.
   dragon: {
     name: 'Dragon',      color: '#c83020', cost: 9000,
-    kind: 'beam', speed: 140, dmg: 40, attackCd: 3.5, range: 520,
+    kind: 'beam', speed: 140, dmg: 200, attackCd: 3.5, range: 520,
     keepDistance: 320,                    // stay at standoff range, don't charge
     drawSize: 44,                         // bigger than other pets in-world
-    bulletSpeed: 620, bulletLife: 1.3, bulletColor: '#ff5050',
-    beamShots: 5, spread: 0.03,           // fewer, tighter shots — reads as a ray
-    bulletKindOverride: 'laser',          // laser streak render instead of flame puffs
-    desc: 'Apex companion · keeps distance · breathes a long red ray',
+    bulletSpeed: 1400, bulletLife: 0.5,   // very fast — near-instant cross-screen
+    bulletColor: '#ff5050',
+    beamShots: 1, spread: 0,              // single straight shot — pure laser
+    bulletKindOverride: 'rail',           // railgun streak render = "laser"
+    desc: 'Apex companion · keeps distance · fires a single huge laser blast',
   },
 };
 const PET_KEYS = Object.keys(PETS);
