@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>BALL BOUNCE</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; width: 100%;
+    background: #0a0014;
+    color: #f0f;
+    font-family: 'Courier New', ui-monospace, monospace;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  #wrap {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px; padding: 16px; height: calc(100% - 32px);
+    justify-content: center;
+  }
+  h1 {
+    margin: 0; font-size: 22px; letter-spacing: 10px;
+    color: #f0f;
+    text-shadow: 0 0 8px #f0f, 0 0 16px #f0f, 0 0 28px #b0f;
+  }
+  .sub {
+    font-size: 12px; letter-spacing: 2px;
+    color: #6ff;
+    text-shadow: 0 0 6px #0ff;
+  }
+  canvas {
+    display: block;
+    background: #08000f;
+    border-radius: 4px;
+    box-shadow:
+      0 0 0 1px #2a0040,
+      0 0 24px rgba(255, 0, 255, 0.25),
+      0 0 48px rgba(0, 255, 255, 0.15);
+    image-rendering: pixelated;
+  }
+  kbd {
+    background: rgba(255,0,255,0.15); padding: 1px 6px; border-radius: 3px;
+    border: 1px solid rgba(255,0,255,0.5);
+    font-family: 'Courier New', monospace; font-size: 11px;
+    color: #fcf;
+    text-shadow: 0 0 4px #f0f;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>B A L L &nbsp; B O U N C E</h1>
+  <div class="sub">press <kbd>SPACE</kbd> the moment the ball touches a platform</div>
+  <canvas id="c" width="800" height="600"></canvas>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height;
+
+// ---------- Game state ----------
+const WALL_X_LEFT = 240;
+const WALL_X_RIGHT = W - 240;
+
+// 3 platforms per side, evenly spaced along a vertical loop of length
+// (H + h) — when one scrolls fully off one edge it reappears at the
+// other, so the column reads as a continuous conveyor.
+const PLATFORMS_PER_SIDE = 3;
+const PLATFORM_H = 70;
+const LOOP_LEN = H + PLATFORM_H;
+
+function makePlatforms() {
+  const ps = [];
+  const spacing = LOOP_LEN / PLATFORMS_PER_SIDE;
+  for (let i = 0; i < PLATFORMS_PER_SIDE; i++) {
+    ps.push({ side: 'left',  y: i * spacing,            h: PLATFORM_H, speed: 2.4, dir: 1  });
+    ps.push({ side: 'right', y: i * spacing + spacing/2, h: PLATFORM_H, speed: 2.4, dir: -1 });
+  }
+  return ps;
+}
+
+const state = {
+  ball: { x: WALL_X_LEFT + 11, y: H / 2, vx: 0, vy: 0, r: 10 },
+  platforms: makePlatforms(),
+  score: 0,
+  best: 0,
+  gameOver: false,
+  starting: true,
+  trail: [], // {x,y,age}
+  particles: [], // {x,y,vx,vy,life,color}
+  flash: 0,
+  shake: 0,
+  scanlinePhase: 0,
+};
+
+// ---------- Input ----------
+const input = { spacePressed: false, spaceJustPressed: false };
+
+function launch() {
+  // Inherit a tiny vy from the platform's current direction so the launch
+  // feels reactive — push off "with" the platform's motion.
+  const p = state.platforms[0];
+  state.ball.vx = 4;
+  state.ball.vy = p.speed * p.dir * 0.4;
+  state.starting = false;
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!input.spacePressed) input.spaceJustPressed = true;
+    input.spacePressed = true;
+    if (state.gameOver) restart();
+    else if (state.starting) launch();
+  }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') input.spacePressed = false;
+});
+// Tap-to-bounce for touch / mouse — easier on laptops without keyboards
+c.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  input.spaceJustPressed = true;
+  input.spacePressed = true;
+  if (state.gameOver) restart();
+  else if (state.starting) launch();
+});
+c.addEventListener('pointerup', () => { input.spacePressed = false; });
+
+// Platform is drawn 10px wide, centered on the wall — its inner face is at
+// WALL_X_LEFT + 5 (or WALL_X_RIGHT - 5). Park the ball flush against that
+// inner face on start so it visibly rests on the platform.
+const PLATFORM_HALF_W = 5;
+
+function restart() {
+  state.platforms = makePlatforms();
+  state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
+  state.ball.y = state.platforms[0].y;
+  state.ball.vx = 0;
+  state.ball.vy = 0;
+  state.score = 0;
+  state.gameOver = false;
+  state.starting = true;
+  state.trail.length = 0;
+  state.particles.length = 0;
+  state.flash = 0;
+  state.shake = 0;
+}
+
+// ---------- Update ----------
+function update(dt) {
+  state.scanlinePhase = (state.scanlinePhase + dt * 60) % H;
+
+  // Move platforms continuously, even on start screen. Each platform
+  // scrolls in a fixed direction and wraps around the LOOP_LEN window so
+  // it slides through the ceiling/floor and reappears at the opposite end.
+  for (const p of state.platforms) {
+    p.y += p.speed * p.dir;
+    if (p.y > H + p.h / 2)  p.y -= LOOP_LEN;
+    if (p.y < -p.h / 2)     p.y += LOOP_LEN;
+  }
+
+  if (state.starting) {
+    // Ride the first left platform until launch.
+    state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
+    state.ball.y = state.platforms[0].y;
+    input.spaceJustPressed = false;
+    state.flash = Math.max(0, state.flash - dt * 4);
+    state.shake = Math.max(0, state.shake - dt * 60);
+    return;
+  }
+  if (state.gameOver) {
+    input.spaceJustPressed = false;
+    state.flash = Math.max(0, state.flash - dt * 4);
+    state.shake = Math.max(0, state.shake - dt * 60);
+    return;
+  }
+
+  const b = state.ball;
+  b.x += b.vx;
+  b.y += b.vy;
+  // gentle vertical drift damping
+  b.vy *= 0.995;
+
+  // Add to trail
+  state.trail.push({ x: b.x, y: b.y, age: 0 });
+  if (state.trail.length > 24) state.trail.shift();
+  for (const t of state.trail) t.age += dt;
+
+  // Particles
+  for (const part of state.particles) {
+    part.x += part.vx;
+    part.y += part.vy;
+    part.vx *= 0.96;
+    part.vy *= 0.96;
+    part.life -= dt;
+  }
+  state.particles = state.particles.filter(p => p.life > 0);
+
+  // Wall + platform collision. Detect which wall the ball overlaps,
+  // then look for ANY platform on that side whose y-range contains the ball.
+  let wallSide = null;
+  if (b.x - b.r <= WALL_X_LEFT) wallSide = 'left';
+  else if (b.x + b.r >= WALL_X_RIGHT) wallSide = 'right';
+
+  if (wallSide) {
+    let hit = null;
+    for (const p of state.platforms) {
+      if (p.side !== wallSide) continue;
+      if (b.y >= p.y - p.h / 2 && b.y <= p.y + p.h / 2) { hit = p; break; }
+    }
+    if (hit && input.spaceJustPressed) {
+      bounceOff(hit);
+    } else {
+      const pastWall =
+        (wallSide === 'left' && b.x + b.r < WALL_X_LEFT) ||
+        (wallSide === 'right' && b.x - b.r > WALL_X_RIGHT);
+      if (pastWall) endGame();
+    }
+  }
+
+  // Soft top/bottom rails so the ball can't escape the playfield vertically.
+  if (b.y - b.r < 10) { b.y = 10 + b.r; b.vy = Math.abs(b.vy) || 1; }
+  if (b.y + b.r > H - 10) { b.y = H - 10 - b.r; b.vy = -(Math.abs(b.vy) || 1); }
+
+  state.flash = Math.max(0, state.flash - dt * 4);
+  state.shake = Math.max(0, state.shake - dt * 60);
+  input.spaceJustPressed = false;
+}
+
+function bounceOff(p) {
+  const b = state.ball;
+  // Reverse horizontal, nudge vy based on hit position (Pong-style)
+  const rel = (b.y - p.y) / (p.h / 2); // -1 at top, 1 at bottom
+  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.18);
+  b.vy = rel * 3.2;
+  // Clamp so it doesn't get insane
+  b.vx = Math.max(-12, Math.min(12, b.vx));
+  b.vy = Math.max(-6, Math.min(6, b.vy));
+  // Push ball off the platform's inner face so it doesn't re-trigger and
+  // doesn't visibly clip into the bumper.
+  if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r + 1;
+  else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r - 1;
+
+  state.score++;
+  if (state.score > state.best) state.best = state.score;
+
+  // Ramp difficulty
+  for (const pp of state.platforms) {
+    pp.speed = Math.min(7, pp.speed + 0.12);
+    pp.h = Math.max(40, pp.h - 1.6);
+  }
+
+  // FX
+  state.flash = 0.5;
+  state.shake = 6;
+  spawnBurst(p.side === 'left' ? WALL_X_LEFT : WALL_X_RIGHT, b.y, '#0ff');
+}
+
+function endGame() {
+  if (state.gameOver) return;
+  state.gameOver = true;
+  state.flash = 1;
+  state.shake = 18;
+  spawnBurst(state.ball.x, state.ball.y, '#f0f');
+}
+
+function spawnBurst(x, y, color) {
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 1 + Math.random() * 4;
+    state.particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: 0.4 + Math.random() * 0.5,
+      color,
+    });
+  }
+}
+
+// ---------- Render ----------
+function draw() {
+  // Shake
+  const sx = (Math.random() - 0.5) * state.shake;
+  const sy = (Math.random() - 0.5) * state.shake;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // Background
+  ctx.fillStyle = '#08000f';
+  ctx.fillRect(-20, -20, W + 40, H + 40);
+
+  // Grid lines (subtle)
+  ctx.strokeStyle = 'rgba(120, 0, 180, 0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 40) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, H);
+  }
+  for (let y = 0; y <= H; y += 40) {
+    ctx.moveTo(0, y); ctx.lineTo(W, y);
+  }
+  ctx.stroke();
+
+  // Walls (left/right neon strips)
+  drawWall(WALL_X_LEFT, '#f0f');
+  drawWall(WALL_X_RIGHT, '#f0f');
+
+  // Platforms
+  for (const p of state.platforms) {
+    const x = p.side === 'left' ? WALL_X_LEFT : WALL_X_RIGHT;
+    drawPlatform(x, p.y, p.h, p.side);
+  }
+
+  // Trail
+  for (let i = 0; i < state.trail.length; i++) {
+    const t = state.trail[i];
+    const a = i / state.trail.length;
+    ctx.globalAlpha = a * 0.5;
+    ctx.fillStyle = '#f0f';
+    ctx.shadowColor = '#f0f';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, state.ball.r * a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  // Particles
+  for (const p of state.particles) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5));
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  // Ball
+  ctx.save();
+  ctx.shadowColor = '#f0f';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(state.ball.x, state.ball.y, state.ball.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#f0f';
+  ctx.beginPath();
+  ctx.arc(state.ball.x, state.ball.y, state.ball.r * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Flash overlay
+  if (state.flash > 0) {
+    ctx.fillStyle = `rgba(255, 0, 255, ${state.flash * 0.18})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Score (top center)
+  ctx.font = 'bold 64px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#0ff';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = '#0ff';
+  ctx.fillText(String(state.score).padStart(3, '0'), W / 2, 80);
+  ctx.shadowBlur = 0;
+
+  // Best
+  ctx.font = '12px "Courier New", monospace';
+  ctx.fillStyle = '#6ff';
+  ctx.fillText(`BEST ${String(state.best).padStart(3, '0')}`, W / 2, 100);
+
+  // Overlays
+  if (state.starting) {
+    drawCenterMessage('READY', 'press SPACE to launch');
+  } else if (state.gameOver) {
+    drawCenterMessage('GAME OVER', 'press SPACE to retry');
+  }
+
+  // Scanlines
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = '#fff';
+  for (let y = 0; y < H; y += 3) {
+    ctx.fillRect(0, y, W, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawWall(x, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, H);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlatform(x, y, h, side) {
+  const w = 10;
+  const px = side === 'left' ? x - w / 2 : x - w / 2;
+  ctx.save();
+  ctx.shadowColor = '#0ff';
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = '#0ff';
+  ctx.fillRect(px, y - h / 2, w, h);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(px + 3, y - h / 2 + 4, w - 6, h - 8);
+  ctx.restore();
+}
+
+function drawCenterMessage(big, small) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,0,15,0.55)';
+  ctx.fillRect(0, H / 2 - 80, W, 160);
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 48px "Courier New", monospace';
+  ctx.shadowColor = '#f0f';
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = '#f0f';
+  ctx.fillText(big, W / 2, H / 2 - 6);
+
+  ctx.font = '14px "Courier New", monospace';
+  ctx.shadowColor = '#0ff';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#0ff';
+  ctx.fillText(small, W / 2, H / 2 + 30);
+  ctx.restore();
+}
+
+// ---------- Loop ----------
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
