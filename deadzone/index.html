@@ -1103,16 +1103,19 @@ const PETS = {
     orbitRadius: 60, orbitSpeed: 2.4,
     desc: 'Orbits you · auto-shoots the nearest threat',
   },
-  // Apex pet — the dragon. Lumbering and slow, but every few seconds it
-  // breathes a long flame beam: a salvo of high-pierce flame puffs that
-  // rip through anything in a line. Extremely expensive — meant to be the
-  // capstone "save up your whole run" purchase.
+  // Apex pet — the dragon. Kites at long range and breathes a sustained
+  // laser-ray every few seconds (a tight burst of high-pierce laser bullets
+  // that read as a single red beam). Extremely expensive — meant to be the
+  // capstone "save up your whole run" purchase. Drawn larger than other pets.
   dragon: {
     name: 'Dragon',      color: '#c83020', cost: 9000,
-    kind: 'beam', speed: 140, dmg: 22, attackCd: 3.5, range: 460,
-    bulletSpeed: 560, bulletLife: 1.2, bulletColor: '#ff8030',
-    beamShots: 10, spread: 0.10,
-    desc: 'Apex companion · breathes a long flame beam every few seconds',
+    kind: 'beam', speed: 140, dmg: 40, attackCd: 3.5, range: 520,
+    keepDistance: 320,                    // stay at standoff range, don't charge
+    drawSize: 44,                         // bigger than other pets in-world
+    bulletSpeed: 620, bulletLife: 1.3, bulletColor: '#ff5050',
+    beamShots: 5, spread: 0.03,           // fewer, tighter shots — reads as a ray
+    bulletKindOverride: 'laser',          // laser streak render instead of flame puffs
+    desc: 'Apex companion · keeps distance · breathes a long red ray',
   },
 };
 const PET_KEYS = Object.keys(PETS);
@@ -5578,14 +5581,24 @@ function updatePets(dt) {
     } else {
       // Decide what to home toward: a target zombie if any, else the player
       // (with a small lag distance so the pet doesn't sit on top of them).
+      // If def.keepDistance is set, the pet kites — approaches when too far,
+      // backs away when too close. Used by the dragon's stand-off ray.
       let tx, ty, arriveR;
-      if (near) { tx = near.x; ty = near.y; arriveR = (def.hitR || 8) + near.r; }
+      if (near) { tx = near.x; ty = near.y; arriveR = def.keepDistance || (def.hitR || 8) + near.r; }
       else      { tx = player.x; ty = player.y; arriveR = 40; }
       const dx = tx - p.x, dy = ty - p.y;
       const d = Math.hypot(dx, dy) || 1;
-      if (d > arriveR) {
+      const tolerance = 30;
+      if (d > arriveR + tolerance) {
+        // Too far — move toward target
         p.x += (dx / d) * def.speed * dt;
         p.y += (dy / d) * def.speed * dt;
+      } else if (near && def.keepDistance && d < arriveR - tolerance) {
+        // Kiting pet too close to its target — back away (only when there's
+        // an actual zombie to kite from; when idle following the player,
+        // settling within arriveR is fine).
+        p.x -= (dx / d) * def.speed * dt;
+        p.y -= (dy / d) * def.speed * dt;
       }
       // Save aim heading for the sprite
       p.heading = Math.atan2(dy, dx);
@@ -5612,22 +5625,25 @@ function updatePets(dt) {
           }
         }
       } else if (def.kind === 'beam') {
-        // Long flamethrower beam — salvo of high-pierce flame puffs along the
-        // line to the target. Each puff has pierce: 99 so the volley reads as
-        // a continuous beam ripping through crowds. Spawned from the dragon's
-        // muzzle (offset along the aim vector) with slight angular spread.
+        // Sustained ray — fires a tight salvo of high-pierce laser streaks
+        // along the line to the target. With tiny spread + the 'laser'
+        // bulletKind (long red streak + halo), the volley reads as a single
+        // continuous beam rather than discrete shots. Spawned from the
+        // dragon's muzzle (offset along the aim vector).
         const dx = near.x - p.x, dy = near.y - p.y;
         const d = Math.hypot(dx, dy) || 1;
         const ux = dx / d, uy = dy / d;
-        const N = def.beamShots || 10;
-        const spread = def.spread || 0.08;
-        const muzzleR = (def.hitR || 14) + 4;
+        const N = def.beamShots || 5;
+        const spread = def.spread || 0.03;
+        const muzzleR = (def.hitR || 14) + 8;
+        const kind = def.bulletKindOverride || 'flame';
         for (let k = 0; k < N; k++) {
           const a = (Math.random() - 0.5) * spread;
           const cs = Math.cos(a), sn = Math.sin(a);
           const vx = (ux * cs - uy * sn) * def.bulletSpeed;
           const vy = (ux * sn + uy * cs) * def.bulletSpeed;
-          // Slight life jitter so the puffs read as a stream, not a single instant
+          // Slight life jitter so the streaks read as a sustained beam,
+          // not a single instant flash.
           bullets.push({
             x: p.x + ux * muzzleR, y: p.y + uy * muzzleR,
             vx, vy,
@@ -5636,7 +5652,7 @@ function updatePets(dt) {
             life: def.bulletLife * (0.85 + Math.random() * 0.3),
             color: def.bulletColor || def.color,
             explosive: false, blastR: 0, blastDmg: 0,
-            bulletKind: 'flame', bounces: 0, leavesSlick: false, spawnChicks: 0,
+            bulletKind: kind, bounces: 0, leavesSlick: false, spawnChicks: 0,
             chains: 0, chainRange: 0,
             orbitAngle: 0, orbitRadius: 0, orbitSpeed: 0,
             homing: false, isCrit: false, petBullet: true,
@@ -5935,7 +5951,8 @@ function drawPet(id, cx, cy, size, heading = 0) {
 
 function drawPets() {
   for (const p of pets) {
-    drawPet(p.id, p.x, p.y, 28, p.heading || 0);
+    const def = PETS[p.id];
+    drawPet(p.id, p.x, p.y, (def && def.drawSize) || 28, p.heading || 0);
   }
 }
 
