@@ -1,49 +1,60 @@
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<title>Lachlan's Portforlio</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lachlan Reyes &mdash; Portfolio</title>
+    <meta name="description" content="Portfolio of Lachlan Reyes &mdash; browser games and small playable things built with vanilla web tech.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-<h1>Welcome to Lachlan's Portforlio</h1>
+    <header class="site-header">
+        <a class="site-mark" href="/">LACHLAN&nbsp;REYES</a>
+    </header>
 
-<h2>About me</h2>
-<p>My name is Lachlan Reyes, I like cheese</p>
+    <main>
+        <section class="projects" aria-labelledby="projects-heading">
+            <h1 id="projects-heading" class="section-heading">
+                <span class="section-heading__index">01</span>
+                Projects
+            </h1>
 
-My Pets:
-<ol>
-    
-    </li>
-    Shadow
-    <ol><li>He likes food</li>
-    </ol>
+            <article class="project-card">
+                <header class="project-card__head">
+                    <h2 class="project-card__title">DEADZONE</h2>
+                    <span class="project-card__year">2026</span>
+                </header>
 
-</li>
-    <li>
-        Kage
-    </li>
-    <li>Luna</li>
-    <li>Eclipse</li>
-</ol>
+                <p class="project-card__desc">
+                    Top-down, wave-based zombie survival shooter. Two traders, six boss
+                    archetypes, a boss-rush event from wave&nbsp;60+, local co-op, an
+                    upgrade tree, a built-in sprite editor, and a guided tutorial &mdash;
+                    all in a single self-contained HTML file with no dependencies.
+                </p>
 
+                <ul class="tag-list" aria-label="Tech stack">
+                    <li class="tag">Vanilla&nbsp;JS</li>
+                    <li class="tag">Canvas&nbsp;2D</li>
+                    <li class="tag">Web&nbsp;Audio</li>
+                    <li class="tag">Local&nbsp;Co-op</li>
+                </ul>
 
+                <a class="cta" href="deadzone/index.html">
+                    Play DEADZONE
+                    <span class="cta__arrow" aria-hidden="true">&rarr;</span>
+                </a>
+            </article>
+        </section>
+    </main>
 
-
-
-
-
-
-
-<h2>Projects</h2>
-<ul>
-    <li>
-        <strong><a href="deadzone/index.html">DEADZONE</a></strong> &mdash; top-down, wave-based zombie survival shooter.
-        Vanilla JavaScript + Canvas 2D + Web Audio, single self-contained HTML file, no dependencies.
-        Features two traders, six boss archetypes, a boss-rush event from wave 60+, local co-op, an
-        upgrade tree, a built-in sprite editor, and a guided tutorial.
-        <a href="deadzone/index.html">Play it &rarr;</a>
-    </li>
-</ul>
-
-
+    <footer class="site-footer">
+        <span>&copy; Lachlan Reyes</span>
+        <a href="https://github.com/lxreyes" rel="noopener">GitHub</a>
+    </footer>
 </body>
 </html>
