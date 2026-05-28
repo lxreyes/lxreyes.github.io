@@ -68,18 +68,6 @@
   }
   #restartBtn.hidden { display: none; }
 
-  /* Click-to-lock hint (desktop, while playing but pointer not locked) */
-  #lockHint {
-    position: fixed; left: 50%; top: 60%; transform: translate(-50%, -50%);
-    padding: 10px 18px; background: rgba(20,22,32,0.75);
-    border: 1px solid #3a3f55; border-radius: 4px;
-    font-size: 13px; letter-spacing: 4px; color: #eee;
-    pointer-events: none; z-index: 9;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-  }
-  #lockHint.hidden { display: none; }
-  body.touch #lockHint { display: none; }
-
   /* Crosshair (desktop only) */
   #crosshair {
     position: fixed; left: 50%; top: 50%;
@@ -150,7 +138,6 @@
 </div>
 
 <button id="restartBtn" class="hidden">RESTART</button>
-<div id="lockHint" class="hidden">CLICK TO LOOK AROUND</div>
 
 <div id="crosshair"></div>
 <div id="vstick"><div class="knob"></div></div>
@@ -499,39 +486,31 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-// Mouse look (desktop)
-let pointerLocked = false;
-canvas.addEventListener('click', () => {
-  if (gameState === 'playing') requestPointerLock();
+// Mouse look (desktop): hold any mouse button and drag to rotate the camera.
+// No pointer lock — keeps behavior consistent across browsers and avoids
+// the click-then-click-again UX trap.
+let mouseDragging = false;
+const MOUSE_LOOK_SENS = 0.0035;
+canvas.addEventListener('mousedown', (e) => {
+  if (gameState !== 'playing') return;
+  mouseDragging = true;
+  e.preventDefault();
 });
-document.addEventListener('pointerlockchange', () => {
-  pointerLocked = (document.pointerLockElement === canvas);
-  updateLockHint();
-});
-document.addEventListener('mousemove', e => {
-  if (!pointerLocked) return;
-  const sens = 0.0022;
-  player.yaw -= e.movementX * sens;
-  player.pitch -= e.movementY * sens;
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+window.addEventListener('mouseup',   () => { mouseDragging = false; });
+window.addEventListener('mouseleave',() => { mouseDragging = false; });
+window.addEventListener('mousemove', (e) => {
+  if (!mouseDragging) return;
+  player.yaw -= e.movementX * MOUSE_LOOK_SENS;
+  player.pitch -= e.movementY * MOUSE_LOOK_SENS;
   const lim = Math.PI / 2 - 0.05;
   if (player.pitch > lim) player.pitch = lim;
   if (player.pitch < -lim) player.pitch = -lim;
 });
-function exitPointerLock() {
-  if (pointerLocked && document.exitPointerLock) document.exitPointerLock();
-}
-function requestPointerLock() {
-  // Must be inside a user gesture handler; browsers ignore otherwise.
-  if (isTouch) return;
-  if (pointerLocked) return;
-  if (canvas.requestPointerLock) canvas.requestPointerLock();
-}
-document.addEventListener('pointerlockerror', () => logError('pointerlock', 'request denied'));
-const lockHintEl = document.getElementById('lockHint');
-function updateLockHint() {
-  const show = !isTouch && gameState === 'playing' && !pointerLocked;
-  lockHintEl.classList.toggle('hidden', !show);
-}
+// Stubs so existing call sites still work without rewriting them.
+function exitPointerLock() {}
+function requestPointerLock() {}
+function updateLockHint() {}
 
 // Touch input — Minecraft-style split:
 //   left half  → virtual joystick (movement)
@@ -743,7 +722,7 @@ const flashEl = document.getElementById('flash');
 
 menuHelp.textContent = isTouch
   ? 'LEFT · MOVE   RIGHT · LOOK   STEP OFF EDGE TO DROP'
-  : 'CLICK TO LOOK · WASD TO MOVE · STEP OFF THE PLATFORM';
+  : 'WASD MOVE · HOLD MOUSE + DRAG TO LOOK · STEP OFF THE PLATFORM';
 
 function showMenu() {
   gameState = 'menu';
