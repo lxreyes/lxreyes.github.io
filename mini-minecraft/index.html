@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>MINI MINECRAFT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #88c0ff; font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; }
@@ -55,79 +58,166 @@
   }
   #hint .k { display: inline-block; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.3); padding: 0 5px; margin: 0 2px; border-radius: 2px; }
 
-  /* Menu */
+  /* Menu — soft pastel */
   #menu {
     position: fixed; inset: 0; z-index: 10;
-    background: linear-gradient(to bottom, #88c0ff 0%, #6aa8e0 60%, #4a78a8 100%);
+    background:
+      radial-gradient(circle at 18% 28%, rgba(255,180,200,0.45), transparent 55%),
+      radial-gradient(circle at 82% 72%, rgba(180,220,255,0.45), transparent 55%),
+      radial-gradient(circle at 60% 18%, rgba(220,255,200,0.35), transparent 55%),
+      linear-gradient(180deg, #fff0f3 0%, #e6f2fb 55%, #eef9e8 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: white; padding: 24px;
+    color: #4a5a72; padding: 24px;
+    font-family: 'Quicksand', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
   }
   #menu.hidden { display: none; }
   #menu h1 {
-    font-size: clamp(36px, 8vw, 64px);
-    letter-spacing: clamp(4px, 1.5vw, 12px);
-    font-weight: bold;
-    text-shadow: 4px 4px 0 #000, 0 0 24px rgba(0,0,0,0.5);
+    font-family: 'Quicksand', sans-serif;
+    font-size: clamp(40px, 8vw, 64px);
+    letter-spacing: clamp(2px, 1vw, 6px);
+    font-weight: 700;
     margin-bottom: 4px;
+    animation: gentle-float 4.5s ease-in-out infinite;
   }
-  #menu h1 .a { color: #ffe680; }
-  #menu h1 .b { color: #b6f08a; }
-  #menu .sub { font-size: 16px; opacity: 0.92; margin-bottom: 32px; text-shadow: 2px 2px 0 #000; letter-spacing: 2px; }
+  #menu h1 .a { color: #ff8aab; text-shadow: 4px 4px 0 rgba(255,255,255,0.7), 0 6px 16px rgba(255,138,171,0.25); }
+  #menu h1 .b { color: #66b9ff; text-shadow: 4px 4px 0 rgba(255,255,255,0.7), 0 6px 16px rgba(102,185,255,0.25); }
+  @keyframes gentle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  #menu .sub { font-size: 14px; color: #7c8aa0; margin-bottom: 26px; letter-spacing: 2px; font-weight: 500; }
   #menu .play-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
   #menu .play {
-    font-family: inherit; font-size: 18px; font-weight: bold;
-    padding: 12px 28px; color: white;
-    border: 4px solid; border-radius: 6px;
-    cursor: pointer; letter-spacing: 3px;
-    transition: transform 0.1s, box-shadow 0.1s;
+    font-family: 'Quicksand', sans-serif; font-size: 16px; font-weight: 700;
+    padding: 14px 28px; color: white;
+    border: 0; border-radius: 18px;
+    cursor: pointer; letter-spacing: 1.5px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
     min-width: 220px;
   }
   #menu .play--creative {
-    background: #4caf50; border-color: #2d7a31;
-    box-shadow: 0 6px 0 #2d7a31, 0 10px 20px rgba(0,0,0,0.4);
-    text-shadow: 2px 2px 0 #2d7a31;
+    background: linear-gradient(135deg, #7dd896 0%, #5cba6c 100%);
+    box-shadow: 0 5px 0 #3e9a4f, 0 10px 22px rgba(94,186,108,0.35);
   }
   #menu .play--survival {
-    background: #c0762a; border-color: #7a4416;
-    box-shadow: 0 6px 0 #7a4416, 0 10px 20px rgba(0,0,0,0.4);
-    text-shadow: 2px 2px 0 #7a4416;
+    background: linear-gradient(135deg, #ffaa7c 0%, #ff8458 100%);
+    box-shadow: 0 5px 0 #c45a2a, 0 10px 22px rgba(255,132,88,0.35);
   }
-  #menu .play:hover { transform: translateY(-2px); }
-  #menu .play:active { transform: translateY(4px); box-shadow: 0 2px 0 currentColor, 0 4px 8px rgba(0,0,0,0.4); }
-  #menu .play .play__sub { display: block; font-size: 10px; opacity: 0.85; letter-spacing: 1px; margin-top: 4px; font-weight: normal; }
+  #menu .play:hover { transform: translateY(-3px); }
+  #menu .play--creative:hover { box-shadow: 0 8px 0 #3e9a4f, 0 14px 28px rgba(94,186,108,0.4); }
+  #menu .play--survival:hover { box-shadow: 0 8px 0 #c45a2a, 0 14px 28px rgba(255,132,88,0.4); }
+  #menu .play:active { transform: translateY(3px); }
+  #menu .play--creative:active { box-shadow: 0 2px 0 #3e9a4f, 0 4px 10px rgba(94,186,108,0.3); }
+  #menu .play--survival:active { box-shadow: 0 2px 0 #c45a2a, 0 4px 10px rgba(255,132,88,0.3); }
+  #menu .play .play__sub { display: block; font-size: 10px; opacity: 0.92; letter-spacing: 0.5px; margin-top: 4px; font-weight: 500; }
 
-  /* World list (menu) */
-  #menu .world-section { max-width: 500px; width: 100%; margin-bottom: 18px; }
-  #menu .world-section-title { font-size: 11px; letter-spacing: 3px; opacity: 0.7; text-shadow: 1px 1px 0 #000; margin-bottom: 6px; text-align: left; padding-left: 4px; }
-  #worldList { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding-right: 4px; }
-  #worldList:empty::before { content: 'no saved worlds yet — start a new one below'; opacity: 0.45; font-size: 12px; display: block; text-align: center; padding: 18px 12px; border: 2px dashed rgba(255,255,255,0.18); border-radius: 6px; text-shadow: 1px 1px 0 #000; }
-  .world-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-shadow: 1px 1px 0 #000; }
-  .world-row:hover { border-color: rgba(255,255,255,0.45); background: rgba(0,0,0,0.55); }
+  /* World list (menu) — pastel cards */
+  #menu .world-section { max-width: 520px; width: 100%; margin-bottom: 16px; }
+  #menu .world-section-title { font-size: 11px; letter-spacing: 3px; color: #8b95a8; margin-bottom: 8px; text-align: left; padding-left: 6px; font-weight: 700; }
+  #worldList { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; padding: 4px; }
+  #worldList:empty::before {
+    content: 'no saved worlds yet — start a new one below';
+    color: #b8c1d1; font-size: 12px; font-weight: 500;
+    display: block; text-align: center; padding: 22px 12px;
+    background: rgba(255,255,255,0.5); border-radius: 16px;
+    border: 2px dashed rgba(255,255,255,0.9);
+  }
+  .world-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 12px 16px; background: rgba(255,255,255,0.75);
+    border: 2px solid rgba(255,255,255,0.85); border-radius: 16px;
+    box-shadow: 0 3px 12px rgba(70,90,120,0.08);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .world-row:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(70,90,120,0.12); border-color: #fff; }
   .world-row .info { text-align: left; flex: 1; min-width: 0; }
-  .world-row .name { font-weight: bold; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .world-row .meta { font-size: 10px; opacity: 0.85; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
-  .world-row .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; letter-spacing: 1.5px; }
-  .world-row .badge--creative { background: #2d7a31; color: #fff; }
-  .world-row .badge--survival { background: #7a4416; color: #fff; }
+  .world-row .name { font-weight: 700; font-size: 14px; color: #2d3748; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .world-row .meta { font-size: 10px; color: #7c8aa0; margin-top: 3px; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .world-row .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 9px; letter-spacing: 1.5px; }
+  .world-row .badge--creative { background: #c8efd0; color: #3a7b46; }
+  .world-row .badge--survival { background: #ffdfb8; color: #8a4d1f; }
   .world-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .world-row .btn { padding: 6px 10px; color: white; cursor: pointer; border-radius: 4px; font-family: inherit; font-size: 11px; letter-spacing: 1px; font-weight: bold; text-shadow: 1px 1px 0 #000; }
-  .world-row .btn-play { background: #4caf50; border: 2px solid #2d7a31; }
-  .world-row .btn-play:hover { background: #5cba60; }
-  .world-row .btn-del { background: #c0382b; border: 2px solid #7a2417; min-width: 28px; }
-  .world-row .btn-del:hover { background: #d04535; }
-  #menu .or-divider { font-size: 10px; letter-spacing: 4px; opacity: 0.5; margin: 4px 0 12px; text-shadow: 1px 1px 0 #000; }
+  .world-row .btn {
+    padding: 7px 14px; color: white; cursor: pointer;
+    border-radius: 10px; font-family: 'Quicksand', sans-serif;
+    font-size: 11px; letter-spacing: 1px; font-weight: 700;
+    border: 0; transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .world-row .btn:hover { transform: translateY(-1px); }
+  .world-row .btn:active { transform: translateY(2px); }
+  .world-row .btn-play { background: #5fc16d; box-shadow: 0 3px 0 #3e9a4f; }
+  .world-row .btn-play:hover { background: #6cce7a; box-shadow: 0 4px 0 #3e9a4f; }
+  .world-row .btn-play:active { box-shadow: 0 1px 0 #3e9a4f; }
+  .world-row .btn-del { background: #ff8590; box-shadow: 0 3px 0 #d05058; }
+  .world-row .btn-del:hover { background: #ff97a1; box-shadow: 0 4px 0 #d05058; }
+  .world-row .btn-del:active { box-shadow: 0 1px 0 #d05058; }
+  #menu .or-divider { font-size: 10px; letter-spacing: 4px; color: #b8c1d1; margin: 6px 0 14px; font-weight: 600; }
+
+  /* Confirm modal (delete world etc.) */
+  #confirmModal {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(40,55,80,0.55);
+    backdrop-filter: blur(4px);
+    pointer-events: auto;
+    font-family: 'Quicksand', system-ui, sans-serif;
+    animation: confirm-fade 0.18s ease;
+  }
+  @keyframes confirm-fade { from { opacity: 0; } to { opacity: 1; } }
+  #confirmModal.hidden { display: none; }
+  #confirmModal .panel {
+    background: #ffffff;
+    border-radius: 24px; padding: 28px 32px; min-width: 320px; max-width: 90vw;
+    color: #4a5a72;
+    box-shadow: 0 12px 40px rgba(40,55,80,0.25), 0 0 0 4px rgba(255,255,255,0.5);
+    text-align: center;
+    animation: confirm-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes confirm-pop {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  #confirmModal h2 {
+    margin: 0 0 12px; font-size: 22px; letter-spacing: 1.5px;
+    color: #ff8aab; font-weight: 700;
+  }
+  #confirmModal .confirm-text { margin: 0 0 22px; font-size: 13px; line-height: 1.6; color: #6b7c93; font-weight: 500; }
+  #confirmModal .confirm-text .world-name { color: #2d3748; font-weight: 700; }
+  #confirmModal .confirm-buttons { display: flex; gap: 12px; justify-content: center; }
+  #confirmModal button {
+    font-family: 'Quicksand', sans-serif; font-size: 13px; font-weight: 700;
+    padding: 10px 24px; color: white;
+    border: 0; border-radius: 14px; cursor: pointer;
+    letter-spacing: 1.5px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  #confirmModal button:hover { transform: translateY(-2px); }
+  #confirmModal button:active { transform: translateY(2px); }
+  #confirmModal .confirm-cancel { background: #d8dde6; color: #4a5a72; box-shadow: 0 3px 0 #b8c1d1; }
+  #confirmModal .confirm-cancel:hover { background: #e2e7ee; box-shadow: 0 4px 0 #b8c1d1; }
+  #confirmModal .confirm-cancel:active { box-shadow: 0 1px 0 #b8c1d1; }
+  #confirmModal .confirm-action { background: #ff8590; box-shadow: 0 3px 0 #d05058; }
+  #confirmModal .confirm-action:hover { background: #ff97a1; box-shadow: 0 4px 0 #d05058; }
+  #confirmModal .confirm-action:active { box-shadow: 0 1px 0 #d05058; }
+  #confirmModal .esc-hint { margin-top: 14px; font-size: 10px; color: #b8c1d1; letter-spacing: 1px; font-weight: 500; }
   #menu .controls {
-    margin-top: 36px; padding: 14px 22px; background: rgba(0,0,0,0.32);
-    border: 2px solid rgba(255,255,255,0.15); border-radius: 8px;
-    font-size: 13px; line-height: 1.9; text-shadow: 1px 1px 0 #000;
-    max-width: 480px;
+    margin-top: 28px; padding: 14px 22px;
+    background: rgba(255,255,255,0.65);
+    border: 2px solid rgba(255,255,255,0.85); border-radius: 18px;
+    font-size: 12px; line-height: 1.95; color: #4a5a72; font-weight: 500;
+    max-width: 520px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.05);
   }
   #menu .controls .k {
-    display: inline-block; background: #222; padding: 2px 8px; margin: 0 2px;
-    border-radius: 3px; border: 1px solid #666; min-width: 24px; text-align: center;
-    font-weight: bold; box-shadow: 0 2px 0 #111;
+    display: inline-block; background: #fff; padding: 2px 8px; margin: 0 2px;
+    border-radius: 6px; border: 1px solid #d4dde6; min-width: 24px; text-align: center;
+    font-weight: 700; font-family: 'Courier New', monospace;
+    box-shadow: 0 2px 0 #d4dde6;
+    color: #4a5a72;
   }
-  #menu .credit { margin-top: 24px; font-size: 11px; opacity: 0.7; text-shadow: 1px 1px 0 #000; }
+  #menu .controls em { font-style: normal; color: #8b95a8; font-size: 11px; }
+  #menu .credit { margin-top: 18px; font-size: 11px; color: #b8c1d1; font-weight: 500; }
 
   #pauseBtn {
     position: absolute; top: 14px; right: 14px;
@@ -230,6 +320,18 @@
   <div id="hotbar"></div>
   <div id="miningBar"><div class="fill"></div></div>
   <button id="pauseBtn" title="Menu (Esc)">≡</button>
+</div>
+
+<div id="confirmModal" class="hidden">
+  <div class="panel">
+    <h2>Are you sure?</h2>
+    <p class="confirm-text"></p>
+    <div class="confirm-buttons">
+      <button class="confirm-cancel">CANCEL</button>
+      <button class="confirm-action">DELETE</button>
+    </div>
+    <div class="esc-hint">ESC or click outside to cancel</div>
+  </div>
 </div>
 
 <div id="crafting" class="hidden">
@@ -905,6 +1007,12 @@ function toggleFlight() {
 }
 
 window.addEventListener('keydown', e => {
+  // Confirm modal: ESC cancels (works regardless of game state)
+  if (e.code === 'Escape' && !confirmModalEl.classList.contains('hidden')) {
+    hideConfirm();
+    e.preventDefault();
+    return;
+  }
   if (!gameActive) return;
   // E toggles inventory (survival only)
   if (e.code === 'KeyE' && gameMode === 'survival') {
@@ -912,7 +1020,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     return;
   }
-  if (e.code === 'Escape' && craftingOpen) { closeCrafting(); return; }
+  if (e.code === 'Escape' && craftingOpen) { e.preventDefault(); closeCrafting(); return; }
   // While crafting is open, swallow gameplay keys
   if (craftingOpen) return;
   // Double-tap Space toggles flight (creative only)
@@ -966,8 +1074,13 @@ canvas.addEventListener('mousemove', e => {
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   canvas.classList.toggle('locked', locked);
-  // Don't auto-pause if we lost the lock because we opened the crafting modal
-  if (!locked && gameActive && !craftingOpen) showMenu();
+  if (!locked && gameActive && !craftingOpen) {
+    // Grace period: ignore lock loss within 500ms of closing inventory,
+    // so a race between exit-lock (from open) and re-lock (from close)
+    // doesn't accidentally pause to menu.
+    if (performance.now() - inventoryClosedAt < 500) return;
+    showMenu();
+  }
 });
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -1474,60 +1587,65 @@ const sfx = {
 
 const music = {
   ctx: null, master: null, started: false, muted: false,
+  baseVol: 0.16,
   init() {
     this.ctx = ensureAudio();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.22;
-    // Gentle lowpass to soften the synth pads
-    const filt = this.ctx.createBiquadFilter();
-    filt.type = 'lowpass'; filt.frequency.value = 1800; filt.Q.value = 0.6;
-    this.master.connect(filt);
-    filt.connect(this.ctx.destination);
+    this.master.gain.value = this.baseVol;
+    // Soft lowpass + subtle highpass for warmth
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 0.3;
+    this.master.connect(lp);
+    lp.connect(this.ctx.destination);
   },
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.22;
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.baseVol;
   },
-  noteAt(midi, when, dur, type, vel) {
+  noteAt(midi, when, dur, vel) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     const o = this.ctx.createOscillator();
-    o.type = type; o.frequency.value = f;
+    o.type = 'sine'; o.frequency.value = f;
     const g = this.ctx.createGain();
     const t0 = when, t1 = when + dur;
+    // Long soft attack + long decay — feels like breath
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(vel, t0 + Math.min(0.25, dur * 0.2));
-    g.gain.linearRampToValueAtTime(vel * 0.6, t0 + dur * 0.6);
+    g.gain.linearRampToValueAtTime(vel, t0 + Math.min(1.2, dur * 0.35));
+    g.gain.linearRampToValueAtTime(vel * 0.45, t0 + dur * 0.75);
     g.gain.linearRampToValueAtTime(0, t1);
     o.connect(g); g.connect(this.master);
-    o.start(t0); o.stop(t1 + 0.02);
+    o.start(t0); o.stop(t1 + 0.05);
   },
   start() {
     if (this.started) return;
     if (!this.ctx) this.init();
     this.started = true;
+    // C major progression — feels brighter and calmer than minor
     const chords = [
-      [57, 60, 64], // Am
-      [53, 57, 60], // F
-      [48, 52, 55], // C
-      [55, 59, 62], // G
+      [60, 64, 67],  // C
+      [57, 60, 64],  // Am
+      [65, 69, 72],  // F
+      [55, 59, 62],  // G
     ];
-    const chordDur = 4.5;
-    const pent = [69, 72, 74, 76, 79]; // A pentatonic for melody
+    const chordDur = 8;
+    const pent = [60, 64, 67, 72, 76]; // C pentatonic
 
     let next = this.ctx.currentTime + 0.1;
     const scheduleLoop = () => {
       let t = next;
-      for (const chord of chords) {
+      for (let ci = 0; ci < chords.length; ci++) {
+        const chord = chords[ci];
+        // Soft pad — sine waves at chord notes
         for (const note of chord) {
-          this.noteAt(note,      t, chordDur, 'triangle', 0.12);
-          this.noteAt(note + 12, t, chordDur, 'sine',     0.05);
+          this.noteAt(note, t, chordDur, 0.10);
         }
-        this.noteAt(chord[0] - 12, t, chordDur, 'sine', 0.18);
-        const numMelody = 1 + Math.floor(Math.random() * 3);
-        for (let i = 0; i < numMelody; i++) {
-          const mt = t + 0.5 + Math.random() * (chordDur - 1);
-          const m = pent[Math.floor(Math.random() * pent.length)] + (Math.random() < 0.25 ? 12 : 0);
-          this.noteAt(m, mt, 0.7, 'sine', 0.10);
+        // Quiet root drone an octave down
+        this.noteAt(chord[0] - 12, t, chordDur, 0.12);
+        // Very sparse melody — 60% chance of one gentle note this chord
+        if (Math.random() < 0.6) {
+          const mt = t + 2 + Math.random() * (chordDur - 4);
+          const m = pent[Math.floor(Math.random() * pent.length)] + 12;
+          this.noteAt(m, mt, 1.6, 0.07);
         }
         t += chordDur;
       }
@@ -1656,9 +1774,11 @@ function openCrafting() {
   miningBarEl.classList.remove('active');
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
+let inventoryClosedAt = 0;
 function closeCrafting() {
   craftingOpen = false;
   craftingEl.classList.add('hidden');
+  inventoryClosedAt = performance.now();
   if (gameActive) canvas.requestPointerLock();
 }
 document.querySelector('#crafting .close-btn').addEventListener('click', closeCrafting);
@@ -1776,13 +1896,14 @@ function populateWorldList() {
     playBtn.addEventListener('click', () => loadWorldById(w.id));
     actions.appendChild(playBtn);
     const delBtn = document.createElement('button');
-    delBtn.className = 'btn btn-del'; delBtn.textContent = '✕';
-    delBtn.title = 'Delete world';
+    delBtn.className = 'btn btn-del'; delBtn.textContent = 'DELETE';
+    delBtn.title = 'Delete this world';
     delBtn.addEventListener('click', () => {
-      if (confirm(`Delete "${w.name}"? This can't be undone.`)) {
-        deleteWorldFromStorage(w.id);
-        populateWorldList();
-      }
+      showConfirm({
+        message: `Delete <span class="world-name">${w.name}</span>?<br>This world can't be recovered.`,
+        actionLabel: 'DELETE',
+        onConfirm: () => { deleteWorldFromStorage(w.id); populateWorldList(); },
+      });
     });
     actions.appendChild(delBtn);
     row.appendChild(actions);
@@ -1794,6 +1915,36 @@ function populateWorldList() {
 playBtns.forEach(b => b.addEventListener('click', () => newWorld(b.dataset.mode)));
 pauseBtn.addEventListener('click', showMenu);
 pauseBtn.title = 'Save & Quit (Esc)';
+
+// ============================================================
+// Styled confirm modal
+// ============================================================
+const confirmModalEl = document.getElementById('confirmModal');
+const confirmTextEl = confirmModalEl.querySelector('.confirm-text');
+const confirmActionBtn = confirmModalEl.querySelector('.confirm-action');
+const confirmCancelBtn = confirmModalEl.querySelector('.confirm-cancel');
+let confirmCallback = null;
+
+function showConfirm({ message, actionLabel = 'DELETE', onConfirm }) {
+  confirmTextEl.innerHTML = message;
+  confirmActionBtn.textContent = actionLabel;
+  confirmCallback = onConfirm;
+  confirmModalEl.classList.remove('hidden');
+}
+function hideConfirm() {
+  confirmModalEl.classList.add('hidden');
+  confirmCallback = null;
+}
+confirmCancelBtn.addEventListener('click', hideConfirm);
+confirmActionBtn.addEventListener('click', () => {
+  const cb = confirmCallback;
+  hideConfirm();
+  if (cb) cb();
+});
+confirmModalEl.addEventListener('click', e => {
+  if (e.target === confirmModalEl) hideConfirm();
+});
+
 populateWorldList();
 
 // Auto-save on tab close / reload
