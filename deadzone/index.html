@@ -4085,10 +4085,13 @@ function buyArsenalPrimary(id) {
   if (!entry || player.money < entry.cost) return;
   if (player.weapon === id) return; // already wielding it
   player.money -= entry.cost;
-  // drop the old weapon at the player's feet (skip pistol — the infinite default
-  // and trader-only exclusives which can never enter the world)
+  // Old weapon goes straight to Storage (pistol / traderOnly / cheatOnly still
+  // vanish via the shouldDropOldWeapon gate).
   const old = player.weapon;
-  if (shouldDropOldWeapon(old)) dropGunAt(player.x, player.y, old, 60);
+  if (shouldDropOldWeapon(old)) {
+    pushToStorage('weapon', old);
+    floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
+  }
   player.weapon = id;
   const def = WEAPONS[id];
   if (def) {
@@ -4103,11 +4106,11 @@ function buyArsenalSecondary(id) {
   if (!entry || player.money < entry.cost) return;
   if (player.secondary === id) return;
   player.money -= entry.cost;
-  // Drop the old secondary so the buy mirrors the gun-buy behavior — it can
-  // be re-picked up or end up in storage when it expires.
+  // Old secondary goes straight to Storage (mirrors the primary swap behavior).
   const old = player.secondary;
   if (old && SECONDARIES[old]) {
-    bladeCrates.push({ x: player.x, y: player.y, secondary: old, life: 60 });
+    pushToStorage('secondary', old);
+    floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: SECONDARIES[old].color });
   }
   player.secondary = id;
   player.lastSecondary = -10;
@@ -4372,12 +4375,11 @@ function doSwapSecondary() {
   // First-time info popup for the equipped secondary
   if (def) showTooltip('sec:' + nearbyBladeCrate.secondary, `${def.name} equipped`, def.desc || 'New secondary', def.color);
   const cx = nearbyBladeCrate.x, cy = nearbyBladeCrate.y;
-  // Drop the previously-held secondary at the player's feet so it can either
-  // be re-equipped or eventually decay into the storage box. Mirrors the
-  // primary-weapon swap behavior.
+  // Old secondary goes straight to the Storage box — same behavior as primary swaps.
   const old = player.secondary;
   if (old && SECONDARIES[old]) {
-    bladeCrates.push({ x: player.x, y: player.y, secondary: old, life: 60 });
+    pushToStorage('secondary', old);
+    floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: SECONDARIES[old].color });
   }
   player.secondary = nearbyBladeCrate.secondary;
   player.lastSecondary = -10;
@@ -4794,10 +4796,11 @@ function buyFromStock(id, stock, traderPresent) {
   if (player.weapon === id) return;
   player.money -= entry.cost;
   const old = player.weapon;
-  // Trader-only weapons vanish on swap (never drop). Regular weapons still
-  // drop normally so the player doesn't lose their old loadout.
+  // Old weapon goes straight to Storage. Trader-only / cheat-only / pistol
+  // still vanish silently via shouldDropOldWeapon — they can't enter storage either.
   if (shouldDropOldWeapon(old)) {
-    dropGunAt(player.x, player.y, old, 60);
+    pushToStorage('weapon', old);
+    floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
   player.weapon = id;
   const def = WEAPONS[id];
@@ -7419,10 +7422,12 @@ function doSwapWeapon() {
   player.weapon = nearbyGun.weapon;
   const idx = guns.indexOf(nearbyGun);
   if (idx >= 0) guns.splice(idx, 1);
-  // drop old weapon at the player's feet (skip pistol — it's infinite ammo
-  // default — and trader-only weapons which never enter the world)
+  // Swapped-out weapon goes straight into the shop's Storage box — no more
+  // ground-crate babysitting. Pistol / traderOnly / cheatOnly weapons still
+  // vanish silently via the shouldDropOldWeapon gate.
   if (shouldDropOldWeapon(old)) {
-    dropGunAt(player.x, player.y, old, 30);
+    pushToStorage('weapon', old);
+    floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
   for (let k = 0; k < 16; k++) {
     const a = Math.random() * Math.PI * 2;
