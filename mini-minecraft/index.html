@@ -624,11 +624,11 @@ const BLOCK_TIER = {
   [B.OBSIDIAN]: 3, [B.DIAMOND]: 3,
 };
 // What a block drops when mined (default: itself). null = no drop.
+// Glass, ice, and leaves used to drop nothing — now they drop themselves so the
+// player can recover them. Grass still drops dirt (Minecraft-authentic), but a
+// dirt + leaves recipe below lets you turn dirt back into grass.
 const BLOCK_DROP = {
   [B.STONE]: B.COBBLE,
-  [B.GLASS]: null,
-  [B.ICE]: null,
-  [B.LEAVES]: null,
   [B.GRASS]: B.DIRT,
 };
 
@@ -646,6 +646,13 @@ const RECIPES = [
   { pattern: [[B.WOOD]],                          out: [B.PLANKS, 4] },
   { pattern: [[B.PLANKS], [B.PLANKS]],            out: [ITEM.STICK, 4] },
   { pattern: [[B.PLANKS, B.PLANKS], [B.PLANKS, B.PLANKS]], out: [B.TABLE, 1] },
+  // Build-block recipes — turn raw materials into the four blocks you can't
+  // otherwise dig up in this world.
+  { pattern: [[B.SAND,   B.SAND],   [B.SAND,   B.SAND]],   out: [B.GLASS, 4] },
+  { pattern: [[B.COBBLE, B.COBBLE], [B.COBBLE, B.COBBLE]], out: [B.BRICK, 4] },
+  { pattern: [[B.SNOW,   B.SNOW],   [B.SNOW,   B.SNOW]],   out: [B.ICE, 1] },
+  // Decorate dirt with leaves to turn it back into a grass block
+  { pattern: [[B.LEAVES], [B.DIRT]], out: [B.GRASS, 1] },
   // Pickaxes (3x3 only)
   { pattern: [_PLANK_ROW,  _STICK_COL, _STICK_COL], out: [ITEM.WOOD_PICK, 1] },
   { pattern: [_COBBLE_ROW, _STICK_COL, _STICK_COL], out: [ITEM.STONE_PICK, 1] },
@@ -673,6 +680,12 @@ const RECIPES = [
   // Chestplates
   { pattern: [[B.IRON, null, B.IRON],       [B.IRON, B.IRON, B.IRON],          [B.IRON, B.IRON, B.IRON]],          out: [ITEM.IRON_ARMOR, 1] },
   { pattern: [[B.DIAMOND, null, B.DIAMOND], [B.DIAMOND, B.DIAMOND, B.DIAMOND], [B.DIAMOND, B.DIAMOND, B.DIAMOND]], out: [ITEM.DIAMOND_ARMOR, 1] },
+  // Obsidian — fire-hardened stone (cobble ring + coal core; 3×3 only)
+  { pattern: [
+      [B.COBBLE, B.COBBLE, B.COBBLE],
+      [B.COBBLE, B.COAL,   B.COBBLE],
+      [B.COBBLE, B.COBBLE, B.COBBLE],
+    ], out: [B.OBSIDIAN, 1] },
 ];
 
 function trimPattern(grid, size) {
