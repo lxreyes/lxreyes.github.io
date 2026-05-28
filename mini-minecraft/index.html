@@ -95,6 +95,27 @@
   #menu .play:hover { transform: translateY(-2px); }
   #menu .play:active { transform: translateY(4px); box-shadow: 0 2px 0 currentColor, 0 4px 8px rgba(0,0,0,0.4); }
   #menu .play .play__sub { display: block; font-size: 10px; opacity: 0.85; letter-spacing: 1px; margin-top: 4px; font-weight: normal; }
+
+  /* World list (menu) */
+  #menu .world-section { max-width: 500px; width: 100%; margin-bottom: 18px; }
+  #menu .world-section-title { font-size: 11px; letter-spacing: 3px; opacity: 0.7; text-shadow: 1px 1px 0 #000; margin-bottom: 6px; text-align: left; padding-left: 4px; }
+  #worldList { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; padding-right: 4px; }
+  #worldList:empty::before { content: 'no saved worlds yet — start a new one below'; opacity: 0.45; font-size: 12px; display: block; text-align: center; padding: 18px 12px; border: 2px dashed rgba(255,255,255,0.18); border-radius: 6px; text-shadow: 1px 1px 0 #000; }
+  .world-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; text-shadow: 1px 1px 0 #000; }
+  .world-row:hover { border-color: rgba(255,255,255,0.45); background: rgba(0,0,0,0.55); }
+  .world-row .info { text-align: left; flex: 1; min-width: 0; }
+  .world-row .name { font-weight: bold; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .world-row .meta { font-size: 10px; opacity: 0.85; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .world-row .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; letter-spacing: 1.5px; }
+  .world-row .badge--creative { background: #2d7a31; color: #fff; }
+  .world-row .badge--survival { background: #7a4416; color: #fff; }
+  .world-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .world-row .btn { padding: 6px 10px; color: white; cursor: pointer; border-radius: 4px; font-family: inherit; font-size: 11px; letter-spacing: 1px; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+  .world-row .btn-play { background: #4caf50; border: 2px solid #2d7a31; }
+  .world-row .btn-play:hover { background: #5cba60; }
+  .world-row .btn-del { background: #c0382b; border: 2px solid #7a2417; min-width: 28px; }
+  .world-row .btn-del:hover { background: #d04535; }
+  #menu .or-divider { font-size: 10px; letter-spacing: 4px; opacity: 0.5; margin: 4px 0 12px; text-shadow: 1px 1px 0 #000; }
   #menu .controls {
     margin-top: 36px; padding: 14px 22px; background: rgba(0,0,0,0.32);
     border: 2px solid rgba(255,255,255,0.15); border-radius: 8px;
@@ -151,6 +172,15 @@
   #crafting h2 .table-status { font-size: 11px; opacity: 0.8; padding: 3px 8px; border-radius: 3px; letter-spacing: 1px; font-weight: normal; }
   #crafting h2 .table-status.near { background: #2d7a31; }
   #crafting h2 .table-status.far  { background: #7a3a2d; }
+  #crafting .inv-section { margin-bottom: 14px; }
+  #crafting .inv-section-title { font-size: 10px; letter-spacing: 3px; opacity: 0.65; margin-bottom: 6px; text-shadow: 1px 1px 0 #000; }
+  #crafting .inv-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; padding: 6px; background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; }
+  #crafting .inv-grid .inv-slot { aspect-ratio: 1; background: rgba(255,255,255,0.04); border: 2px solid rgba(255,255,255,0.18); border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  #crafting .inv-grid .inv-slot:hover { border-color: rgba(255,255,255,0.5); }
+  #crafting .inv-grid .inv-slot.active { border-color: #fff; background: rgba(255,255,255,0.16); box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+  #crafting .inv-grid .inv-slot canvas { width: 70%; height: 70%; image-rendering: pixelated; pointer-events: none; }
+  #crafting .inv-grid .inv-slot .num { position: absolute; top: 2px; left: 4px; font-size: 9px; color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+  #crafting .inv-grid .inv-slot .cnt { position: absolute; bottom: 2px; right: 4px; font-size: 12px; font-weight: bold; color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; pointer-events: none; }
   #crafting .recipes { display: flex; flex-direction: column; gap: 8px; }
   #crafting .recipe {
     display: flex; align-items: center; gap: 10px;
@@ -204,9 +234,16 @@
 
 <div id="crafting" class="hidden">
   <div class="panel">
-    <h2><span>CRAFTING</span> <span class="table-status" id="tableStatus">no crafting table</span></h2>
-    <div class="recipes" id="recipeList"></div>
-    <button class="close-btn">CLOSE (C)</button>
+    <h2><span>INVENTORY</span> <span class="table-status" id="tableStatus">no crafting table</span></h2>
+    <div class="inv-section">
+      <div class="inv-section-title">YOUR ITEMS</div>
+      <div class="inv-grid" id="invGrid"></div>
+    </div>
+    <div class="inv-section">
+      <div class="inv-section-title">CRAFTING</div>
+      <div class="recipes" id="recipeList"></div>
+    </div>
+    <button class="close-btn">CLOSE (E or ESC)</button>
     <div class="hint">Some recipes need a placed crafting table nearby.</div>
   </div>
 </div>
@@ -214,17 +251,25 @@
 <div id="menu">
   <h1><span class="a">MINI</span> <span class="b">MINECRAFT</span></h1>
   <div class="sub">a tiny voxel sandbox</div>
+
+  <div class="world-section">
+    <div class="world-section-title">CONTINUE A WORLD</div>
+    <div id="worldList"></div>
+  </div>
+
+  <div class="or-divider">— OR START NEW —</div>
+
   <div class="play-row">
-    <button class="play play--creative" data-mode="creative">PLAY CREATIVE<span class="play__sub">fly · all blocks · no limits</span></button>
-    <button class="play play--survival" data-mode="survival">PLAY SURVIVAL<span class="play__sub">punch wood · craft tools · progress</span></button>
+    <button class="play play--creative" data-mode="creative">+ NEW CREATIVE<span class="play__sub">fly · all blocks · no limits</span></button>
+    <button class="play play--survival" data-mode="survival">+ NEW SURVIVAL<span class="play__sub">punch wood · craft tools · progress</span></button>
   </div>
   <div class="controls">
     <div><span class="k">WASD</span> move &nbsp; <span class="k">SPACE</span> jump &nbsp; <span class="k">SHIFT</span> sprint</div>
     <div><span class="k">MOUSE</span> look (auto-locks on play)</div>
-    <div><span class="k">CLICK</span> break block &nbsp; <span class="k">RIGHT-CLICK</span> place block</div>
-    <div><span class="k">F</span> or 2×<span class="k">SPACE</span> toggle flight &nbsp; <span class="k">SPACE</span>/<span class="k">SHIFT</span> up/down while flying</div>
-    <div><span class="k">1</span>–<span class="k">9</span> select block &nbsp; <span class="k">WHEEL</span> cycle blocks</div>
-    <div><span class="k">M</span> mute music &nbsp; <span class="k">ESC</span> pause</div>
+    <div><span class="k">CLICK</span> hold to mine &nbsp; <span class="k">RIGHT-CLICK</span> place</div>
+    <div><span class="k">E</span> inventory + crafting <em>(survival)</em> &nbsp; <span class="k">F</span> fly <em>(creative)</em></div>
+    <div><span class="k">1</span>–<span class="k">9</span> select slot &nbsp; <span class="k">WHEEL</span> cycle slots</div>
+    <div><span class="k">M</span> mute music &nbsp; <span class="k">ESC</span> close menu/save&amp;quit</div>
   </div>
   <div class="credit">built with three.js · procedural everything</div>
 </div>
@@ -678,19 +723,31 @@ function buildGeometry(filter) {
 // ============================================================
 // Terrain generation — heightmap + trees + a few ore pockets
 // ============================================================
-function generateTerrain() {
+// Seeded PRNG (mulberry32) — same seed produces the same world
+function mulberry32(seed) {
+  return function() {
+    let t = seed = (seed + 0x6D2B79F5) | 0;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function generateTerrain(seed) {
+  world.fill(0);
+  const rng = mulberry32(seed | 0);
+
   for (let z = 0; z < WORLD_D; z++) {
     for (let x = 0; x < WORLD_W; x++) {
       const h = Math.floor(
         10 +
-        Math.sin(x * 0.22) * 1.3 +
-        Math.cos(z * 0.18) * 1.1 +
-        Math.sin((x + z) * 0.11) * 1.6 +
+        Math.sin((x + seed) * 0.22) * 1.3 +
+        Math.cos((z + seed * 0.7) * 0.18) * 1.1 +
+        Math.sin((x + z + seed) * 0.11) * 1.6 +
         Math.cos((x - z) * 0.07) * 1.4
       );
       for (let y = 0; y < h; y++) {
         if (y === h - 1) {
-          // Top: sand near low spots, snow up high, grass in between
           if (h >= 13) setBlock(x, y, z, B.SNOW);
           else if (h <= 8) setBlock(x, y, z, B.SAND);
           else setBlock(x, y, z, B.GRASS);
@@ -703,36 +760,36 @@ function generateTerrain() {
     }
   }
 
-  // Random ore veins in stone
+  // Ore veins (seeded)
   const veinAttempts = 70;
   for (let i = 0; i < veinAttempts; i++) {
-    const ox = Math.floor(Math.random() * WORLD_W);
-    const oz = Math.floor(Math.random() * WORLD_D);
-    const oy = 1 + Math.floor(Math.random() * 6);
-    const r = Math.random();
+    const ox = Math.floor(rng() * WORLD_W);
+    const oz = Math.floor(rng() * WORLD_D);
+    const oy = 1 + Math.floor(rng() * 6);
+    const r = rng();
     const ore = r < 0.55 ? B.COAL : r < 0.85 ? B.IRON : B.DIAMOND;
-    const len = 2 + Math.floor(Math.random() * 4);
+    const len = 2 + Math.floor(rng() * 4);
     let cx = ox, cy = oy, cz = oz;
     for (let s = 0; s < len; s++) {
       if (getBlock(cx, cy, cz) === B.STONE) setBlock(cx, cy, cz, ore);
-      cx += Math.floor(Math.random() * 3) - 1;
-      cy += Math.floor(Math.random() * 3) - 1;
-      cz += Math.floor(Math.random() * 3) - 1;
+      cx += Math.floor(rng() * 3) - 1;
+      cy += Math.floor(rng() * 3) - 1;
+      cz += Math.floor(rng() * 3) - 1;
     }
   }
 
-  // Trees
+  // Trees (seeded)
   const cxSpawn = Math.floor(WORLD_W / 2), czSpawn = Math.floor(WORLD_D / 2);
   for (let i = 0; i < 18; i++) {
-    const tx = 3 + Math.floor(Math.random() * (WORLD_W - 6));
-    const tz = 3 + Math.floor(Math.random() * (WORLD_D - 6));
+    const tx = 3 + Math.floor(rng() * (WORLD_W - 6));
+    const tz = 3 + Math.floor(rng() * (WORLD_D - 6));
     if (Math.hypot(tx - cxSpawn, tz - czSpawn) < 5) continue;
 
     let ty = WORLD_H - 1;
     while (ty > 0 && getBlock(tx, ty, tz) === B.AIR) ty--;
     if (getBlock(tx, ty, tz) !== B.GRASS) continue;
 
-    const trunk = 3 + Math.floor(Math.random() * 3);
+    const trunk = 3 + Math.floor(rng() * 3);
     for (let h = 1; h <= trunk; h++) setBlock(tx, ty + h, tz, B.WOOD);
 
     const ly = ty + trunk;
@@ -749,8 +806,6 @@ function generateTerrain() {
     }
   }
 }
-
-generateTerrain();
 
 // ============================================================
 // Three.js scene
@@ -851,8 +906,8 @@ function toggleFlight() {
 
 window.addEventListener('keydown', e => {
   if (!gameActive) return;
-  // C toggles crafting (survival only)
-  if (e.code === 'KeyC' && gameMode === 'survival') {
+  // E toggles inventory (survival only)
+  if (e.code === 'KeyE' && gameMode === 'survival') {
     if (craftingOpen) closeCrafting(); else openCrafting();
     e.preventDefault();
     return;
@@ -1014,6 +1069,83 @@ function nearTable() {
       for (let dz = -r; dz <= r; dz++)
         if (getBlock(px + dx, py + dy, pz + dz) === B.TABLE) return true;
   return false;
+}
+
+// ============================================================
+// World persistence — localStorage
+// ============================================================
+const LS_LIST = 'mmc:worldList:v1';
+const LS_WORLD = (id) => `mmc:world:v1:${id}`;
+
+function bytesToB64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64ToBytes(s) {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function listWorlds() {
+  try { return JSON.parse(localStorage.getItem(LS_LIST)) || []; } catch { return []; }
+}
+function writeList(list) {
+  localStorage.setItem(LS_LIST, JSON.stringify(list));
+}
+function loadWorldFromStorage(id) {
+  try { return JSON.parse(localStorage.getItem(LS_WORLD(id))); } catch { return null; }
+}
+function saveWorldToStorage(id, data) {
+  localStorage.setItem(LS_WORLD(id), JSON.stringify(data));
+  const list = listWorlds();
+  const idx = list.findIndex(w => w.id === id);
+  const entry = { id, name: data.name, mode: data.mode, lastPlayed: data.lastPlayed };
+  if (idx >= 0) list[idx] = entry; else list.push(entry);
+  list.sort((a, b) => b.lastPlayed - a.lastPlayed);
+  writeList(list);
+}
+function deleteWorldFromStorage(id) {
+  localStorage.removeItem(LS_WORLD(id));
+  writeList(listWorlds().filter(w => w.id !== id));
+}
+
+function genWorldId() {
+  return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+const NAME_ADJ  = ['Sunny','Quiet','Misty','Wild','Iron','Stone','Frozen','Hidden','Silver','Crimson','Amber','Verdant','Ancient','Whispering','Lonely','Crooked','Pale','Distant'];
+const NAME_NOUN = ['Hills','Valley','Plains','Mesa','Peaks','Forest','Reach','Bluff','Meadow','Bay','Tundra','Pines','Grove','Cliffs','Hollow','Vale','Ridge'];
+function generateName() {
+  return NAME_ADJ[Math.floor(Math.random()*NAME_ADJ.length)] + ' ' +
+         NAME_NOUN[Math.floor(Math.random()*NAME_NOUN.length)];
+}
+function formatRelative(t) {
+  if (!t) return 'never';
+  const diff = (Date.now() - t) / 1000;
+  if (diff < 45) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+let currentWorld = null; // { id, name, mode, seed }
+
+function saveCurrentWorld() {
+  if (!currentWorld) return;
+  saveWorldToStorage(currentWorld.id, {
+    name: currentWorld.name,
+    mode: currentWorld.mode,
+    seed: currentWorld.seed,
+    world: bytesToB64(world),
+    player: {
+      x: player.pos.x, y: player.pos.y, z: player.pos.z,
+      yaw: player.yaw, pitch: player.pitch,
+    },
+    inventory: inventory.map(s => s ? { id: s.id, count: s.count } : null),
+    lastPlayed: Date.now(),
+  });
 }
 
 function buildHotbar() {
@@ -1412,7 +1544,29 @@ const music = {
 const craftingEl = document.getElementById('crafting');
 const recipeListEl = document.getElementById('recipeList');
 const tableStatusEl = document.getElementById('tableStatus');
+const invGridEl = document.getElementById('invGrid');
 let craftingOpen = false;
+
+function renderInvGrid() {
+  invGridEl.innerHTML = '';
+  for (let i = 0; i < INV_SLOTS; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'inv-slot' + (i === selected ? ' active' : '');
+    const num = document.createElement('div');
+    num.className = 'num'; num.textContent = (i + 1).toString();
+    slot.appendChild(num);
+    const item = inventory[i];
+    if (item) {
+      slot.title = nameOf(item.id);
+      slot.appendChild(slotIcon(item.id));
+      const cnt = document.createElement('div');
+      cnt.className = 'cnt'; cnt.textContent = item.count.toString();
+      slot.appendChild(cnt);
+    }
+    slot.addEventListener('click', () => { selectSlot(i); renderInvGrid(); });
+    invGridEl.appendChild(slot);
+  }
+}
 
 function canCraft(recipe) {
   if (recipe.table && !nearTable()) return false;
@@ -1424,6 +1578,8 @@ function renderCrafting() {
   const hasTable = nearTable();
   tableStatusEl.textContent = hasTable ? 'crafting table ✓' : 'no crafting table';
   tableStatusEl.className = 'table-status ' + (hasTable ? 'near' : 'far');
+
+  renderInvGrid();
 
   recipeListEl.innerHTML = '';
   RECIPES.forEach((recipe, idx) => {
@@ -1508,19 +1664,45 @@ function closeCrafting() {
 document.querySelector('#crafting .close-btn').addEventListener('click', closeCrafting);
 
 // ============================================================
-// Menu / pause
+// Menu / pause / world lifecycle
 // ============================================================
 const menuEl = document.getElementById('menu');
 const playBtns = document.querySelectorAll('#menu .play');
 const pauseBtn = document.getElementById('pauseBtn');
 const hintEl = document.getElementById('hint');
+const worldListEl = document.getElementById('worldList');
 
-function startGame(mode) {
-  gameMode = mode;
+function startWorld(data) {
+  // data: { id, name, mode, seed, world?, player?, inventory? }
+  currentWorld = { id: data.id, name: data.name, mode: data.mode, seed: data.seed };
+  gameMode = data.mode;
   selected = 0;
   player.flying = false;
-  if (mode === 'survival') resetInventory();
-  spawnPlayer();
+
+  if (data.world) {
+    const bytes = b64ToBytes(data.world);
+    world.set(bytes.subarray(0, world.length));
+  } else {
+    generateTerrain(data.seed);
+  }
+
+  if (data.player) {
+    player.pos.set(data.player.x, data.player.y, data.player.z);
+    player.yaw = data.player.yaw || 0;
+    player.pitch = data.player.pitch || 0;
+    player.vel.set(0, 0, 0);
+  } else {
+    spawnPlayer();
+  }
+
+  if (data.inventory) {
+    inventory = data.inventory.map(s => s ? { id: s.id, count: s.count } : null);
+    while (inventory.length < INV_SLOTS) inventory.push(null);
+  } else {
+    resetInventory();
+  }
+
+  rebuildMesh();
   buildHotbar();
   updateHint();
   ensureAudio();
@@ -1530,23 +1712,94 @@ function startGame(mode) {
   lastT = performance.now();
   canvas.requestPointerLock();
 }
+
+function newWorld(mode) {
+  const id = genWorldId();
+  const seed = (Math.random() * 2147483647) | 0;
+  const name = generateName();
+  startWorld({ id, name, mode, seed });
+  saveCurrentWorld();
+}
+
+function loadWorldById(id) {
+  const data = loadWorldFromStorage(id);
+  if (!data) return;
+  data.id = id;
+  startWorld(data);
+}
+
 function showMenu() {
+  if (gameActive && currentWorld) saveCurrentWorld();
   gameActive = false;
   menuEl.classList.remove('hidden');
   if (craftingOpen) closeCrafting();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   leftHeld = false; mining = null;
   miningBarEl.classList.remove('active');
+  populateWorldList();
 }
+
 function updateHint() {
   if (gameMode === 'survival') {
-    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place · <span class="k">C</span> craft · <span class="k">1-9</span> slot · <span class="k">M</span> mute';
+    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place · <span class="k">E</span> inventory · <span class="k">1-9</span> slot · <span class="k">M</span> mute';
   } else {
     hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute';
   }
 }
-playBtns.forEach(b => b.addEventListener('click', () => startGame(b.dataset.mode)));
+
+function populateWorldList() {
+  const list = listWorlds();
+  worldListEl.innerHTML = '';
+  for (const w of list) {
+    const row = document.createElement('div');
+    row.className = 'world-row';
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name'; nameEl.textContent = w.name;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const badge = document.createElement('span');
+    badge.className = 'badge badge--' + w.mode;
+    badge.textContent = w.mode.toUpperCase();
+    const when = document.createElement('span');
+    when.textContent = formatRelative(w.lastPlayed);
+    meta.appendChild(badge); meta.appendChild(when);
+    info.appendChild(nameEl); info.appendChild(meta);
+    row.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const playBtn = document.createElement('button');
+    playBtn.className = 'btn btn-play'; playBtn.textContent = '▶ PLAY';
+    playBtn.addEventListener('click', () => loadWorldById(w.id));
+    actions.appendChild(playBtn);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-del'; delBtn.textContent = '✕';
+    delBtn.title = 'Delete world';
+    delBtn.addEventListener('click', () => {
+      if (confirm(`Delete "${w.name}"? This can't be undone.`)) {
+        deleteWorldFromStorage(w.id);
+        populateWorldList();
+      }
+    });
+    actions.appendChild(delBtn);
+    row.appendChild(actions);
+
+    worldListEl.appendChild(row);
+  }
+}
+
+playBtns.forEach(b => b.addEventListener('click', () => newWorld(b.dataset.mode)));
 pauseBtn.addEventListener('click', showMenu);
+pauseBtn.title = 'Save & Quit (Esc)';
+populateWorldList();
+
+// Auto-save on tab close / reload
+window.addEventListener('beforeunload', () => {
+  if (gameActive && currentWorld) saveCurrentWorld();
+});
 
 // ============================================================
 // Main loop
