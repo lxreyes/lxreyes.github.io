@@ -1000,32 +1000,49 @@ function buildBorderWalls() {
 }
 buildBorderWalls();
 
-// Crack overlay for mining — Minecraft-style progressive cracks
+// Crack overlay for mining — chunky pixel-art cracks
 const CRACK_STAGES = 8;
 function makeCrackTexture(stage) {
-  const SIZE = 32;
+  const SIZE = 16; // small canvas + NearestFilter = chunky pixels
   const c = document.createElement('canvas');
   c.width = c.height = SIZE;
   const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
   cx.clearRect(0, 0, SIZE, SIZE);
-  cx.strokeStyle = `rgba(0,0,0,${0.55 + stage * 0.04})`;
-  cx.lineWidth = 1.4;
-  cx.lineCap = 'round';
+
   const rng = mulberry32(123 + stage * 7);
-  const numLines = stage + 2;
-  for (let i = 0; i < numLines; i++) {
-    let x = rng() * SIZE, y = rng() * SIZE;
-    cx.beginPath();
-    cx.moveTo(x, y);
-    const segs = 2 + Math.floor(rng() * (2 + stage * 0.5));
-    for (let j = 0; j < segs; j++) {
-      x += (rng() - 0.5) * 9;
-      y += (rng() - 0.5) * 9;
-      x = Math.max(0, Math.min(SIZE, x));
-      y = Math.max(0, Math.min(SIZE, y));
-      cx.lineTo(x, y);
+  const numCracks = stage + 1; // 1..8 distinct cracks
+  // 8-way step directions
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+
+  const inkA = 0.72 + stage * 0.025;
+  cx.fillStyle = `rgba(0,0,0,${inkA})`;
+
+  for (let i = 0; i < numCracks; i++) {
+    let x = Math.floor(rng() * SIZE);
+    let y = Math.floor(rng() * SIZE);
+    const len = 4 + Math.floor(rng() * (3 + stage));
+    let [dx, dy] = dirs[Math.floor(rng() * 4)]; // start cardinal
+
+    for (let j = 0; j < len; j++) {
+      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) break;
+      cx.fillRect(x, y, 1, 1);
+
+      // Occasional 2-px branch on later stages
+      if (stage >= 3 && rng() < 0.18) {
+        const [bdx, bdy] = dirs[Math.floor(rng() * 8)];
+        let bx = x + bdx, by = y + bdy;
+        for (let k = 0; k < 2; k++) {
+          if (bx < 0 || bx >= SIZE || by < 0 || by >= SIZE) break;
+          cx.fillRect(bx, by, 1, 1);
+          bx += bdx; by += bdy;
+        }
+      }
+
+      // Wobble direction occasionally
+      if (rng() < 0.45) [dx, dy] = dirs[Math.floor(rng() * 8)];
+      x += dx; y += dy;
     }
-    cx.stroke();
   }
   return c;
 }
@@ -1486,8 +1503,8 @@ function updateMining(dt) {
   }
 
   mining.elapsed += dt;
-  if (mining.elapsed - mining.lastTick > 0.13) {
-    sfx.tick(220 + Math.random() * 60, 0.03, 'square', 0.05);
+  if (mining.elapsed - mining.lastTick > 0.17) {
+    sfx.miningStrike();
     mining.lastTick = mining.elapsed;
   }
 
@@ -1669,6 +1686,19 @@ function ensureAudio() {
   return audioCtx;
 }
 
+// Shared white-noise buffer for crunch / scratch sounds (lazy)
+let noiseBuffer = null;
+function getNoiseBuffer() {
+  if (noiseBuffer) return noiseBuffer;
+  const ctx = ensureAudio();
+  if (!ctx) return null;
+  const len = Math.floor(ctx.sampleRate * 0.5);
+  noiseBuffer = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() - 0.5) * 2;
+  return noiseBuffer;
+}
+
 const sfx = {
   tick(freq = 600, dur = 0.06, type = 'square', vol = 0.12) {
     if (!gameActive) return;
@@ -1681,8 +1711,66 @@ const sfx = {
     o.connect(g); g.connect(ctx.destination);
     o.start(); o.stop(ctx.currentTime + dur + 0.02);
   },
-  thud() { this.tick(180, 0.09, 'square', 0.18); },
   click() { this.tick(420, 0.05, 'triangle', 0.14); },
+
+  // Layered break sound: bass thud (pitch sweep down) + bandpass-filtered noise crunch
+  thud() {
+    if (!gameActive) return;
+    const ctx = ensureAudio();
+    const t0 = ctx.currentTime;
+
+    // Low thud — sine, pitches down for "impact"
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(170, t0);
+    o.frequency.exponentialRampToValueAtTime(55, t0 + 0.14);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0, t0);
+    og.gain.linearRampToValueAtTime(0.30, t0 + 0.005);
+    og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+    o.connect(og); og.connect(ctx.destination);
+    o.start(t0); o.stop(t0 + 0.24);
+
+    // Crunch — filtered noise burst that sweeps down
+    const buf = getNoiseBuffer();
+    if (buf) {
+      const n = ctx.createBufferSource();
+      n.buffer = buf;
+      n.playbackRate.value = 0.8 + Math.random() * 0.4;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(900, t0);
+      f.frequency.exponentialRampToValueAtTime(280, t0 + 0.2);
+      f.Q.value = 2;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(0, t0);
+      ng.gain.linearRampToValueAtTime(0.15, t0 + 0.005);
+      ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+      n.connect(f); f.connect(ng); ng.connect(ctx.destination);
+      n.start(t0); n.stop(t0 + 0.24);
+    }
+  },
+
+  // Mining strike — short scratchy noise tick, slight random pitch
+  miningStrike() {
+    if (!gameActive) return;
+    const ctx = ensureAudio();
+    const buf = getNoiseBuffer();
+    if (!buf) return;
+    const t0 = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = buf;
+    n.playbackRate.value = 0.55 + Math.random() * 0.7;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1100 + Math.random() * 600;
+    f.Q.value = 4;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.055, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05);
+    n.connect(f); f.connect(g); g.connect(ctx.destination);
+    n.start(t0); n.stop(t0 + 0.06);
+  },
 };
 
 const music = {
