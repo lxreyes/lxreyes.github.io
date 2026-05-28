@@ -312,6 +312,92 @@
   #crafting h2 .table-status { font-size: 11px; opacity: 0.8; padding: 3px 8px; border-radius: 3px; letter-spacing: 1px; font-weight: normal; }
   #crafting h2 .table-status.near { background: #2d7a31; }
   #crafting h2 .table-status.far  { background: #7a3a2d; }
+  /* Furnace modal — reuses much of the crafting modal styling */
+  #furnace {
+    position: fixed; inset: 0; z-index: 8;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55); pointer-events: auto;
+  }
+  #furnace.hidden { display: none; }
+  #furnace .panel {
+    background: #2a2a2a; border: 3px solid #555;
+    border-radius: 8px; padding: 18px; min-width: 460px; max-width: 90vw;
+    color: #fff; font-family: 'Courier New', monospace;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  }
+  #furnace h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: 2px; text-shadow: 2px 2px 0 #000; display: flex; justify-content: space-between; align-items: center; }
+  #furnace h2 .table-status { font-size: 11px; opacity: 0.8; padding: 3px 8px; border-radius: 3px; letter-spacing: 1px; font-weight: normal; background: #2d7a31; }
+  #furnace .grid-label { font-size: 10px; letter-spacing: 3px; opacity: 0.65; text-shadow: 1px 1px 0 #000; }
+  #furnace .hotbar-label { margin-top: 10px; }
+  #furnace .furnace-area {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 16px; background: rgba(0,0,0,0.4);
+    border: 2px solid rgba(255,255,255,0.18); border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  #furnace .furnace-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  #furnace .fuel-label { margin-top: 6px; }
+  #furnace .furnace-cell, #furnace .furnace-out {
+    width: 44px; height: 44px;
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.2); border-radius: 4px;
+    position: relative; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #furnace .furnace-cell:hover, #furnace .furnace-out:hover { border-color: rgba(255,255,255,0.5); }
+  #furnace .furnace-cell canvas, #furnace .furnace-out canvas {
+    width: 78%; height: 78%; image-rendering: pixelated; pointer-events: none;
+  }
+  #furnace .furnace-cell .cnt, #furnace .furnace-out .cnt {
+    position: absolute; bottom: 1px; right: 3px;
+    font-size: 12px; font-weight: bold; color: #fff;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    pointer-events: none;
+  }
+  #furnace .furnace-out { width: 54px; height: 54px; background: rgba(80,60,30,0.55); border-color: #c8a060; }
+  #furnace .fire-meter {
+    width: 44px; height: 8px; margin-top: 6px;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 3px; overflow: hidden;
+  }
+  #furnace .fire-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(to top, #f04018, #f8a030);
+    transition: width 0.12s linear;
+  }
+  #furnace .furnace-arrow { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  #furnace .smelt-track {
+    width: 80px; height: 14px;
+    background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 3px; overflow: hidden; position: relative;
+  }
+  #furnace .smelt-track::after {
+    content: '→'; position: absolute; right: -22px; top: 50%; transform: translateY(-50%);
+    font-size: 22px; color: #ccc;
+  }
+  #furnace .smelt-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(to right, #f0c850, #f88030);
+    transition: width 0.08s linear;
+  }
+  #furnace .main-inv-grid {
+    display: grid; grid-template-columns: repeat(9, 38px); grid-auto-rows: 38px;
+    gap: 3px; padding: 4px; background: rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.18); border-radius: 6px;
+  }
+  #furnace .hotbar-inv-grid {
+    display: grid; grid-template-columns: repeat(9, 38px); grid-auto-rows: 38px;
+    gap: 3px; padding: 4px; background: rgba(0,0,0,0.5);
+    border: 2px solid #c8a060; border-radius: 6px;
+  }
+  #furnace .close-btn {
+    margin-top: 14px; width: 100%; padding: 8px;
+    background: rgba(255,255,255,0.1); color: white; border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 4px; font-family: inherit; font-size: 13px; cursor: pointer; letter-spacing: 2px;
+  }
+  #furnace .close-btn:hover { background: rgba(255,255,255,0.2); }
+  #furnace .hint { margin-top: 10px; font-size: 10px; opacity: 0.6; text-align: center; }
+
   /* Grid-based crafting layout */
   #crafting .craft-area {
     display: flex; align-items: center; justify-content: center; gap: 18px;
@@ -451,6 +537,33 @@
   </div>
 </div>
 
+<div id="furnace" class="hidden">
+  <div class="panel">
+    <h2><span>FURNACE</span> <span class="table-status near" id="furnaceStatus">smelting</span></h2>
+    <div class="furnace-area">
+      <div class="furnace-col">
+        <div class="grid-label">INPUT</div>
+        <div class="furnace-cell" id="furnaceInput"></div>
+        <div class="grid-label fuel-label">FUEL</div>
+        <div class="furnace-cell" id="furnaceFuel"></div>
+        <div class="fire-meter"><div class="fire-fill" id="fireFill"></div></div>
+      </div>
+      <div class="furnace-arrow">
+        <div class="smelt-track"><div class="smelt-fill" id="smeltFill"></div></div>
+      </div>
+      <div class="furnace-col">
+        <div class="grid-label">OUTPUT</div>
+        <div class="furnace-cell furnace-out" id="furnaceOutput"></div>
+      </div>
+    </div>
+    <div class="grid-label">INVENTORY</div>
+    <div class="main-inv-grid" id="furnMainInv"></div>
+    <div class="grid-label hotbar-label">HOTBAR</div>
+    <div class="hotbar-inv-grid" id="furnHotbarInv"></div>
+    <button class="close-btn">CLOSE (E or ESC)</button>
+    <div class="hint">Coal lasts 8 smelts · Wood 2 · Planks 1 · Each smelt takes ~3 s · Smelting only runs while this is open</div>
+  </div>
+</div>
 <div id="crafting" class="hidden">
   <div class="panel">
     <h2><span>INVENTORY</span> <span class="table-status" id="tableStatus">2×2 grid</span></h2>
@@ -517,17 +630,17 @@ const B = {
   AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, COBBLE: 4, SAND: 5,
   WOOD: 6, PLANKS: 7, LEAVES: 8, BRICK: 9, GLASS: 10,
   SNOW: 11, ICE: 12, OBSIDIAN: 13, IRON: 14, COAL: 15, DIAMOND: 16,
-  TABLE: 17,
+  TABLE: 17, FURNACE: 18,
 };
 const BLOCK_NAMES = {
   [B.GRASS]: 'Grass', [B.DIRT]: 'Dirt', [B.STONE]: 'Stone', [B.COBBLE]: 'Cobble',
   [B.SAND]: 'Sand', [B.WOOD]: 'Wood', [B.PLANKS]: 'Planks', [B.LEAVES]: 'Leaves',
   [B.BRICK]: 'Brick', [B.GLASS]: 'Glass', [B.SNOW]: 'Snow', [B.ICE]: 'Ice',
   [B.OBSIDIAN]: 'Obsidian', [B.IRON]: 'Iron Ore', [B.COAL]: 'Coal Ore', [B.DIAMOND]: 'Diamond',
-  [B.TABLE]: 'Crafting Table',
+  [B.TABLE]: 'Crafting Table', [B.FURNACE]: 'Furnace',
 };
 const TRANSPARENT = new Set([B.GLASS, B.ICE]);
-const NUM_BLOCKS = 17;
+const NUM_BLOCKS = 18;
 
 // Non-block items (IDs >= 100 to distinguish from blocks)
 const ITEM = {
@@ -537,6 +650,7 @@ const ITEM = {
   WOOD_SHOVEL: 107,  STONE_SHOVEL: 108,  IRON_SHOVEL: 109,  DIAMOND_SHOVEL: 116,
   WOOD_AXE: 110,     STONE_AXE: 111,     IRON_AXE: 112,     DIAMOND_AXE: 117,
   IRON_ARMOR: 113,   DIAMOND_ARMOR: 118,
+  ZOMBIE_EGG: 200,
 };
 const ITEM_NAMES = {
   [ITEM.STICK]: 'Stick',
@@ -558,6 +672,7 @@ const ITEM_NAMES = {
   [ITEM.DIAMOND_AXE]: 'Diamond Axe',
   [ITEM.IRON_ARMOR]: 'Iron Armor',
   [ITEM.DIAMOND_ARMOR]: 'Diamond Armor',
+  [ITEM.ZOMBIE_EGG]: 'Zombie Spawn Egg',
 };
 const isItem = (id) => id >= 100;
 const nameOf = (id) => isItem(id) ? ITEM_NAMES[id] : BLOCK_NAMES[id];
@@ -598,6 +713,7 @@ const ARMOR_DEFENSE = {
 const BLOCK_TOOL = {
   [B.STONE]:'pick', [B.COBBLE]:'pick', [B.COAL]:'pick', [B.IRON]:'pick',
   [B.BRICK]:'pick', [B.OBSIDIAN]:'pick', [B.DIAMOND]:'pick', [B.ICE]:'pick',
+  [B.FURNACE]:'pick',
   [B.DIRT]:'shovel', [B.GRASS]:'shovel', [B.SAND]:'shovel', [B.SNOW]:'shovel',
   [B.WOOD]:'axe', [B.PLANKS]:'axe', [B.LEAVES]:'axe', [B.TABLE]:'axe',
 };
@@ -619,7 +735,7 @@ function miningTime(blockId, toolId) {
 }
 // Min tier required to mine each block (default 0)
 const BLOCK_TIER = {
-  [B.STONE]: 1, [B.COBBLE]: 1, [B.COAL]: 1, [B.ICE]: 1,
+  [B.STONE]: 1, [B.COBBLE]: 1, [B.COAL]: 1, [B.ICE]: 1, [B.FURNACE]: 1,
   [B.IRON]: 2, [B.BRICK]: 2,
   [B.OBSIDIAN]: 3, [B.DIAMOND]: 3,
 };
@@ -646,9 +762,9 @@ const RECIPES = [
   { pattern: [[B.WOOD]],                          out: [B.PLANKS, 4] },
   { pattern: [[B.PLANKS], [B.PLANKS]],            out: [ITEM.STICK, 4] },
   { pattern: [[B.PLANKS, B.PLANKS], [B.PLANKS, B.PLANKS]], out: [B.TABLE, 1] },
-  // Build-block recipes — turn raw materials into the four blocks you can't
-  // otherwise dig up in this world.
-  { pattern: [[B.SAND,   B.SAND],   [B.SAND,   B.SAND]],   out: [B.GLASS, 4] },
+  // Build-block recipes — turn raw materials into blocks that don't generate.
+  // Sand → glass and cobble → stone are now done at a FURNACE (right-click one
+  // to open the smelting UI), not here.
   { pattern: [[B.COBBLE, B.COBBLE], [B.COBBLE, B.COBBLE]], out: [B.BRICK, 4] },
   { pattern: [[B.SNOW,   B.SNOW],   [B.SNOW,   B.SNOW]],   out: [B.ICE, 1] },
   // Decorate dirt with leaves to turn it back into a grass block
@@ -686,7 +802,28 @@ const RECIPES = [
       [B.COBBLE, B.COAL,   B.COBBLE],
       [B.COBBLE, B.COBBLE, B.COBBLE],
     ], out: [B.OBSIDIAN, 1] },
+  // Furnace — 8 cobble in a ring (Minecraft-style)
+  { pattern: [
+      [B.COBBLE, B.COBBLE, B.COBBLE],
+      [B.COBBLE, null,     B.COBBLE],
+      [B.COBBLE, B.COBBLE, B.COBBLE],
+    ], out: [B.FURNACE, 1] },
 ];
+
+// ---- Smelting ----
+const SMELT_TIME = 3.0;                // seconds per item smelted
+const SMELT_RECIPES = {
+  [B.SAND]:   B.GLASS,
+  [B.COBBLE]: B.STONE,
+};
+// Fuel value = how many items each fuel item can smelt
+const FUEL_VALUES = {
+  [B.COAL]:   8,
+  [B.WOOD]:   2,
+  [B.PLANKS]: 1,
+};
+const isSmeltable = (id) => id != null && id in SMELT_RECIPES;
+const fuelValue   = (id) => (id != null ? FUEL_VALUES[id] : 0) || 0;
 
 function trimPattern(grid, size) {
   let minR = size, maxR = -1, minC = size, maxC = -1;
@@ -898,6 +1035,36 @@ function buildAtlas() {
   const coalOre = oreOf('#1a1a1a', 16);
   const diamondOre = oreOf('#76d6e7', 14);
 
+  const furnaceTop = (cx, s) => {
+    stone(cx, s);
+    const cs = Math.floor(s * 0.5);
+    const off = Math.floor((s - cs) / 2);
+    cx.fillStyle = '#1a1a1a'; cx.fillRect(off, off, cs, cs);
+    cx.fillStyle = '#3a3a3a'; cx.fillRect(off + 1, off + 1, cs - 2, cs - 2);
+    cx.fillStyle = '#1a1a1a'; cx.fillRect(off + cs/2 - 1, off + 2, 1, cs - 4);
+  };
+  const furnaceSide = (cx, s) => {
+    stone(cx, s);
+    // Dark opening (oven mouth)
+    const ox = Math.floor(s * 0.22), oy = Math.floor(s * 0.32);
+    const ow = Math.floor(s * 0.56), oh = Math.floor(s * 0.36);
+    cx.fillStyle = '#0a0a0a'; cx.fillRect(ox, oy, ow, oh);
+    // Vertical grate bars
+    cx.fillStyle = '#454545';
+    for (let i = 1; i <= 3; i++) {
+      const gx = ox + Math.floor((ow * i) / 4);
+      cx.fillRect(gx, oy, 1, oh);
+    }
+    // Glow inside the opening
+    cx.fillStyle = '#a04018';
+    cx.fillRect(ox + 1, oy + oh - 3, ow - 2, 1);
+    cx.fillStyle = '#f08038';
+    cx.fillRect(ox + 2, oy + oh - 2, ow - 4, 1);
+    // Lid edge
+    cx.fillStyle = '#3a3a3a'; cx.fillRect(0, oy - 2, s, 1);
+    cx.fillStyle = '#5a5a5a'; cx.fillRect(0, oy - 1, s, 1);
+  };
+
   const tableTop = (cx, s) => {
     planks(cx, s);
     cx.fillStyle = '#5a3a1a';
@@ -955,6 +1122,11 @@ function buildAtlas() {
   at(B.TABLE - 1, 1, tableSide);
   at(B.TABLE - 1, 2, planks);
 
+  // Furnace: stone top with vent, stone side with grated oven mouth, stone bottom
+  at(B.FURNACE - 1, 0, furnaceTop);
+  at(B.FURNACE - 1, 1, furnaceSide);
+  at(B.FURNACE - 1, 2, stone);
+
   return c;
 }
 
@@ -984,6 +1156,35 @@ function itemIcon(itemId) {
     cx.fillStyle = '#8b5a2b'; cx.fillRect(28, 8, 6, 48);
     cx.fillStyle = '#6a3f1c'; cx.fillRect(32, 10, 2, 44);
     cx.fillStyle = '#a87340'; cx.fillRect(29, 9, 1, 46);
+    return c;
+  }
+  if (itemId === ITEM.ZOMBIE_EGG) {
+    // Egg body (oval) — pixel-rasterized
+    const cx0 = 32, cy0 = 32, rx = 18, ry = 22;
+    cx.fillStyle = '#4d7a3b';
+    for (let yy = 8; yy < 56; yy++) {
+      for (let xx = 12; xx < 52; xx++) {
+        const dx = (xx - cx0) / rx, dy = (yy - cy0) / ry;
+        if (dx * dx + dy * dy <= 1) cx.fillRect(xx, yy, 1, 1);
+      }
+    }
+    // Darker outline
+    cx.fillStyle = '#2e4a23';
+    for (let yy = 8; yy < 56; yy++) {
+      for (let xx = 12; xx < 52; xx++) {
+        const dx = (xx - cx0) / rx, dy = (yy - cy0) / ry;
+        const d = dx * dx + dy * dy;
+        if (d <= 1 && d > 0.85) cx.fillRect(xx, yy, 1, 1);
+      }
+    }
+    // Spots in zombie blue
+    cx.fillStyle = '#374a6c';
+    cx.fillRect(20, 18, 4, 3); cx.fillRect(38, 24, 4, 3);
+    cx.fillRect(24, 32, 3, 3); cx.fillRect(42, 38, 3, 3);
+    cx.fillRect(22, 44, 3, 2); cx.fillRect(34, 46, 4, 2);
+    // Highlight
+    cx.fillStyle = '#a8d894';
+    cx.fillRect(22, 14, 4, 2); cx.fillRect(18, 18, 2, 2);
     return c;
   }
   // Pick material palette
@@ -1621,15 +1822,20 @@ function makeZombieBodyTexture() {
   c.width = c.height = SIZE;
   const cx = c.getContext('2d');
   cx.imageSmoothingEnabled = false;
-  cx.fillStyle = '#3a5a8a'; cx.fillRect(0, 0, SIZE, SIZE);
-  // Tattered shirt stripes
-  for (let i = 0; i < 28; i++) {
-    cx.fillStyle = ['#2e4870','#456caa','#39568a','#5070b0'][Math.floor(Math.random()*4)];
+  // Teal-ish shirt (closer to canonical Minecraft zombie shirt)
+  cx.fillStyle = '#3a6e60'; cx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 32; i++) {
+    cx.fillStyle = ['#2e5a4d','#43806f','#36685b','#52927f'][Math.floor(Math.random()*4)];
     cx.fillRect(Math.floor(Math.random()*SIZE), Math.floor(Math.random()*SIZE), 1, 1);
   }
+  // Vertical seam down the centre
+  cx.fillStyle = '#23463a'; cx.fillRect(7, 1, 1, 13);
   // Tear at the bottom
-  cx.fillStyle = '#1d2a44';
+  cx.fillStyle = '#1a3a30';
   cx.fillRect(2, 14, 2, 2); cx.fillRect(7, 13, 1, 3); cx.fillRect(11, 14, 3, 2);
+  // A small dark stain to add character
+  cx.fillStyle = '#2c4a3a';
+  cx.fillRect(4, 7, 2, 1); cx.fillRect(3, 8, 1, 1);
   const tex = new THREE.CanvasTexture(c);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
@@ -1657,7 +1863,7 @@ const _ZOMBIE_HEAD_FRONT = makeZombieHeadTexture('front');
 const _ZOMBIE_HEAD_SIDE  = makeZombieHeadTexture('side');
 const _ZOMBIE_BODY_TEX   = makeZombieBodyTexture();
 const _ZOMBIE_SKIN_TEX   = makeZombieLimbTexture('#4d7a3b', '#3a5a2c');
-const _ZOMBIE_PANTS_TEX  = makeZombieLimbTexture('#3a4a52', '#2a3540');
+const _ZOMBIE_PANTS_TEX  = makeZombieLimbTexture('#374a6c', '#263350');
 function zombieHeadMaterials() {
   // [+x, -x, +y, -y, +z (front), -z (back)]
   const side = new THREE.MeshLambertMaterial({ map: _ZOMBIE_HEAD_SIDE });
@@ -1742,8 +1948,9 @@ class Zombie {
   update(dt, now) {
     if (this.dead) return;
 
-    // Daylight burns zombies after a delay
-    if (!isNight() && Math.random() < 0.012) { this.die(); return; }
+    // Daylight burns zombies after a delay (survival only — keeps creative
+    // spawn-egg zombies around for testing)
+    if (gameMode === 'survival' && !isNight() && Math.random() < 0.012) { this.die(); return; }
 
     const dx = player.pos.x - this.pos.x;
     const dz = player.pos.z - this.pos.z;
@@ -1911,18 +2118,25 @@ window.addEventListener('keydown', e => {
   if (!gameActive) return;
   // E toggles inventory (survival only)
   if (e.code === 'KeyE' && gameMode === 'survival') {
-    if (craftingOpen) closeCrafting(); else openCrafting();
+    if (furnaceOpen)      closeFurnace();
+    else if (craftingOpen) closeCrafting();
+    else                   openCrafting();
     e.preventDefault();
     return;
   }
-  if (e.code === 'Escape' && craftingOpen) { e.preventDefault(); closeCrafting(); return; }
+  if (e.code === 'Escape' && (craftingOpen || furnaceOpen)) {
+    e.preventDefault();
+    if (craftingOpen) closeCrafting();
+    if (furnaceOpen)  closeFurnace();
+    return;
+  }
   // While dead, only respawn keys work
   if (dead) {
     if (e.code === 'Enter' || e.code === 'Space') { respawnPlayer(); e.preventDefault(); }
     return;
   }
-  // While crafting is open, swallow gameplay keys
-  if (craftingOpen) return;
+  // While crafting/furnace modal is open, swallow gameplay keys
+  if (craftingOpen || furnaceOpen) return;
   // Double-tap Space toggles flight (creative only)
   if (e.code === 'Space' && !keys['Space'] && gameMode === 'creative') {
     const now = performance.now();
@@ -2030,7 +2244,8 @@ canvas.addEventListener('touchend', e => {
 // ============================================================
 const PALETTE = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.SAND, B.WOOD, B.PLANKS, B.LEAVES,
-  B.BRICK, B.GLASS, B.SNOW, B.ICE, B.OBSIDIAN, B.IRON, B.COAL, B.DIAMOND, B.TABLE,
+  B.BRICK, B.GLASS, B.SNOW, B.ICE, B.OBSIDIAN, B.IRON, B.COAL, B.DIAMOND,
+  B.TABLE, B.FURNACE, ITEM.ZOMBIE_EGG,
 ];
 let selected = 0;
 
@@ -2331,9 +2546,19 @@ function updateMining(dt) {
 function placeBlock() {
   const hit = raycast();
   if (!hit) return;
-  // Right-click on a crafting table opens the crafting UI (survival only)
-  if (gameMode === 'survival' && getBlock(hit.x, hit.y, hit.z) === B.TABLE) {
-    openCrafting('table');
+  // Right-click on a crafting table or furnace opens the relevant UI (survival)
+  if (gameMode === 'survival') {
+    const tgt = getBlock(hit.x, hit.y, hit.z);
+    if (tgt === B.TABLE)   { openCrafting('table'); return; }
+    if (tgt === B.FURNACE) { openFurnace(); return; }
+  }
+  // Creative: zombie spawn egg spawns a zombie on the targeted face
+  if (gameMode === 'creative' && selectedItemId() === ITEM.ZOMBIE_EGG) {
+    const nx = hit.x + hit.face[0], ny = hit.y + hit.face[1], nz = hit.z + hit.face[2];
+    if (inBounds(nx, ny, nz)) {
+      zombies.push(new Zombie(nx + 0.5, ny + 0.05, nz + 0.5));
+      sfx.zombieGroan();
+    }
     return;
   }
   const nx = hit.x + hit.face[0], ny = hit.y + hit.face[1], nz = hit.z + hit.face[2];
@@ -2643,20 +2868,41 @@ const sfx = {
   zombieGroan() {
     if (!gameActive) return;
     const ctx = ensureAudio(); const t0 = ctx.currentTime;
-    const o = ctx.createOscillator(); o.type = 'sawtooth';
-    const base = 70 + Math.random() * 30;
-    o.frequency.setValueAtTime(base, t0);
-    o.frequency.linearRampToValueAtTime(base * 1.3, t0 + 0.3);
-    o.frequency.linearRampToValueAtTime(base, t0 + 0.7);
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = 350;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.07, t0 + 0.1);
-    g.gain.linearRampToValueAtTime(0.05, t0 + 0.5);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.85);
-    o.connect(f); f.connect(g); g.connect(ctx.destination);
-    o.start(t0); o.stop(t0 + 0.9);
+    // Two slightly detuned oscillators through two formant bandpass filters
+    // gives the sound a vowel-like, vocal quality — closer to "uhhhrrrr"
+    // than a single saw wave.
+    const o1 = ctx.createOscillator(); o1.type = 'sawtooth';
+    const o2 = ctx.createOscillator(); o2.type = 'square';
+    const base = 42 + Math.random() * 18;
+    const peak = base * (1.3 + Math.random() * 0.15);
+    const end  = base * 0.85;
+    o1.frequency.setValueAtTime(base, t0);
+    o1.frequency.linearRampToValueAtTime(peak, t0 + 0.35);
+    o1.frequency.linearRampToValueAtTime(end,  t0 + 1.05);
+    o2.frequency.setValueAtTime(base * 1.005, t0);
+    o2.frequency.linearRampToValueAtTime(peak * 1.005, t0 + 0.35);
+    o2.frequency.linearRampToValueAtTime(end  * 1.005, t0 + 1.05);
+
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'bandpass'; f1.frequency.value = 360; f1.Q.value = 7;
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'bandpass'; f2.frequency.value = 1100; f2.Q.value = 5;
+
+    const g1 = ctx.createGain(); g1.gain.value = 0.55;
+    const g2 = ctx.createGain(); g2.gain.value = 0.25;
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, t0);
+    env.gain.linearRampToValueAtTime(0.18, t0 + 0.2);
+    env.gain.linearRampToValueAtTime(0.13, t0 + 0.75);
+    env.gain.exponentialRampToValueAtTime(0.001, t0 + 1.2);
+
+    o1.connect(g1); g1.connect(f1);
+    o2.connect(g2); g2.connect(f2);
+    f1.connect(env); f2.connect(env);
+    env.connect(ctx.destination);
+    o1.start(t0); o1.stop(t0 + 1.25);
+    o2.start(t0); o2.stop(t0 + 1.25);
   },
   death() {
     if (!gameActive) return;
@@ -2912,7 +3158,7 @@ function handleSlotMouseDown(e, get, set, key, ctx) {
       dragTouched.add(key);
     }
   }
-  rerenderCrafting();
+  rerenderActive();
 }
 
 function handleSlotMouseEnter(get, set, key) {
@@ -2920,7 +3166,7 @@ function handleSlotMouseEnter(get, set, key) {
   if (dragTouched.has(key)) return;
   dragTouched.add(key);
   tryPlaceOneInto(get, set);
-  rerenderCrafting();
+  rerenderActive();
 }
 
 // Take one craft into the cursor / held item
@@ -3078,12 +3324,158 @@ function returnCraftItemsToInv() {
   buildHotbar();
 }
 
-// Track mouse to position the cursor element (only while the modal is open)
+// Track mouse to position the cursor element (only while a modal is open)
 document.addEventListener('mousemove', e => {
-  if (!craftingOpen) return;
+  if (!craftingOpen && !furnaceOpen) return;
   cursorEl.style.left = e.clientX + 'px';
   cursorEl.style.top = e.clientY + 'px';
 });
+// ============================================================
+// Furnace UI + smelting
+// ============================================================
+const furnaceEl = document.getElementById('furnace');
+const furnaceInputEl = document.getElementById('furnaceInput');
+const furnaceFuelEl = document.getElementById('furnaceFuel');
+const furnaceOutputEl = document.getElementById('furnaceOutput');
+const furnMainInvEl = document.getElementById('furnMainInv');
+const furnHotbarInvEl = document.getElementById('furnHotbarInv');
+const fireFillEl = document.getElementById('fireFill');
+const smeltFillEl = document.getElementById('smeltFill');
+
+let furnaceOpen = false;
+let furnaceInput = null;
+let furnaceFuel = null;
+let furnaceOutput = null;
+let smeltProgress = 0;     // 0..1 within current smelt
+let fuelRemaining = 0;     // smelt-units left in the burn (can be fractional)
+let maxFuel = 0;           // total smelt-units of the most recent fuel item (for fire bar)
+
+function renderFurnSlot(el, item) {
+  el.innerHTML = '';
+  if (!item) { el.title = ''; return; }
+  el.title = nameOf(item.id);
+  el.appendChild(slotIcon(item.id));
+  if (item.count > 1) {
+    const cnt = document.createElement('div');
+    cnt.className = 'cnt'; cnt.textContent = item.count;
+    el.appendChild(cnt);
+  }
+}
+
+function renderFurnaceProgress() {
+  smeltFillEl.style.width = Math.max(0, Math.min(100, smeltProgress * 100)) + '%';
+  fireFillEl.style.width = (maxFuel > 0 ? Math.max(0, Math.min(100, (fuelRemaining / maxFuel) * 100)) : 0) + '%';
+}
+
+function renderFurnace() {
+  renderFurnSlot(furnaceInputEl, furnaceInput);
+  renderFurnSlot(furnaceFuelEl, furnaceFuel);
+  renderFurnSlot(furnaceOutputEl, furnaceOutput);
+  renderInvCells(furnMainInvEl, range(HOTBAR_SLOTS, INV_SLOTS));
+  renderInvCells(furnHotbarInvEl, range(0, HOTBAR_SLOTS));
+  renderHeld();
+  renderFurnaceProgress();
+}
+
+function updateFurnace(dt) {
+  if (!furnaceOpen) return;
+  const canSmelt = furnaceInput && isSmeltable(furnaceInput.id);
+  const outputId = canSmelt ? SMELT_RECIPES[furnaceInput.id] : null;
+  const outputHasRoom = canSmelt && (!furnaceOutput || (furnaceOutput.id === outputId && furnaceOutput.count < STACK_MAX));
+
+  let needFullRender = false;
+
+  if (canSmelt && outputHasRoom) {
+    // Ignite a new fuel item if we have nothing burning
+    if (fuelRemaining <= 0 && furnaceFuel && fuelValue(furnaceFuel.id) > 0) {
+      maxFuel = fuelValue(furnaceFuel.id);
+      fuelRemaining = maxFuel;
+      furnaceFuel.count--;
+      if (furnaceFuel.count <= 0) furnaceFuel = null;
+      needFullRender = true;
+    }
+    if (fuelRemaining > 0) {
+      const rate = dt / SMELT_TIME;
+      smeltProgress += rate;
+      fuelRemaining -= rate;
+      if (fuelRemaining < 0) fuelRemaining = 0;
+      if (smeltProgress >= 1) {
+        smeltProgress -= 1;
+        if (furnaceOutput && furnaceOutput.id === outputId) furnaceOutput.count++;
+        else furnaceOutput = { id: outputId, count: 1 };
+        furnaceInput.count--;
+        if (furnaceInput.count <= 0) furnaceInput = null;
+        needFullRender = true;
+      }
+    } else {
+      // Nothing burning and no fuel → progress decays
+      smeltProgress = Math.max(0, smeltProgress - dt / SMELT_TIME);
+    }
+  } else {
+    // Nothing to smelt → progress decays, fuel pauses
+    smeltProgress = Math.max(0, smeltProgress - dt / SMELT_TIME);
+  }
+
+  if (needFullRender) renderFurnace(); else renderFurnaceProgress();
+}
+
+function openFurnace() {
+  if (gameMode !== 'survival') return;
+  furnaceOpen = true;
+  furnaceEl.classList.remove('hidden');
+  renderFurnace();
+  leftHeld = false; mining = null;
+  hideCracks();
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+}
+
+function closeFurnace() {
+  // Return any items in the furnace slots and the cursor back to the inventory
+  if (furnaceInput)  { invAdd(furnaceInput.id, furnaceInput.count); furnaceInput = null; }
+  if (furnaceFuel)   { invAdd(furnaceFuel.id, furnaceFuel.count); furnaceFuel = null; }
+  if (furnaceOutput) { invAdd(furnaceOutput.id, furnaceOutput.count); furnaceOutput = null; }
+  if (heldItem)      { invAdd(heldItem.id, heldItem.count); heldItem = null; }
+  smeltProgress = 0; fuelRemaining = 0; maxFuel = 0;
+  furnaceOpen = false;
+  furnaceEl.classList.add('hidden');
+  cursorEl.classList.add('hidden');
+  inventoryClosedAt = performance.now();
+  buildHotbar();
+  if (gameActive) canvas.requestPointerLock();
+}
+
+// Wire the three furnace slots to the same handler family the crafting cells use
+function wireFurnaceSlot(el, get, set, key) {
+  el.addEventListener('mousedown', e => handleSlotMouseDown(e, get, set, key, 'craft'));
+  el.addEventListener('mouseenter', () => handleSlotMouseEnter(get, set, key));
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+wireFurnaceSlot(furnaceInputEl, () => furnaceInput, v => { furnaceInput = v; }, 'furn:input');
+wireFurnaceSlot(furnaceFuelEl,  () => furnaceFuel,  v => { furnaceFuel = v; },  'furn:fuel');
+// Output slot: simpler — you can only take from it (and shift-take). No placing.
+furnaceOutputEl.addEventListener('mousedown', e => {
+  e.preventDefault();
+  if (e.button !== 0) return;
+  if (e.shiftKey) {
+    if (furnaceOutput) {
+      const remainder = invAdd(furnaceOutput.id, furnaceOutput.count);
+      if (remainder <= 0) furnaceOutput = null;
+      else furnaceOutput.count = remainder;
+    }
+  } else {
+    leftClickSlot(() => furnaceOutput, v => { furnaceOutput = v; });
+  }
+  rerenderActive();
+});
+furnaceOutputEl.addEventListener('contextmenu', e => e.preventDefault());
+furnaceEl.addEventListener('contextmenu', e => e.preventDefault());
+document.querySelector('#furnace .close-btn').addEventListener('click', closeFurnace);
+
+function rerenderActive() {
+  if (furnaceOpen) renderFurnace();
+  else if (craftingOpen) rerenderCrafting();
+}
+
 let inventoryClosedAt = 0;
 function closeCrafting() {
   // Move any items left in the crafting grid + cursor back to inventory
@@ -3178,6 +3570,7 @@ function showMenu() {
   gameActive = false;
   menuEl.classList.remove('hidden');
   if (craftingOpen) closeCrafting();
+  if (furnaceOpen) closeFurnace();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   leftHeld = false; mining = null;
   hideCracks();
@@ -3188,7 +3581,7 @@ function showMenu() {
 
 function updateHint() {
   if (gameMode === 'survival') {
-    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place / use table · <span class="k">E</span> inventory · <span class="k">M</span> mute';
+    hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">CLICK</span> mine · <span class="k">R-CLICK</span> place / use table / open furnace · <span class="k">E</span> inventory · <span class="k">M</span> mute';
   } else {
     hintEl.innerHTML = '<span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute';
   }
@@ -3287,21 +3680,27 @@ function loop(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
 
-  if (gameActive && !craftingOpen) {
-    if (!dead) {
-      updatePhysics(dt);
-      updateCamera();
-      updateHighlight();
-      updateMining(dt);
-    }
-    updateDayNight(dt);
-    if (gameMode === 'survival' && !dead) {
-      trySpawnZombie(now);
-      for (const z of zombies) z.update(dt, now);
-      // Clean up dead zombies occasionally
-      if (Math.random() < 0.05) {
-        for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].dead) zombies.splice(i, 1);
+  if (gameActive) {
+    const modalOpen = craftingOpen || furnaceOpen;
+    if (!modalOpen) {
+      if (!dead) {
+        updatePhysics(dt);
+        updateCamera();
+        updateHighlight();
+        updateMining(dt);
       }
+      updateDayNight(dt);
+      if (!dead) {
+        if (gameMode === 'survival') trySpawnZombie(now);
+        // In creative, zombies still walk/animate (so spawn-egg testing works)
+        // but they can't damage the player — damagePlayer is gated by mode.
+        for (const z of zombies) z.update(dt, now);
+        if (Math.random() < 0.05) {
+          for (let i = zombies.length - 1; i >= 0; i--) if (zombies[i].dead) zombies.splice(i, 1);
+        }
+      }
+    } else if (furnaceOpen) {
+      updateFurnace(dt);
     }
   }
   renderer.render(scene, camera);
