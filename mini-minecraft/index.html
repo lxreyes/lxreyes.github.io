@@ -228,19 +228,6 @@
   }
   #pauseBtn:hover { background: rgba(0,0,0,0.6); }
 
-  #miningBar {
-    position: absolute; bottom: 88px; left: 50%; transform: translateX(-50%);
-    width: 180px; height: 8px;
-    background: rgba(0,0,0,0.55); border: 2px solid rgba(255,255,255,0.4); border-radius: 4px;
-    overflow: hidden; pointer-events: none;
-    opacity: 0; transition: opacity 0.1s;
-  }
-  #miningBar.active { opacity: 1; }
-  #miningBar .fill {
-    height: 100%; width: 0%;
-    background: linear-gradient(to right, #f0c850, #f88030);
-    transition: width 0.05s linear;
-  }
 
   /* Crafting modal */
   #crafting {
@@ -318,7 +305,6 @@
     <span class="k">WASD</span> move · <span class="k">SPACE</span> jump · <span class="k">MOUSE</span> look · <span class="k">F</span> fly · <span class="k">CLICK</span> break · <span class="k">R-CLICK</span> place · <span class="k">1-9</span> blocks · <span class="k">M</span> mute
   </div>
   <div id="hotbar"></div>
-  <div id="miningBar"><div class="fill"></div></div>
   <button id="pauseBtn" title="Menu (Esc)">≡</button>
 </div>
 
@@ -1014,6 +1000,56 @@ function buildBorderWalls() {
 }
 buildBorderWalls();
 
+// Crack overlay for mining — Minecraft-style progressive cracks
+const CRACK_STAGES = 8;
+function makeCrackTexture(stage) {
+  const SIZE = 32;
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const cx = c.getContext('2d');
+  cx.clearRect(0, 0, SIZE, SIZE);
+  cx.strokeStyle = `rgba(0,0,0,${0.55 + stage * 0.04})`;
+  cx.lineWidth = 1.4;
+  cx.lineCap = 'round';
+  const rng = mulberry32(123 + stage * 7);
+  const numLines = stage + 2;
+  for (let i = 0; i < numLines; i++) {
+    let x = rng() * SIZE, y = rng() * SIZE;
+    cx.beginPath();
+    cx.moveTo(x, y);
+    const segs = 2 + Math.floor(rng() * (2 + stage * 0.5));
+    for (let j = 0; j < segs; j++) {
+      x += (rng() - 0.5) * 9;
+      y += (rng() - 0.5) * 9;
+      x = Math.max(0, Math.min(SIZE, x));
+      y = Math.max(0, Math.min(SIZE, y));
+      cx.lineTo(x, y);
+    }
+    cx.stroke();
+  }
+  return c;
+}
+const crackMaterials = [];
+for (let s = 0; s < CRACK_STAGES; s++) {
+  const tex = new THREE.CanvasTexture(makeCrackTexture(s));
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  crackMaterials.push(new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  }));
+}
+const crackMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(1.004, 1.004, 1.004),
+  crackMaterials[0]
+);
+crackMesh.visible = false;
+scene.add(crackMesh);
+
 // ============================================================
 // Player
 // ============================================================
@@ -1421,27 +1457,27 @@ function breakBlock() {
 
 // Survival hold-to-mine state
 let mining = null; // { x, y, z, total, elapsed, lastTick }
-const miningBarEl = document.getElementById('miningBar');
-const miningBarFill = miningBarEl.querySelector('.fill');
+let leftHeldBonked = false;
+
+function hideCracks() { crackMesh.visible = false; }
 
 function updateMining(dt) {
   if (gameMode !== 'survival' || !leftHeld) {
-    if (mining) { mining = null; miningBarEl.classList.remove('active'); }
+    if (mining) { mining = null; hideCracks(); }
     return;
   }
   const hit = raycast();
-  if (!hit) { mining = null; miningBarEl.classList.remove('active'); return; }
+  if (!hit) { mining = null; hideCracks(); return; }
   const b = getBlock(hit.x, hit.y, hit.z);
-  if (b === B.AIR) { mining = null; miningBarEl.classList.remove('active'); return; }
+  if (b === B.AIR) { mining = null; hideCracks(); return; }
 
   // Start/restart if target changed
   if (!mining || mining.x !== hit.x || mining.y !== hit.y || mining.z !== hit.z) {
     const needTier = BLOCK_TIER[b] || 0;
     const have = toolTier(selectedItemId());
     if (have < needTier) {
-      // bonk and don't track
       mining = null;
-      miningBarEl.classList.remove('active');
+      hideCracks();
       if (!leftHeldBonked) { sfx.tick(160, 0.05, 'square', 0.1); leftHeldBonked = true; }
       return;
     }
@@ -1455,12 +1491,14 @@ function updateMining(dt) {
     mining.lastTick = mining.elapsed;
   }
 
-  // Update bar
-  miningBarEl.classList.add('active');
-  miningBarFill.style.width = `${Math.min(100, (mining.elapsed / mining.total) * 100)}%`;
+  // Show progressive crack overlay on the block being mined
+  const progress = mining.elapsed / mining.total;
+  const stage = Math.min(CRACK_STAGES - 1, Math.floor(progress * CRACK_STAGES));
+  crackMesh.material = crackMaterials[stage];
+  crackMesh.position.set(mining.x + 0.5, mining.y + 0.5, mining.z + 0.5);
+  crackMesh.visible = true;
 
   if (mining.elapsed >= mining.total) {
-    // Complete mining — drop + remove
     const drop = BLOCK_DROP[b] === undefined ? b : BLOCK_DROP[b];
     if (drop != null) invAdd(drop, 1);
     setBlock(mining.x, mining.y, mining.z, B.AIR);
@@ -1468,11 +1506,9 @@ function updateMining(dt) {
     buildHotbar();
     sfx.thud();
     mining = null;
-    miningBarEl.classList.remove('active');
+    hideCracks();
   }
 }
-
-let leftHeldBonked = false;
 
 function placeBlock() {
   const hit = raycast();
@@ -1847,7 +1883,7 @@ function openCrafting(mode = 'inventory') {
   craftingEl.classList.remove('hidden');
   renderCrafting();
   leftHeld = false; mining = null;
-  miningBarEl.classList.remove('active');
+  hideCracks();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
 let inventoryClosedAt = 0;
@@ -1931,7 +1967,7 @@ function showMenu() {
   if (craftingOpen) closeCrafting();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   leftHeld = false; mining = null;
-  miningBarEl.classList.remove('active');
+  hideCracks();
   populateWorldList();
 }
 
