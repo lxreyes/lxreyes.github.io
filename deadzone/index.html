@@ -5872,57 +5872,8 @@ function drawPet(id, cx, cy, size, heading = 0) {
       ctx.closePath();
       ctx.fill();
 
-      // BIGGER cooler wings — drawn BEFORE the body so the body rides on
-      // top of them and the wings spread to either side like a real top-
-      // down dragon. Wider arc of flap, more peaks, finger-bone struts.
-      const wingT = Math.sin(gameTime * 4.5) * 0.55;
-      function drawDragonWing(yScale) {
-        ctx.save();
-        ctx.translate(s * 0.00, s * 0.20 * yScale);
-        ctx.scale(1, yScale);                   // mirror for the bottom wing
-        ctx.rotate(-0.50 + wingT);
-        ctx.fillStyle = wing;
-        ctx.beginPath();
-        ctx.moveTo(  0,            0);
-        ctx.lineTo(-s * 0.70, -s * 0.35);
-        ctx.lineTo(-s * 0.45, -s * 0.75);    // peak 1
-        ctx.lineTo(-s * 0.20, -s * 0.40);    // notch
-        ctx.lineTo( s * 0.00, -s * 1.10);    // tall middle peak (the "cool" one)
-        ctx.lineTo( s * 0.20, -s * 0.40);    // notch
-        ctx.lineTo( s * 0.45, -s * 0.85);    // peak 3
-        ctx.lineTo( s * 0.65, -s * 0.40);    // notch
-        ctx.lineTo( s * 0.90, -s * 0.55);    // peak 4 (outer)
-        ctx.lineTo( s * 1.05, -s * 0.10);    // outer wing tip
-        ctx.lineTo( s * 0.60,  s * 0.05);
-        ctx.lineTo( s * 0.20,  s * 0.10);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = dark;
-        ctx.lineWidth = 1.4;
-        ctx.stroke();
-        // Finger-bone struts — five thin dark lines radiating from the wing root
-        ctx.strokeStyle = dark;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, 0); ctx.lineTo(-s * 0.45, -s * 0.70);
-        ctx.moveTo(0, 0); ctx.lineTo( s * 0.00, -s * 1.00);
-        ctx.moveTo(0, 0); ctx.lineTo( s * 0.45, -s * 0.78);
-        ctx.moveTo(0, 0); ctx.lineTo( s * 0.90, -s * 0.50);
-        ctx.moveTo(0, 0); ctx.lineTo( s * 1.00, -s * 0.10);
-        ctx.stroke();
-        // Faint red glow along the spine of the wing
-        ctx.strokeStyle = ember;
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.moveTo( 0, 0);
-        ctx.lineTo( s * 0.30, -s * 0.30);
-        ctx.lineTo( s * 0.75, -s * 0.35);
-        ctx.lineTo( s * 1.00, -s * 0.12);
-        ctx.stroke();
-        ctx.restore();
-      }
-      drawDragonWing(-1);   // top wing
-      drawDragonWing( 1);   // bottom wing (mirrored)
+      // Wings are drawn LATER (after the body + spikes) so they layer
+      // on top of the dragon's back. See "// Wings — drawn last" block.
 
       // Body — more jagged than before: 17-point polygon with sharper
       // alternating peaks and valleys along the silhouette.
@@ -5988,6 +5939,60 @@ function drawPet(id, cx, cy, size, heading = 0) {
         ctx.closePath();
         ctx.fill();
       }
+
+      // Wings — drawn last so both layer on top of the dragon's back.
+      // Each wing anchors on the dorsal centerline and extends UPWARD
+      // (-y) and outward; one mirrors via scale(-1, 1) on the X axis so
+      // the pair fans symmetrically left/right above the body. Flap
+      // amplitude is wider (±0.45 rad) for a more dramatic motion.
+      const wingT = Math.sin(gameTime * 4.5) * 0.45;
+      function drawDragonWing(side) {
+        ctx.save();
+        ctx.translate(-s * 0.05, -s * 0.08);    // anchor between body + spikes
+        ctx.scale(side, 1);                     // mirror X for the left wing
+        ctx.rotate(-0.25 + wingT);              // tilt outward + flap
+        ctx.fillStyle = wing;
+        ctx.beginPath();
+        ctx.moveTo(  0,            0);
+        ctx.lineTo( s * 0.10, -s * 0.30);
+        ctx.lineTo( s * 0.30, -s * 0.85);    // peak 1
+        ctx.lineTo( s * 0.45, -s * 0.45);    // notch
+        ctx.lineTo( s * 0.55, -s * 1.15);    // tall middle peak
+        ctx.lineTo( s * 0.72, -s * 0.50);    // notch
+        ctx.lineTo( s * 0.88, -s * 0.85);    // peak 3
+        ctx.lineTo( s * 1.00, -s * 0.40);    // notch
+        ctx.lineTo( s * 1.10, -s * 0.55);    // peak 4 (outer claw)
+        ctx.lineTo( s * 1.18, -s * 0.10);    // wing tip
+        ctx.lineTo( s * 0.70, -s * 0.05);
+        ctx.lineTo( s * 0.20,  s * 0.05);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = dark;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        // Finger-bone struts radiating from the wing root
+        ctx.strokeStyle = dark;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(s * 0.30, -s * 0.80);
+        ctx.moveTo(0, 0); ctx.lineTo(s * 0.55, -s * 1.05);
+        ctx.moveTo(0, 0); ctx.lineTo(s * 0.85, -s * 0.80);
+        ctx.moveTo(0, 0); ctx.lineTo(s * 1.10, -s * 0.50);
+        ctx.moveTo(0, 0); ctx.lineTo(s * 1.15, -s * 0.10);
+        ctx.stroke();
+        // Faint red glow along the wing spine
+        ctx.strokeStyle = ember;
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo( 0, 0);
+        ctx.lineTo( s * 0.40, -s * 0.30);
+        ctx.lineTo( s * 0.85, -s * 0.35);
+        ctx.lineTo( s * 1.15, -s * 0.12);
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawDragonWing(-1);   // left wing  — extends up & back over the spine
+      drawDragonWing( 1);   // right wing — extends up & forward over the spine
 
       // Neck wedge + head — sharp wedge instead of rounded snout
       ctx.fillStyle = body;
