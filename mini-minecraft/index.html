@@ -435,7 +435,7 @@
       <div class="craft-arrow">→</div>
       <div class="craft-side">
         <div class="grid-label">RESULT</div>
-        <div class="craft-result-slot" id="craftResult"></div>
+        <div class="craft-result-slot" id="craftResult" title="Click to craft · Shift+Click to craft all"></div>
       </div>
     </div>
     <div class="grid-label">INVENTORY</div>
@@ -443,6 +443,7 @@
     <div class="grid-label hotbar-label">HOTBAR</div>
     <div class="hotbar-inv-grid" id="hotbarInvGrid"></div>
     <button class="close-btn">CLOSE (E or ESC)</button>
+    <div class="hint">Shift+Click the result slot to craft as many as possible at once.</div>
   </div>
 </div>
 <div id="cursor" class="hidden"><div class="icon-wrap"></div><div class="cnt"></div></div>
@@ -504,55 +505,67 @@ const NUM_BLOCKS = 17;
 // Non-block items (IDs >= 100 to distinguish from blocks)
 const ITEM = {
   STICK: 100,
-  WOOD_PICK: 101,   STONE_PICK: 102,   IRON_PICK: 103,
-  WOOD_SWORD: 104,  STONE_SWORD: 105,  IRON_SWORD: 106,
-  WOOD_SHOVEL: 107, STONE_SHOVEL: 108, IRON_SHOVEL: 109,
-  WOOD_AXE: 110,    STONE_AXE: 111,    IRON_AXE: 112,
-  IRON_ARMOR: 113,
+  WOOD_PICK: 101,    STONE_PICK: 102,    IRON_PICK: 103,    DIAMOND_PICK: 114,
+  WOOD_SWORD: 104,   STONE_SWORD: 105,   IRON_SWORD: 106,   DIAMOND_SWORD: 115,
+  WOOD_SHOVEL: 107,  STONE_SHOVEL: 108,  IRON_SHOVEL: 109,  DIAMOND_SHOVEL: 116,
+  WOOD_AXE: 110,     STONE_AXE: 111,     IRON_AXE: 112,     DIAMOND_AXE: 117,
+  IRON_ARMOR: 113,   DIAMOND_ARMOR: 118,
 };
 const ITEM_NAMES = {
   [ITEM.STICK]: 'Stick',
   [ITEM.WOOD_PICK]: 'Wooden Pickaxe',
   [ITEM.STONE_PICK]: 'Stone Pickaxe',
   [ITEM.IRON_PICK]: 'Iron Pickaxe',
+  [ITEM.DIAMOND_PICK]: 'Diamond Pickaxe',
   [ITEM.WOOD_SWORD]: 'Wooden Sword',
   [ITEM.STONE_SWORD]: 'Stone Sword',
   [ITEM.IRON_SWORD]: 'Iron Sword',
+  [ITEM.DIAMOND_SWORD]: 'Diamond Sword',
   [ITEM.WOOD_SHOVEL]: 'Wooden Shovel',
   [ITEM.STONE_SHOVEL]: 'Stone Shovel',
   [ITEM.IRON_SHOVEL]: 'Iron Shovel',
+  [ITEM.DIAMOND_SHOVEL]: 'Diamond Shovel',
   [ITEM.WOOD_AXE]: 'Wooden Axe',
   [ITEM.STONE_AXE]: 'Stone Axe',
   [ITEM.IRON_AXE]: 'Iron Axe',
+  [ITEM.DIAMOND_AXE]: 'Diamond Axe',
   [ITEM.IRON_ARMOR]: 'Iron Armor',
+  [ITEM.DIAMOND_ARMOR]: 'Diamond Armor',
 };
 const isItem = (id) => id >= 100;
 const nameOf = (id) => isItem(id) ? ITEM_NAMES[id] : BLOCK_NAMES[id];
 
-// Tool material tier (0=hand, 1=wood, 2=stone, 3=iron)
-const _WOOD_TOOLS  = new Set([ITEM.WOOD_PICK,  ITEM.WOOD_SWORD,  ITEM.WOOD_SHOVEL,  ITEM.WOOD_AXE]);
-const _STONE_TOOLS = new Set([ITEM.STONE_PICK, ITEM.STONE_SWORD, ITEM.STONE_SHOVEL, ITEM.STONE_AXE]);
-const _IRON_TOOLS  = new Set([ITEM.IRON_PICK,  ITEM.IRON_SWORD,  ITEM.IRON_SHOVEL,  ITEM.IRON_AXE]);
+// Tool material tier (0=hand, 1=wood, 2=stone, 3=iron, 4=diamond)
+const _WOOD_TOOLS    = new Set([ITEM.WOOD_PICK,    ITEM.WOOD_SWORD,    ITEM.WOOD_SHOVEL,    ITEM.WOOD_AXE]);
+const _STONE_TOOLS   = new Set([ITEM.STONE_PICK,   ITEM.STONE_SWORD,   ITEM.STONE_SHOVEL,   ITEM.STONE_AXE]);
+const _IRON_TOOLS    = new Set([ITEM.IRON_PICK,    ITEM.IRON_SWORD,    ITEM.IRON_SHOVEL,    ITEM.IRON_AXE]);
+const _DIAMOND_TOOLS = new Set([ITEM.DIAMOND_PICK, ITEM.DIAMOND_SWORD, ITEM.DIAMOND_SHOVEL, ITEM.DIAMOND_AXE]);
 function toolTier(id) {
-  if (_WOOD_TOOLS.has(id))  return 1;
-  if (_STONE_TOOLS.has(id)) return 2;
-  if (_IRON_TOOLS.has(id))  return 3;
+  if (_WOOD_TOOLS.has(id))    return 1;
+  if (_STONE_TOOLS.has(id))   return 2;
+  if (_IRON_TOOLS.has(id))    return 3;
+  if (_DIAMOND_TOOLS.has(id)) return 4;
   return 0;
 }
 // Tool type (pick / sword / shovel / axe / null)
 function toolType(id) {
-  if (id === ITEM.WOOD_PICK   || id === ITEM.STONE_PICK   || id === ITEM.IRON_PICK)   return 'pick';
-  if (id === ITEM.WOOD_SWORD  || id === ITEM.STONE_SWORD  || id === ITEM.IRON_SWORD)  return 'sword';
-  if (id === ITEM.WOOD_SHOVEL || id === ITEM.STONE_SHOVEL || id === ITEM.IRON_SHOVEL) return 'shovel';
-  if (id === ITEM.WOOD_AXE    || id === ITEM.STONE_AXE    || id === ITEM.IRON_AXE)    return 'axe';
+  if (id === ITEM.WOOD_PICK   || id === ITEM.STONE_PICK   || id === ITEM.IRON_PICK   || id === ITEM.DIAMOND_PICK)   return 'pick';
+  if (id === ITEM.WOOD_SWORD  || id === ITEM.STONE_SWORD  || id === ITEM.IRON_SWORD  || id === ITEM.DIAMOND_SWORD)  return 'sword';
+  if (id === ITEM.WOOD_SHOVEL || id === ITEM.STONE_SHOVEL || id === ITEM.IRON_SHOVEL || id === ITEM.DIAMOND_SHOVEL) return 'shovel';
+  if (id === ITEM.WOOD_AXE    || id === ITEM.STONE_AXE    || id === ITEM.IRON_AXE    || id === ITEM.DIAMOND_AXE)    return 'axe';
   return null;
 }
 function swordDamage(id) {
-  if (id === ITEM.WOOD_SWORD)  return 4;
-  if (id === ITEM.STONE_SWORD) return 5;
-  if (id === ITEM.IRON_SWORD)  return 7;
+  if (id === ITEM.WOOD_SWORD)    return 4;
+  if (id === ITEM.STONE_SWORD)   return 5;
+  if (id === ITEM.IRON_SWORD)    return 7;
+  if (id === ITEM.DIAMOND_SWORD) return 9;
   return 1; // bare hand
 }
+const ARMOR_DEFENSE = {
+  [ITEM.IRON_ARMOR]: 4,
+  [ITEM.DIAMOND_ARMOR]: 6,
+};
 
 // Preferred tool type per block — matching tool mines much faster
 const BLOCK_TOOL = {
@@ -562,16 +575,20 @@ const BLOCK_TOOL = {
   [B.WOOD]:'axe', [B.PLANKS]:'axe', [B.LEAVES]:'axe', [B.TABLE]:'axe',
 };
 
-// Mining time (seconds) — block hardness, tool tier bonus, tool-type bonus
+// Mining time (seconds) — wrong tool = base (hand-equivalent) speed; right tool gets tier + type bonus
 function miningTime(blockId, toolId) {
   const blockT = BLOCK_TIER[blockId] || 0;
   const toolT = toolTier(toolId);
   if (toolT < blockT) return Infinity;
   const BASE = [0.55, 1.0, 1.4, 2.0];
   const base = BASE[blockT];
-  const tierMul = 1 + (toolT - blockT) * 0.7;
-  const typeMul = (BLOCK_TOOL[blockId] && BLOCK_TOOL[blockId] === toolType(toolId)) ? 1.9 : 1;
-  return base / (tierMul * typeMul);
+  const preferred = BLOCK_TOOL[blockId];
+  const correctTool = preferred && preferred === toolType(toolId);
+  // Wrong tool (or no preferred tool for this block) → mine at base speed, no bonus
+  if (!correctTool) return base;
+  // Correct tool → tier bonus + 1.9× type bonus
+  const mul = (1 + (toolT - blockT) * 0.7) * 1.9;
+  return base / mul;
 }
 // Min tier required to mine each block (default 0)
 const BLOCK_TIER = {
@@ -592,10 +609,11 @@ const BLOCK_DROP = {
 // Each cell is a block/item id, or null for "must be empty".
 // Patterns are stored already trimmed (no blank rows/cols on the edges)
 // and the grid is trimmed to its bounding box for comparison.
-const _PLANK_ROW = [B.PLANKS, B.PLANKS, B.PLANKS];
-const _COBBLE_ROW = [B.COBBLE, B.COBBLE, B.COBBLE];
-const _IRON_ROW = [B.IRON, B.IRON, B.IRON];
-const _STICK_COL = [null, ITEM.STICK, null];
+const _PLANK_ROW   = [B.PLANKS, B.PLANKS, B.PLANKS];
+const _COBBLE_ROW  = [B.COBBLE, B.COBBLE, B.COBBLE];
+const _IRON_ROW    = [B.IRON, B.IRON, B.IRON];
+const _DIAMOND_ROW = [B.DIAMOND, B.DIAMOND, B.DIAMOND];
+const _STICK_COL   = [null, ITEM.STICK, null];
 const RECIPES = [
   // 2x2-compatible
   { pattern: [[B.WOOD]],                          out: [B.PLANKS, 4] },
@@ -604,24 +622,30 @@ const RECIPES = [
   // Pickaxes (3x3 only)
   { pattern: [_PLANK_ROW,  _STICK_COL, _STICK_COL], out: [ITEM.WOOD_PICK, 1] },
   { pattern: [_COBBLE_ROW, _STICK_COL, _STICK_COL], out: [ITEM.STONE_PICK, 1] },
-  { pattern: [_IRON_ROW,   _STICK_COL, _STICK_COL], out: [ITEM.IRON_PICK, 1] },
+  { pattern: [_IRON_ROW,    _STICK_COL, _STICK_COL], out: [ITEM.IRON_PICK, 1] },
+  { pattern: [_DIAMOND_ROW, _STICK_COL, _STICK_COL], out: [ITEM.DIAMOND_PICK, 1] },
   // Swords (3x1)
   { pattern: [[B.PLANKS], [B.PLANKS], [ITEM.STICK]], out: [ITEM.WOOD_SWORD, 1] },
   { pattern: [[B.COBBLE], [B.COBBLE], [ITEM.STICK]], out: [ITEM.STONE_SWORD, 1] },
-  { pattern: [[B.IRON],   [B.IRON],   [ITEM.STICK]], out: [ITEM.IRON_SWORD, 1] },
+  { pattern: [[B.IRON],    [B.IRON],    [ITEM.STICK]], out: [ITEM.IRON_SWORD, 1] },
+  { pattern: [[B.DIAMOND], [B.DIAMOND], [ITEM.STICK]], out: [ITEM.DIAMOND_SWORD, 1] },
   // Shovels (3x1)
   { pattern: [[B.PLANKS], [ITEM.STICK], [ITEM.STICK]], out: [ITEM.WOOD_SHOVEL, 1] },
   { pattern: [[B.COBBLE], [ITEM.STICK], [ITEM.STICK]], out: [ITEM.STONE_SHOVEL, 1] },
-  { pattern: [[B.IRON],   [ITEM.STICK], [ITEM.STICK]], out: [ITEM.IRON_SHOVEL, 1] },
+  { pattern: [[B.IRON],    [ITEM.STICK], [ITEM.STICK]], out: [ITEM.IRON_SHOVEL, 1] },
+  { pattern: [[B.DIAMOND], [ITEM.STICK], [ITEM.STICK]], out: [ITEM.DIAMOND_SHOVEL, 1] },
   // Axes — Minecraft has two orientations; include both for player friendliness
   { pattern: [[B.PLANKS, B.PLANKS], [B.PLANKS, ITEM.STICK], [null, ITEM.STICK]], out: [ITEM.WOOD_AXE, 1] },
   { pattern: [[B.PLANKS, B.PLANKS], [ITEM.STICK, B.PLANKS], [ITEM.STICK, null]], out: [ITEM.WOOD_AXE, 1] },
   { pattern: [[B.COBBLE, B.COBBLE], [B.COBBLE, ITEM.STICK], [null, ITEM.STICK]], out: [ITEM.STONE_AXE, 1] },
   { pattern: [[B.COBBLE, B.COBBLE], [ITEM.STICK, B.COBBLE], [ITEM.STICK, null]], out: [ITEM.STONE_AXE, 1] },
-  { pattern: [[B.IRON, B.IRON],     [B.IRON, ITEM.STICK],   [null, ITEM.STICK]], out: [ITEM.IRON_AXE, 1] },
-  { pattern: [[B.IRON, B.IRON],     [ITEM.STICK, B.IRON],   [ITEM.STICK, null]], out: [ITEM.IRON_AXE, 1] },
-  // Iron chestplate
-  { pattern: [[B.IRON, null, B.IRON], [B.IRON, B.IRON, B.IRON], [B.IRON, B.IRON, B.IRON]], out: [ITEM.IRON_ARMOR, 1] },
+  { pattern: [[B.IRON, B.IRON],       [B.IRON, ITEM.STICK],   [null, ITEM.STICK]],   out: [ITEM.IRON_AXE, 1] },
+  { pattern: [[B.IRON, B.IRON],       [ITEM.STICK, B.IRON],   [ITEM.STICK, null]],   out: [ITEM.IRON_AXE, 1] },
+  { pattern: [[B.DIAMOND, B.DIAMOND], [B.DIAMOND, ITEM.STICK],[null, ITEM.STICK]],   out: [ITEM.DIAMOND_AXE, 1] },
+  { pattern: [[B.DIAMOND, B.DIAMOND], [ITEM.STICK, B.DIAMOND],[ITEM.STICK, null]],   out: [ITEM.DIAMOND_AXE, 1] },
+  // Chestplates
+  { pattern: [[B.IRON, null, B.IRON],       [B.IRON, B.IRON, B.IRON],          [B.IRON, B.IRON, B.IRON]],          out: [ITEM.IRON_ARMOR, 1] },
+  { pattern: [[B.DIAMOND, null, B.DIAMOND], [B.DIAMOND, B.DIAMOND, B.DIAMOND], [B.DIAMOND, B.DIAMOND, B.DIAMOND]], out: [ITEM.DIAMOND_ARMOR, 1] },
 ];
 
 function trimPattern(grid, size) {
@@ -924,15 +948,17 @@ function itemIcon(itemId) {
   }
   // Pick material palette
   let pal = null;
-  if (_WOOD_TOOLS.has(itemId))  pal = ['#a07238', '#6a4622'];
+  if (_WOOD_TOOLS.has(itemId))    pal = ['#a07238', '#6a4622'];
   else if (_STONE_TOOLS.has(itemId)) pal = ['#9a9a9a', '#5a5a5a'];
   else if (_IRON_TOOLS.has(itemId) || itemId === ITEM.IRON_ARMOR) pal = ['#d4d4d4', '#7a7a7a'];
+  else if (_DIAMOND_TOOLS.has(itemId) || itemId === ITEM.DIAMOND_ARMOR) pal = ['#7df0e0', '#3aa090'];
   if (!pal) return c;
   const [head, dark] = pal;
   const type = toolType(itemId);
+  const isArmor = (itemId === ITEM.IRON_ARMOR || itemId === ITEM.DIAMOND_ARMOR);
 
   // Common handle (stick) for tools
-  if (itemId !== ITEM.IRON_ARMOR) {
+  if (!isArmor) {
     cx.fillStyle = '#8b5a2b'; cx.fillRect(30, 26, 6, 32);
     cx.fillStyle = '#6a3f1c'; cx.fillRect(34, 28, 2, 28);
   }
@@ -975,7 +1001,7 @@ function itemIcon(itemId) {
     cx.fillRect(14, 24, 28, 2);
     cx.fillRect(14, 12, 2, 14);
     cx.fillRect(40, 12, 2, 14);
-  } else if (itemId === ITEM.IRON_ARMOR) {
+  } else if (isArmor) {
     // Chestplate silhouette
     cx.fillStyle = head;
     cx.fillRect(14, 14, 36, 38);   // body
@@ -1446,8 +1472,13 @@ function renderHearts() {
 }
 
 function getArmorDefense() {
-  for (const slot of inventory) if (slot && slot.id === ITEM.IRON_ARMOR) return 4;
-  return 0;
+  let best = 0;
+  for (const slot of inventory) {
+    if (!slot) continue;
+    const d = ARMOR_DEFENSE[slot.id] || 0;
+    if (d > best) best = d;
+  }
+  return best;
 }
 function damagePlayer(amount) {
   if (dead || gameMode !== 'survival') return;
@@ -2636,6 +2667,7 @@ function clickSlot(get, set) {
   rerenderCrafting();
 }
 
+// Take one craft into the cursor / held item
 function takeResult() {
   const recipe = findRecipe(craftGrid, gridSize());
   if (!recipe) return;
@@ -2647,17 +2679,46 @@ function takeResult() {
   } else {
     heldItem = { id: outId, count: outCount };
   }
-  // Consume one of each non-empty grid cell
+  consumeOneOfEach();
+  sfx.tick(720, 0.06, 'triangle', 0.12);
+  sfx.tick(960, 0.06, 'triangle', 0.10);
+  rerenderCrafting();
+  buildHotbar();
+}
+
+// Shift+click on result: craft as many times as possible, sending results directly to inventory
+function takeResultAll() {
+  let crafted = 0;
+  while (true) {
+    const recipe = findRecipe(craftGrid, gridSize());
+    if (!recipe) break;
+    const [outId, outCount] = recipe.out;
+    // Try to push the result straight to inventory; abort if it can't all fit
+    const overflow = invAdd(outId, outCount);
+    if (overflow > 0) {
+      // Roll back the partial add — couldn't fit a full craft
+      invRemove(outId, outCount - overflow);
+      break;
+    }
+    consumeOneOfEach();
+    crafted++;
+    if (crafted > 512) break; // safety
+  }
+  if (crafted > 0) {
+    sfx.tick(720, 0.06, 'triangle', 0.12);
+    sfx.tick(960, 0.06, 'triangle', 0.10);
+  }
+  rerenderCrafting();
+  buildHotbar();
+}
+
+function consumeOneOfEach() {
   for (let i = 0; i < craftGrid.length; i++) {
     if (craftGrid[i]) {
       craftGrid[i].count--;
       if (craftGrid[i].count <= 0) craftGrid[i] = null;
     }
   }
-  sfx.tick(720, 0.06, 'triangle', 0.12);
-  sfx.tick(960, 0.06, 'triangle', 0.10);
-  rerenderCrafting();
-  buildHotbar();
 }
 
 function renderCraftGrid() {
@@ -2682,7 +2743,10 @@ function renderResult() {
     renderSlotInto(craftResultEl, previewItem);
   }
 }
-craftResultEl.addEventListener('click', takeResult);
+craftResultEl.addEventListener('click', (e) => {
+  if (e.shiftKey) takeResultAll();
+  else takeResult();
+});
 
 function renderInvCells(container, range) {
   container.innerHTML = '';
