@@ -226,7 +226,7 @@ renderer.setClearColor(0x0a0d14);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x0a0d14, 8, 36);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 200);
+const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.05, 200);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -502,10 +502,7 @@ window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 // Mouse look (desktop)
 let pointerLocked = false;
 canvas.addEventListener('click', () => {
-  if (isTouch) return;
-  if (gameState === 'playing' && !pointerLocked) {
-    canvas.requestPointerLock && canvas.requestPointerLock();
-  }
+  if (gameState === 'playing') requestPointerLock();
 });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = (document.pointerLockElement === canvas);
@@ -523,6 +520,13 @@ document.addEventListener('mousemove', e => {
 function exitPointerLock() {
   if (pointerLocked && document.exitPointerLock) document.exitPointerLock();
 }
+function requestPointerLock() {
+  // Must be inside a user gesture handler; browsers ignore otherwise.
+  if (isTouch) return;
+  if (pointerLocked) return;
+  if (canvas.requestPointerLock) canvas.requestPointerLock();
+}
+document.addEventListener('pointerlockerror', () => logError('pointerlock', 'request denied'));
 const lockHintEl = document.getElementById('lockHint');
 function updateLockHint() {
   const show = !isTouch && gameState === 'playing' && !pointerLocked;
@@ -758,7 +762,7 @@ function renderLevelButtons() {
     const b = document.createElement('button');
     b.className = 'btn primary';
     b.textContent = (i + 1) + ' · ' + lv.name;
-    b.onclick = () => startLevel(i);
+    b.onclick = () => { startLevel(i); requestPointerLock(); };
     wrap.appendChild(b);
   });
 }
@@ -792,10 +796,10 @@ function win() {
   const nextBtn = document.getElementById('nextBtn');
   if (currentLevelIndex >= LEVELS.length - 1) {
     nextBtn.textContent = 'PLAY AGAIN';
-    nextBtn.onclick = () => startLevel(0);
+    nextBtn.onclick = () => { startLevel(0); requestPointerLock(); };
   } else {
     nextBtn.textContent = 'NEXT LEVEL';
-    nextBtn.onclick = () => startLevel(currentLevelIndex + 1);
+    nextBtn.onclick = () => { startLevel(currentLevelIndex + 1); requestPointerLock(); };
   }
   exitPointerLock();
 }
@@ -813,8 +817,8 @@ function die() {
 }
 
 // UI buttons
-restartBtn.onclick = () => retryLevel();
-document.getElementById('retryBtn').onclick = () => retryLevel();
+restartBtn.onclick = () => { retryLevel(); requestPointerLock(); };
+document.getElementById('retryBtn').onclick = () => { retryLevel(); requestPointerLock(); };
 document.getElementById('deadMenuBtn').onclick = () => showMenu();
 document.getElementById('wonMenuBtn').onclick = () => showMenu();
 
