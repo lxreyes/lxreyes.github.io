@@ -1103,21 +1103,23 @@ const PETS = {
     orbitRadius: 60, orbitSpeed: 2.4,
     desc: 'Orbits you · auto-shoots the nearest threat',
   },
-  // Apex pet — the dragon. Kites at long range and snipes with a single
-  // bright laser shot every few seconds. Uses bulletKind 'rail' (tapered
-  // streak + white core + glow) so the shot reads as one continuous
-  // energy beam crossing the screen instantly, not a spray of projectiles.
-  // Extremely expensive — capstone "save up your whole run" purchase.
+  // Apex pet — the dragon. Kites at long range and channels a short
+  // sustained laser stream every few seconds: rapid rail-pulses fired
+  // toward whatever's nearest, tracking it as the beam holds. Reads as
+  // a constant energy beam crossing the screen for ~0.6s, then a long
+  // recovery before it can fire again. Capstone "save your run" buy.
   dragon: {
-    name: 'Dragon',      color: '#c83020', cost: 9000,
-    kind: 'beam', speed: 140, dmg: 200, attackCd: 3.5, range: 520,
+    name: 'Dragon',      color: '#6a1208', cost: 9000,
+    kind: 'beam', speed: 140, dmg: 18, attackCd: 3.5, range: 520,
     keepDistance: 320,                    // stay at standoff range, don't charge
     drawSize: 44,                         // bigger than other pets in-world
     bulletSpeed: 1400, bulletLife: 0.5,   // very fast — near-instant cross-screen
     bulletColor: '#ff5050',
-    beamShots: 1, spread: 0,              // single straight shot — pure laser
+    beamDuration: 0.6,                    // length of the laser stream in seconds
+    beamFireInterval: 0.04,               // ~25 pulses/sec while streaming
+    spread: 0.02,                         // tiny jitter so the beam feels alive
     bulletKindOverride: 'rail',           // railgun streak render = "laser"
-    desc: 'Apex companion · keeps distance · fires a single huge laser blast',
+    desc: 'Apex companion · keeps distance · channels a short laser stream',
   },
 };
 const PET_KEYS = Object.keys(PETS);
@@ -5605,9 +5607,53 @@ function updatePets(dt) {
       // Save aim heading for the sprite
       p.heading = Math.atan2(dy, dx);
     }
-    // Attack
-    p.lastAttack = (p.lastAttack || 0) + dt;
-    if (near && p.lastAttack >= def.attackCd) {
+    // Attack — beam-kind pets handle channeling separately so the cooldown
+    // only starts AFTER the stream ends, not at the moment of the first
+    // pulse. Other kinds just check lastAttack against attackCd as before.
+    const isBeaming = def.kind === 'beam' && (p.beamUntil || 0) > gameTime;
+    const wasBeaming = !!p.beamWas;
+    if (wasBeaming && !isBeaming) {
+      // Beam just ended — kick off the recovery cooldown from this moment.
+      p.lastAttack = 0;
+    }
+    p.beamWas = isBeaming;
+    if (isBeaming) {
+      // Channel: fire one rail pulse per beamFireInterval, re-aiming each
+      // pulse so the beam tracks moving targets.
+      if (near) {
+        const dx = near.x - p.x, dy = near.y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        p.heading = Math.atan2(dy, dx);
+        const interval = def.beamFireInterval || 0.05;
+        if (gameTime - (p.lastPulse || 0) >= interval) {
+          p.lastPulse = gameTime;
+          const ux = dx / d, uy = dy / d;
+          const muzzleR = (def.hitR || 14) + 8;
+          const spread = def.spread || 0.02;
+          const a = (Math.random() - 0.5) * spread;
+          const cs = Math.cos(a), sn = Math.sin(a);
+          const vx = (ux * cs - uy * sn) * def.bulletSpeed;
+          const vy = (ux * sn + uy * cs) * def.bulletSpeed;
+          bullets.push({
+            x: p.x + ux * muzzleR, y: p.y + uy * muzzleR,
+            vx, vy,
+            damage: def.dmg, pierce: 99,
+            hits: new Set(),
+            life: def.bulletLife,
+            color: def.bulletColor || def.color,
+            explosive: false, blastR: 0, blastDmg: 0,
+            bulletKind: def.bulletKindOverride || 'rail',
+            bounces: 0, leavesSlick: false, spawnChicks: 0,
+            chains: 0, chainRange: 0,
+            orbitAngle: 0, orbitRadius: 0, orbitSpeed: 0,
+            homing: false, isCrit: false, petBullet: true,
+          });
+        }
+      }
+    } else {
+      p.lastAttack = (p.lastAttack || 0) + dt;
+    }
+    if (!isBeaming && near && p.lastAttack >= def.attackCd) {
       if (def.kind === 'melee') {
         const dx = near.x - p.x, dy = near.y - p.y;
         const d = Math.hypot(dx, dy);
@@ -5627,42 +5673,12 @@ function updatePets(dt) {
           }
         }
       } else if (def.kind === 'beam') {
-        // Sustained ray — fires a tight salvo of high-pierce laser streaks
-        // along the line to the target. With tiny spread + the 'laser'
-        // bulletKind (long red streak + halo), the volley reads as a single
-        // continuous beam rather than discrete shots. Spawned from the
-        // dragon's muzzle (offset along the aim vector).
-        const dx = near.x - p.x, dy = near.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        const ux = dx / d, uy = dy / d;
-        const N = def.beamShots || 5;
-        const spread = def.spread || 0.03;
-        const muzzleR = (def.hitR || 14) + 8;
-        const kind = def.bulletKindOverride || 'flame';
-        for (let k = 0; k < N; k++) {
-          const a = (Math.random() - 0.5) * spread;
-          const cs = Math.cos(a), sn = Math.sin(a);
-          const vx = (ux * cs - uy * sn) * def.bulletSpeed;
-          const vy = (ux * sn + uy * cs) * def.bulletSpeed;
-          // Slight life jitter so the streaks read as a sustained beam,
-          // not a single instant flash.
-          bullets.push({
-            x: p.x + ux * muzzleR, y: p.y + uy * muzzleR,
-            vx, vy,
-            damage: def.dmg, pierce: 99,
-            hits: new Set(),
-            life: def.bulletLife * (0.85 + Math.random() * 0.3),
-            color: def.bulletColor || def.color,
-            explosive: false, blastR: 0, blastDmg: 0,
-            bulletKind: kind, bounces: 0, leavesSlick: false, spawnChicks: 0,
-            chains: 0, chainRange: 0,
-            orbitAngle: 0, orbitRadius: 0, orbitSpeed: 0,
-            homing: false, isCrit: false, petBullet: true,
-          });
-        }
-        // Roar / breath cue
-        p.lastAttack = 0;
-        p.beamFlashUntil = gameTime + 0.35;
+        // Open a fresh beam window. The streaming pulses themselves fire
+        // each frame above (via the isBeaming branch). lastAttack stays
+        // unchanged here so it can be reset to 0 when the beam ends.
+        p.beamUntil = gameTime + (def.beamDuration || 0.6);
+        p.lastPulse = 0;        // ensures the first pulse fires immediately
+        p.beamFlashUntil = gameTime + (def.beamDuration || 0.6);
         shake(3);
       } else {
         // Fire a pet bullet at the target — uses the regular bullets pipeline
@@ -5825,125 +5841,205 @@ function drawPet(id, cx, cy, size, heading = 0) {
       break;
     }
     case 'dragon': {
-      // Larger silhouette than the other pets to sell the "apex" feel.
-      // Wings flap, tail trails, a small flame puff sits at the muzzle (and
-      // grows briefly into a roaring breath right after firing).
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      // Hard-angled, dark silhouette to match the game's flat-shaded aesthetic.
+      // Every shape is a polygon (no smooth ellipses except the ground shadow
+      // and the flame halo) so the dragon reads as menacing / jagged instead
+      // of cute. Palette stays in deep blood-red and near-black; the only
+      // bright accent is the eye and the muzzle flame.
+      const dark   = '#1a0408';   // outline / spike fill — almost black
+      const wing   = '#2a0608';   // wing membrane — slightly above body
+      const body   = def.color;   // deep blood red (#6a1208)
+      const accent = '#3a0a08';   // mid-tone for inner shading
+      // Ground shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.beginPath(); ctx.ellipse(0, s * 0.75, s * 1.0, s * 0.22, 0, 0, Math.PI * 2); ctx.fill();
-      // Tail — curved, trailing behind
-      const tailWag = Math.sin(gameTime * 4) * 0.25;
-      ctx.strokeStyle = '#7a1c10';
-      ctx.lineCap = 'round';
-      ctx.lineWidth = s * 0.18;
+
+      // Tail — jagged zig-zag segments instead of a smooth curve
+      const tailWag = Math.sin(gameTime * 4) * 0.18;
+      ctx.fillStyle = dark;
       ctx.beginPath();
-      ctx.moveTo(-s * 0.6, 0);
-      ctx.quadraticCurveTo(-s * 1.1, s * 0.3 + tailWag, -s * 1.35, -s * 0.1 + tailWag);
-      ctx.stroke();
-      ctx.lineCap = 'butt';
-      // Tail spike at the very end
-      ctx.fillStyle = '#3a0a08';
-      ctx.beginPath();
-      ctx.moveTo(-s * 1.35, -s * 0.1 + tailWag);
-      ctx.lineTo(-s * 1.55, -s * 0.25 + tailWag);
-      ctx.lineTo(-s * 1.35, -s * 0.30 + tailWag);
+      ctx.moveTo(-s * 0.55,  s * 0.05);
+      ctx.lineTo(-s * 0.75,  s * 0.20 + tailWag);
+      ctx.lineTo(-s * 0.95, -s * 0.05 + tailWag);
+      ctx.lineTo(-s * 1.20,  s * 0.12 + tailWag);
+      ctx.lineTo(-s * 1.45, -s * 0.15 + tailWag);
+      ctx.lineTo(-s * 1.55, -s * 0.40 + tailWag); // spike tip
+      ctx.lineTo(-s * 1.30, -s * 0.10 + tailWag);
+      ctx.lineTo(-s * 1.05,  s * 0.05 + tailWag);
+      ctx.lineTo(-s * 0.80,  s * 0.00 + tailWag);
+      ctx.lineTo(-s * 0.55, -s * 0.05);
       ctx.closePath();
       ctx.fill();
-      // Body — long oval
-      ctx.fillStyle = def.color;
+
+      // Body — angular polygon, low-slung
+      ctx.fillStyle = body;
       ctx.beginPath();
-      ctx.ellipse(-s * 0.05, 0, s * 0.7, s * 0.4, 0, 0, Math.PI * 2);
+      ctx.moveTo(-s * 0.55, -s * 0.05);
+      ctx.lineTo(-s * 0.30, -s * 0.30);
+      ctx.lineTo( s * 0.05, -s * 0.40);
+      ctx.lineTo( s * 0.30, -s * 0.30);
+      ctx.lineTo( s * 0.55, -s * 0.18);
+      ctx.lineTo( s * 0.55,  s * 0.18);
+      ctx.lineTo( s * 0.30,  s * 0.35);
+      ctx.lineTo(-s * 0.10,  s * 0.40);
+      ctx.lineTo(-s * 0.45,  s * 0.25);
+      ctx.lineTo(-s * 0.55, -s * 0.05);
+      ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#3a0a08';
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
-      // Back spikes — three small triangles along the spine
-      ctx.fillStyle = '#3a0a08';
-      for (let k = 0; k < 3; k++) {
-        const sx = -s * 0.35 + k * s * 0.25;
+      // Belly darker stripe — adds depth without smoothing
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.40,  s * 0.18);
+      ctx.lineTo(-s * 0.05,  s * 0.38);
+      ctx.lineTo( s * 0.30,  s * 0.30);
+      ctx.lineTo( s * 0.42,  s * 0.10);
+      ctx.lineTo( s * 0.20,  s * 0.18);
+      ctx.lineTo(-s * 0.10,  s * 0.28);
+      ctx.closePath();
+      ctx.fill();
+
+      // Back spikes — five sharp triangles, alternating heights
+      ctx.fillStyle = dark;
+      const spikeXs = [-s * 0.35, -s * 0.18, s * 0.00, s * 0.18, s * 0.36];
+      const spikeHs = [ 0.55,      0.70,      0.85,    0.65,     0.50    ];
+      for (let k = 0; k < spikeXs.length; k++) {
+        const sx = spikeXs[k];
+        const h = spikeHs[k];
         ctx.beginPath();
-        ctx.moveTo(sx, -s * 0.35);
-        ctx.lineTo(sx + s * 0.08, -s * 0.55);
-        ctx.lineTo(sx + s * 0.16, -s * 0.35);
+        ctx.moveTo(sx,            -s * 0.32);
+        ctx.lineTo(sx + s * 0.05, -s * h);
+        ctx.lineTo(sx + s * 0.12, -s * 0.32);
         ctx.closePath();
         ctx.fill();
       }
-      // Wings — bat-like, flap with gameTime
-      const wing = Math.sin(gameTime * 5) * 0.4;
-      const wingCol = '#8a2018';
-      ctx.fillStyle = wingCol;
-      // back-near wing (smaller, behind body)
+
+      // Wing — angular bat membrane with multiple sharp peaks
+      const wingT = Math.sin(gameTime * 5) * 0.35;
       ctx.save();
-      ctx.translate(-s * 0.1, -s * 0.2);
-      ctx.rotate(-0.4 + wing);
+      ctx.translate(-s * 0.05, -s * 0.25);
+      ctx.rotate(-0.35 + wingT);
+      ctx.fillStyle = wing;
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(-s * 0.5, -s * 0.55);
-      ctx.lineTo(-s * 0.15, -s * 0.55);
-      ctx.lineTo(0, -s * 0.15);
-      ctx.lineTo(s * 0.15, -s * 0.55);
-      ctx.lineTo(s * 0.5, -s * 0.55);
+      ctx.moveTo( 0,            0);
+      ctx.lineTo(-s * 0.55, -s * 0.30);
+      ctx.lineTo(-s * 0.25, -s * 0.55);  // peak 1
+      ctx.lineTo(-s * 0.10, -s * 0.30);
+      ctx.lineTo( s * 0.00, -s * 0.65);  // peak 2 (tallest)
+      ctx.lineTo( s * 0.15, -s * 0.30);
+      ctx.lineTo( s * 0.30, -s * 0.55);  // peak 3
+      ctx.lineTo( s * 0.50, -s * 0.20);
+      ctx.lineTo( s * 0.20, -s * 0.05);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#3a0a08';
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Wing-finger bones — three thin dark struts radiating from the base
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(-s * 0.25, -s * 0.50);
+      ctx.moveTo(0, 0); ctx.lineTo( s * 0.00, -s * 0.60);
+      ctx.moveTo(0, 0); ctx.lineTo( s * 0.30, -s * 0.48);
       ctx.stroke();
       ctx.restore();
-      // Neck + head
-      ctx.fillStyle = def.color;
+
+      // Neck wedge + head — sharp wedge instead of rounded snout
+      ctx.fillStyle = body;
       ctx.beginPath();
-      ctx.moveTo(s * 0.45, -s * 0.15);
-      ctx.lineTo(s * 0.65, -s * 0.35);
-      ctx.lineTo(s * 0.95, -s * 0.25);
-      ctx.lineTo(s * 1.1, 0);
-      ctx.lineTo(s * 0.95, s * 0.18);
-      ctx.lineTo(s * 0.55, s * 0.15);
+      ctx.moveTo( s * 0.45, -s * 0.18);
+      ctx.lineTo( s * 0.70, -s * 0.38);
+      ctx.lineTo( s * 1.00, -s * 0.32);
+      ctx.lineTo( s * 1.20, -s * 0.10);
+      ctx.lineTo( s * 1.25,  s * 0.05);
+      ctx.lineTo( s * 1.05,  s * 0.22);
+      ctx.lineTo( s * 0.70,  s * 0.22);
+      ctx.lineTo( s * 0.50,  s * 0.10);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#3a0a08';
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
-      // Horns — two small back-pointing triangles
-      ctx.fillStyle = '#3a0a08';
+
+      // Sharp horns — two backswept dark triangles
+      ctx.fillStyle = dark;
       ctx.beginPath();
-      ctx.moveTo(s * 0.75, -s * 0.30);
-      ctx.lineTo(s * 0.55, -s * 0.55);
-      ctx.lineTo(s * 0.85, -s * 0.35);
+      ctx.moveTo( s * 0.78, -s * 0.36);
+      ctx.lineTo( s * 0.50, -s * 0.68);
+      ctx.lineTo( s * 0.88, -s * 0.42);
       ctx.closePath();
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(s * 0.85, -s * 0.28);
-      ctx.lineTo(s * 0.72, -s * 0.50);
-      ctx.lineTo(s * 0.95, -s * 0.30);
+      ctx.moveTo( s * 0.90, -s * 0.34);
+      ctx.lineTo( s * 0.72, -s * 0.62);
+      ctx.lineTo( s * 0.98, -s * 0.38);
       ctx.closePath();
       ctx.fill();
-      // Eye — glowing yellow with dark pupil
-      ctx.fillStyle = '#ffe066';
-      ctx.beginPath(); ctx.arc(s * 0.85, -s * 0.10, s * 0.08, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath(); ctx.arc(s * 0.88, -s * 0.10, s * 0.035, 0, Math.PI * 2); ctx.fill();
-      // Mouth slit
-      ctx.strokeStyle = '#3a0a08';
-      ctx.lineWidth = 1.2;
+      // Cheek spike
       ctx.beginPath();
-      ctx.moveTo(s * 0.95, s * 0.05);
-      ctx.lineTo(s * 1.1, s * 0.0);
-      ctx.stroke();
-      // Persistent small flame puff at the muzzle. Per the CLAUDE.md
-      // addColorStop pitfall, every stop is a hex color (no rgba) — iOS
-      // Safari has gotten weird about non-hex color stops in past bugs.
-      const pulse = 1 + Math.sin(gameTime * 12) * 0.25;
-      const fx = s * 1.18, fy = s * 0.02;
-      const halo = ctx.createRadialGradient(fx, fy, 1, fx, fy, s * 0.30 * pulse);
-      halo.addColorStop(0,    '#ffd166');
-      halo.addColorStop(0.45, '#ff7030');
-      halo.addColorStop(1,    '#3a0a08'); // dark red — fades into the dragon's body color
+      ctx.moveTo( s * 0.95,  s * 0.18);
+      ctx.lineTo( s * 0.80,  s * 0.38);
+      ctx.lineTo( s * 1.05,  s * 0.22);
+      ctx.closePath();
+      ctx.fill();
+
+      // Eye socket (dark cavity) + glowing red pupil
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo( s * 0.92, -s * 0.20);
+      ctx.lineTo( s * 1.08, -s * 0.14);
+      ctx.lineTo( s * 1.00, -s * 0.04);
+      ctx.lineTo( s * 0.86, -s * 0.10);
+      ctx.closePath();
+      ctx.fill();
+      const eyePulse = 0.85 + Math.sin(gameTime * 6) * 0.15;
+      ctx.fillStyle = '#ff2020';
+      ctx.beginPath();
+      ctx.arc(s * 0.97, -s * 0.12, s * 0.05 * eyePulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd0d0';
+      ctx.beginPath();
+      ctx.arc(s * 0.97, -s * 0.12, s * 0.02, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mouth slit + visible fangs (bone white, sharp triangles)
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo(s * 1.00,  s * 0.04);
+      ctx.lineTo(s * 1.22,  s * 0.00);
+      ctx.lineTo(s * 1.20,  s * 0.10);
+      ctx.lineTo(s * 1.02,  s * 0.12);
+      ctx.closePath();
+      ctx.fill();
+      // Upper fang
+      ctx.fillStyle = '#e8d8c0';
+      ctx.beginPath();
+      ctx.moveTo(s * 1.08, s * 0.06);
+      ctx.lineTo(s * 1.12, s * 0.16);
+      ctx.lineTo(s * 1.15, s * 0.06);
+      ctx.closePath();
+      ctx.fill();
+
+      // Persistent muzzle ember (smaller + dimmer than before — fits the
+      // darker palette while still telegraphing "this thing breathes fire").
+      // Brightens during the channeled beam window via p.beamFlashUntil.
+      const fx = s * 1.30, fy = s * 0.04;
+      const pulse = 1 + Math.sin(gameTime * 12) * 0.20;
+      const r0 = s * 0.22 * pulse;
+      const halo = ctx.createRadialGradient(fx, fy, 1, fx, fy, r0);
+      halo.addColorStop(0,    '#ffce44');
+      halo.addColorStop(0.5,  '#c8401a');
+      halo.addColorStop(1,    dark);
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(fx, fy, s * 0.30 * pulse, 0, Math.PI * 2);
+      ctx.arc(fx, fy, r0, 0, Math.PI * 2);
       ctx.fill();
-      // bright inner core
+      // small white-hot core
       ctx.fillStyle = '#fff5d6';
       ctx.beginPath();
-      ctx.arc(fx, fy, s * 0.08 * pulse, 0, Math.PI * 2);
+      ctx.arc(fx, fy, s * 0.06 * pulse, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
