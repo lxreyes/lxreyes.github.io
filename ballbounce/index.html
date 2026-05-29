@@ -51,7 +51,7 @@
 <body>
 <div id="wrap">
   <h1>B A L L &nbsp; B O U N C E</h1>
-  <div class="sub">press <kbd>SPACE</kbd> the moment the ball touches a platform</div>
+  <div class="sub">press <kbd>SPACE</kbd> to launch &middot; bounce off platforms &middot; don&rsquo;t miss the wall</div>
   <canvas id="c" width="800" height="600"></canvas>
 </div>
 <script>
@@ -275,18 +275,11 @@ function update(dt) {
       // otherwise a visible edge-contact reads as a miss.
       if (b.y + b.r >= p.y - p.h / 2 && b.y - b.r <= p.y + p.h / 2) { hit = p; break; }
     }
-    if (hit && state.spaceWindow > 0) {
-      state.spaceWindow = 0;
+    if (hit) {
+      // Platforms are solid — touch = bounce. No timing required.
       bounceOff(hit);
-    } else if (hit) {
-      // Touched a platform without a recent press — die against the
-      // platform's inner face so the ball doesn't visually clip through.
-      if (wallSide === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r;
-      else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r;
-      b.vx = 0;
-      b.vy = 0;
-      endGame();
     } else {
+      // No platform aligned at the ball's y → ball flies past the wall plane.
       const pastWall =
         (wallSide === 'left' && b.x + b.r < WALL_X_LEFT) ||
         (wallSide === 'right' && b.x - b.r > WALL_X_RIGHT);
