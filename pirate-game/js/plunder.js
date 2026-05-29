@@ -10,6 +10,12 @@ const PB_COLS = 12;
 const PB_ROWS = 8;
 const PB_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
+// Cheap deterministic noise so grass texture is stable frame-to-frame.
+function hash2(x, y) {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
 class Battle {
   constructor(game, village) {
     this.game = game;
@@ -20,6 +26,7 @@ class Battle {
     this._layout();
     this._buildTerrain();
     this._buildUnits();
+    this._decorate();
 
     // Loot scales with how stoutly the village is defended.
     this.loot = village.chest.value + 25 * this.units.filter((u) => u.side === "enemy").length;
@@ -56,7 +63,9 @@ class Battle {
     for (let i = 0; i < n; i++) {
       const x = randInt(2, this.cols - 3);
       const y = randInt(1, this.rows - 2);
-      this.tiles[y][x].obstacle = true;
+      const t = this.tiles[y][x];
+      t.obstacle = true;
+      t.kind = pick(["hut", "hut", "rocks", "crates"]); // mostly huts
     }
     // The loot sits on the defenders' side.
     this.treasure = { x: this.cols - 2, y: Math.floor(this.rows / 2) };
@@ -70,14 +79,14 @@ class Battle {
     const enemyCount = Math.max(2, playerCount + 1);
 
     const left = this._spawnCells("left", playerCount);
-    this.units.push(this._mk("player", left[0], "Captain", 20, 6, 4));
+    this.units.push(this._mk("player", left[0], "Captain", 26, 8, 4));
     for (let i = 1; i < playerCount; i++) {
-      this.units.push(this._mk("player", left[i], "Crew", 12, 4, 4));
+      this.units.push(this._mk("player", left[i], "Crew", 16, 5, 4));
     }
 
     const right = this._spawnCells("right", enemyCount);
     for (let i = 0; i < enemyCount; i++) {
-      this.units.push(this._mk("enemy", right[i], "Defender", 11, 3, 3));
+      this.units.push(this._mk("enemy", right[i], "Defender", 10, 3, 3));
     }
   }
 
@@ -98,6 +107,30 @@ class Battle {
       hp, maxHp: hp, atk, move, range: 1,
       hasMoved: false, hasActed: false, alive: true,
     };
+  }
+
+  // Cosmetic dressing so the field reads as a village on an island.
+  _decorate() {
+    // Per-vertex wobble for the organic land outline.
+    this.outline = [];
+    for (let i = 0; i < 30; i++) this.outline.push(0.9 + Math.random() * 0.16);
+
+    // Palms ringing the beach.
+    this.palms = [];
+    const pc = randInt(6, 9);
+    for (let i = 0; i < pc; i++) {
+      this.palms.push({ ang: (i / pc) * TWO_PI + rand(-0.25, 0.25), h: rand(0.55, 0.9) });
+    }
+
+    // A couple of dirt footpaths from the edges through the centre.
+    this.paths = [];
+    const mid = { x: Math.floor(this.cols / 2), y: Math.floor(this.rows / 2) };
+    const n = randInt(2, 3);
+    for (let i = 0; i < n; i++) {
+      const a = { x: randInt(0, this.cols - 1), y: i % 2 ? 0 : this.rows - 1 };
+      const b = { x: randInt(0, this.cols - 1), y: i % 2 ? this.rows - 1 : 0 };
+      this.paths.push([a, mid, b]);
+    }
   }
 
   // ---- Queries ----
@@ -211,7 +244,7 @@ class Battle {
     }
     // Counter-attack if the defender survives and the attacker is in reach.
     if (this._manhattan(att, def) <= def.range) {
-      att.hp -= Math.ceil(def.atk * 0.6);
+      att.hp -= Math.max(1, Math.ceil(def.atk * 0.5));
       this.flashes.push({ x: att.x, y: att.y, life: 0.3 });
       if (att.hp <= 0) att.alive = false;
     }
@@ -314,37 +347,96 @@ class Battle {
 
   draw(ctx, canvas) {
     this._layout(); // keep grid centered if the window was resized
-
-    // Earthy backdrop
-    ctx.fillStyle = "#20301c";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+    const W = canvas.width;
+    const H = canvas.height;
     const cell = this.cell;
-    // Tiles
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        const px = this.ox + x * cell;
-        const py = this.oy + y * cell;
-        ctx.fillStyle = (x + y) % 2 ? "#3f6b39" : "#447439"; // grass checker
-        ctx.fillRect(px, py, cell, cell);
-        if (this.tiles[y][x].obstacle) this._drawObstacle(ctx, px, py, cell);
-        ctx.strokeStyle = "rgba(0,0,0,0.18)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + 0.5, py + 0.5, cell, cell);
-      }
+
+    const gw = cell * this.cols;
+    const gh = cell * this.rows;
+    const cx = this.ox + gw / 2;
+    const cy = this.oy + gh / 2;
+    const hw = gw / 2;
+    const hh = gh / 2;
+
+    // The village sits on an island in the sea.
+    const sea = ctx.createLinearGradient(0, 0, 0, H);
+    sea.addColorStop(0, "#15506e");
+    sea.addColorStop(1, "#0c3a54");
+    ctx.fillStyle = sea;
+    ctx.fillRect(0, 0, W, H);
+
+    // Beach + grass as organic blobs so the field isn't a hard rectangle.
+    this._islandPath(ctx, cx, cy, hw * 1.62, hh * 1.62);
+    ctx.fillStyle = "#e3cf94";
+    ctx.fill();
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = "rgba(130,205,205,0.22)"; // shallow-water rim
+    ctx.stroke();
+    this._islandPath(ctx, cx, cy, hw * 1.42, hh * 1.42);
+    ctx.fillStyle = "#4d8e41";
+    ctx.fill();
+
+    // Dirt footpaths winding through the village.
+    ctx.strokeStyle = "rgba(120,86,45,0.45)";
+    ctx.lineWidth = cell * 0.42;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const path of this.paths) {
+      ctx.beginPath();
+      path.forEach((p, i) => {
+        const x = this.ox + (p.x + 0.5) * cell;
+        const y = this.oy + (p.y + 0.5) * cell;
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      ctx.stroke();
     }
 
-    // Treasure tile
+    // Gentle grass texture + a faint grid (kept subtle so it stays natural,
+    // but enough to read tile positions for tactics).
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        ctx.fillStyle = hash2(x, y) < 0.5 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
+        ctx.fillRect(this.ox + x * cell, this.oy + y * cell, cell, cell);
+      }
+    }
+    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= this.cols; x++) {
+      ctx.beginPath();
+      ctx.moveTo(this.ox + x * cell, this.oy);
+      ctx.lineTo(this.ox + x * cell, this.oy + gh);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= this.rows; y++) {
+      ctx.beginPath();
+      ctx.moveTo(this.ox, this.oy + y * cell);
+      ctx.lineTo(this.ox + gw, this.oy + y * cell);
+      ctx.stroke();
+    }
+
+    // Palms around the beach.
+    for (const p of this.palms) {
+      const px = cx + Math.cos(p.ang) * hw * 1.5;
+      const py = cy + Math.sin(p.ang) * hh * 1.5;
+      this._drawPalmAt(ctx, px, py, cell * p.h);
+    }
+
+    // Village buildings (obstacles) + the loot chest.
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const t = this.tiles[y][x];
+        if (t.obstacle) this._drawObstacle(ctx, this.ox + x * cell, this.oy + y * cell, cell, t.kind);
+      }
+    }
     this._drawChest(ctx, this.ox + this.treasure.x * cell, this.oy + this.treasure.y * cell, cell);
 
-    // Movement highlights
+    // Movement + attack highlights.
     if (this.phase === "player") {
-      ctx.fillStyle = "rgba(90,170,255,0.30)";
+      ctx.fillStyle = "rgba(90,170,255,0.32)";
       for (const k of this.moveSet) {
         const [x, y] = k.split(",").map(Number);
         ctx.fillRect(this.ox + x * cell, this.oy + y * cell, cell, cell);
       }
-      // Attackable enemies
       ctx.strokeStyle = "rgba(231,76,60,0.95)";
       ctx.lineWidth = 3;
       for (const e of this.attackable) {
@@ -352,29 +444,107 @@ class Battle {
       }
     }
 
-    // Selected ring
+    // Selected ring.
     if (this.selected) {
       ctx.strokeStyle = "#f0c860";
       ctx.lineWidth = 3;
       ctx.strokeRect(this.ox + this.selected.x * cell + 2, this.oy + this.selected.y * cell + 2, cell - 4, cell - 4);
     }
 
-    // Units
+    // Units + hit flashes.
     for (const u of this.units) if (u.alive) this._drawUnit(ctx, u, cell);
-
-    // Hit flashes
     for (const f of this.flashes) {
       ctx.fillStyle = `rgba(255,80,60,${(f.life / 0.3) * 0.6})`;
       ctx.fillRect(this.ox + f.x * cell, this.oy + f.y * cell, cell, cell);
     }
   }
 
-  _drawObstacle(ctx, px, py, cell) {
-    const m = cell * 0.16;
-    ctx.fillStyle = "#7a4a2a";
-    ctx.fillRect(px + m, py + m, cell - 2 * m, cell - 2 * m);
+  // Wobbly ellipse used for the beach/grass outlines.
+  _islandPath(ctx, cx, cy, ax, ay) {
+    const o = this.outline;
+    const N = o.length;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const idx = i % N;
+      const ang = (idx / N) * TWO_PI;
+      const x = cx + Math.cos(ang) * ax * o[idx];
+      const y = cy + Math.sin(ang) * ay * o[idx];
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  _drawPalmAt(ctx, x, y, s) {
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, s * 0.4, s * 0.18, 0, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = "#6b4423";
+    ctx.lineWidth = Math.max(2, s * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y - s);
+    ctx.stroke();
+    ctx.fillStyle = "#2f7d32";
+    ctx.beginPath();
+    ctx.arc(x, y - s, s * 0.5, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = "#3a9540";
+    ctx.beginPath();
+    ctx.arc(x - s * 0.22, y - s * 1.04, s * 0.28, 0, TWO_PI);
+    ctx.fill();
+  }
+
+  _drawObstacle(ctx, px, py, cell, kind) {
+    const cx = px + cell / 2;
+    const cy = py + cell / 2;
+
+    // soft shadow
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + cell * 0.28, cell * 0.34, cell * 0.16, 0, 0, TWO_PI);
+    ctx.fill();
+
+    if (kind === "rocks") {
+      ctx.fillStyle = "#8a8f95";
+      ctx.beginPath(); ctx.arc(cx - cell * 0.12, cy, cell * 0.2, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = "#a4a9af";
+      ctx.beginPath(); ctx.arc(cx + cell * 0.12, cy - cell * 0.05, cell * 0.16, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = "#777c82";
+      ctx.beginPath(); ctx.arc(cx + cell * 0.02, cy + cell * 0.12, cell * 0.14, 0, TWO_PI); ctx.fill();
+      return;
+    }
+
+    if (kind === "crates") {
+      const s = cell * 0.5;
+      ctx.fillStyle = "#9c6b3f";
+      ctx.strokeStyle = "#5b3a1a";
+      ctx.lineWidth = 2;
+      ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+      ctx.strokeRect(cx - s / 2, cy - s / 2, s, s);
+      ctx.beginPath();
+      ctx.moveTo(cx - s / 2, cy - s / 2); ctx.lineTo(cx + s / 2, cy + s / 2);
+      ctx.moveTo(cx + s / 2, cy - s / 2); ctx.lineTo(cx - s / 2, cy + s / 2);
+      ctx.stroke();
+      return;
+    }
+
+    // hut (default)
+    const s = cell * 0.62;
     ctx.fillStyle = "#9c6b3f";
-    ctx.fillRect(px + m, py + m, cell - 2 * m, (cell - 2 * m) * 0.45);
+    ctx.strokeStyle = "#5b3a1a";
+    ctx.lineWidth = 2;
+    ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+    ctx.strokeRect(cx - s / 2, cy - s / 2, s, s);
+    ctx.fillStyle = "#caa15b"; // thatch
+    ctx.fillRect(cx - s * 0.42, cy - s * 0.42, s * 0.84, s * 0.5);
+    ctx.strokeStyle = "rgba(91,58,26,0.6)";
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.42, cy - s * 0.17);
+    ctx.lineTo(cx + s * 0.42, cy - s * 0.17);
+    ctx.stroke();
+    ctx.fillStyle = "#5b3a1a"; // door
+    ctx.fillRect(cx - s * 0.12, cy + s * 0.06, s * 0.24, s * 0.24);
   }
 
   _drawChest(ctx, px, py, cell) {
@@ -404,7 +574,7 @@ class Battle {
     ctx.ellipse(cx, cy + r * 0.7, r, r * 0.5, 0, 0, TWO_PI);
     ctx.fill();
 
-    // body
+    // body (coat)
     const captain = u.name === "Captain";
     ctx.fillStyle = u.side === "enemy" ? "#a8322d" : captain ? "#2a6f97" : "#2e8b57";
     ctx.beginPath();
@@ -414,12 +584,19 @@ class Battle {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // captain's hat dot
+    // head
+    ctx.fillStyle = "#e8b98e";
+    ctx.beginPath();
+    ctx.arc(cx, cy - r * 0.15, r * 0.5, 0, TWO_PI);
+    ctx.fill();
+
+    // captain's tricorn hat
     if (captain) {
       ctx.fillStyle = "#15110a";
       ctx.beginPath();
-      ctx.arc(cx, cy - r * 0.2, r * 0.45, 0, TWO_PI);
+      ctx.arc(cx, cy - r * 0.32, r * 0.58, Math.PI, TWO_PI);
       ctx.fill();
+      ctx.fillRect(cx - r * 0.58, cy - r * 0.36, r * 1.16, r * 0.16);
     }
 
     ctx.globalAlpha = 1;
