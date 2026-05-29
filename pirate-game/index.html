@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Salt & Plunder — Open World Pirate Game</title>
-  <link rel="stylesheet" href="css/style.css?v=4" />
+  <link rel="stylesheet" href="css/style.css?v=5" />
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -26,13 +26,13 @@
   <!-- Minimap -->
   <canvas id="minimap"></canvas>
 
-  <!-- "Press E to dock" prompt -->
-  <div id="dock-prompt" class="hidden">⚓ Press <b>E</b> to dock at Port Royale</div>
+  <!-- Contextual prompt (dock / go ashore / board) — text set by the game -->
+  <div id="dock-prompt" class="hidden">⚓ Press <b>E</b> to dock at The Pirate's Cove</div>
 
   <!-- Shop -->
   <div id="shop" class="hidden">
     <div class="shop-panel">
-      <h1>⚓ Port Royale — Shipwright &amp; Armory</h1>
+      <h1>⚓ The Pirate's Cove — Shipwright &amp; Armory</h1>
       <div id="shop-body"></div>
       <button id="leave-port">Set Sail ⛵</button>
     </div>
@@ -44,11 +44,11 @@
       <h1>☠️ Salt &amp; Plunder ☠️</h1>
       <p class="tagline">An open world of islands, gold, and rival pirates.</p>
       <ul class="controls">
-        <li><b>Left-click</b> the sea (or minimap) — sail there</li>
+        <li><b>Left-click</b> — sail there (or walk, when ashore)</li>
         <li><b>Right-click</b> — fire cannons straight at your cursor</li>
-        <li><b>E</b> — dock at port (open shop)</li>
+        <li><b>E</b> — dock at the Cove · go ashore · board ship</li>
       </ul>
-      <p class="hint">Sink rival ships and grab floating gold, then dock at <b>Port Royale</b> to buy bigger ships, more guns, and upgrades.</p>
+      <p class="hint">Sink rival ships and grab floating gold. Dock at <b>The Pirate's Cove</b> to buy bigger ships and upgrades, or go ashore at a village to explore on foot and raid its chest.</p>
       <button id="start-btn">Set Sail</button>
     </div>
   </div>
@@ -63,10 +63,10 @@
   </div>
 
   <!-- Load order matters: dependencies first -->
-  <script src="js/utils.js?v=4"></script>
-  <script src="js/entities.js?v=4"></script>
-  <script src="js/world.js?v=4"></script>
-  <script src="js/game.js?v=4"></script>
-  <script src="js/main.js?v=4"></script>
+  <script src="js/utils.js?v=5"></script>
+  <script src="js/entities.js?v=5"></script>
+  <script src="js/world.js?v=5"></script>
+  <script src="js/game.js?v=5"></script>
+  <script src="js/main.js?v=5"></script>
 </body>
 </html>

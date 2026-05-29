@@ -23,11 +23,13 @@ window.addEventListener("DOMContentLoaded", () => {
     game.start();
   });
 
-  // Dock / leave port via keyboard.
+  // E is the contextual action: dock at the Cove, go ashore at a village,
+  // or board your ship — whatever the on-screen prompt currently offers.
   window.addEventListener("keydown", (e) => {
+    if (e.repeat) return; // ignore auto-repeat so holding E doesn't spam toggles
     if (e.code === "KeyE") {
       if (game.shopOpen) game.closeShop();
-      else game.openShop();
+      else game.interact();
     } else if (e.code === "Escape" && game.shopOpen) {
       game.closeShop();
     }

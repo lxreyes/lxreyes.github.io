@@ -401,3 +401,117 @@ class Particle {
     ctx.globalAlpha = 1;
   }
 }
+
+// ---------------------------------------------------------------------------
+// The captain on foot. Top-down character that walks (click-to-move) around a
+// village island. Movement is direct (no momentum) — feet, not sails.
+class Pirate {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.angle = 0;
+    this.speed = 115;     // px/sec on foot
+    this.radius = 8;
+    this.moveTarget = null;
+    this.step = 0;        // little walk-bob phase
+  }
+
+  update(dt, game) {
+    if (this.moveTarget) {
+      const d = dist(this.x, this.y, this.moveTarget.x, this.moveTarget.y);
+      if (d < 4) {
+        this.moveTarget = null;
+      } else {
+        this.angle = angleTo(this.x, this.y, this.moveTarget.x, this.moveTarget.y);
+        this.x += Math.cos(this.angle) * this.speed * dt;
+        this.y += Math.sin(this.angle) * this.speed * dt;
+        this.step += dt * 10;
+      }
+    }
+
+    // Stay on the island they came ashore on — can't walk on water.
+    const isle = game.landedVillage.island;
+    const d = dist(this.x, this.y, isle.x, isle.y);
+    const maxR = isle.radius - 6;
+    if (d > maxR) {
+      const a = angleTo(isle.x, isle.y, this.x, this.y);
+      this.x = isle.x + Math.cos(a) * maxR;
+      this.y = isle.y + Math.sin(a) * maxR;
+      this.moveTarget = null;
+    }
+  }
+
+  draw(ctx) {
+    drawPerson(ctx, this.x, this.y, this.angle, "#2b1c0e", "#e0b48a", true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A villager that idly wanders around its island. Purely for life/ambiance.
+class Villager {
+  constructor(x, y, isle) {
+    this.x = x;
+    this.y = y;
+    this.isle = isle;
+    this.angle = 0;
+    this.speed = rand(16, 30);
+    this.timer = 0;
+    this.target = null;
+    this.coat = pick(["#b5523b", "#3b6eb5", "#3b8a4f", "#8a4fb5", "#b59a3b"]);
+  }
+
+  update(dt) {
+    this.timer -= dt;
+    if (this.timer <= 0 || !this.target) {
+      const a = rand(0, TWO_PI);
+      const r = rand(0, this.isle.radius * 0.55);
+      this.target = { x: this.isle.x + Math.cos(a) * r, y: this.isle.y + Math.sin(a) * r };
+      this.timer = rand(1.5, 4);
+    }
+    const d = dist(this.x, this.y, this.target.x, this.target.y);
+    if (d > 3) {
+      this.angle = angleTo(this.x, this.y, this.target.x, this.target.y);
+      this.x += Math.cos(this.angle) * this.speed * dt;
+      this.y += Math.sin(this.angle) * this.speed * dt;
+    } else {
+      this.target = null;
+    }
+  }
+
+  draw(ctx) {
+    drawPerson(ctx, this.x, this.y, this.angle, this.coat, "#e0b48a", false);
+  }
+}
+
+// Shared top-down person renderer: soft shadow, coat body, head, and (for the
+// captain) a black tricorn hat so you can tell yourself apart from villagers.
+function drawPerson(ctx, x, y, angle, coat, skin, hat) {
+  ctx.save();
+  ctx.translate(x, y);
+  // shadow
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.beginPath();
+  ctx.ellipse(0, 3, 8, 5, 0, 0, TWO_PI);
+  ctx.fill();
+  // body (coat)
+  ctx.fillStyle = coat;
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, TWO_PI);
+  ctx.fill();
+  // head
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(Math.cos(angle) * 2, Math.sin(angle) * 2, 4, 0, TWO_PI);
+  ctx.fill();
+  if (hat) {
+    ctx.fillStyle = "#15110a";
+    ctx.beginPath();
+    ctx.arc(Math.cos(angle) * 2, Math.sin(angle) * 2, 5.5, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = "#e0b48a";
+    ctx.beginPath();
+    ctx.arc(Math.cos(angle) * 3, Math.sin(angle) * 3, 2.5, 0, TWO_PI);
+    ctx.fill();
+  }
+  ctx.restore();
+}
