@@ -234,6 +234,17 @@ function update(dt) {
     if (p.y < -p.h / 2)     p.y += LOOP_LEN;
   }
 
+  // Particles always update, including while landed or game-over — otherwise
+  // the impact burst freezes in place instead of flying out and fading.
+  for (const part of state.particles) {
+    part.x += part.vx;
+    part.y += part.vy;
+    part.vx *= 0.96;
+    part.vy *= 0.96;
+    part.life -= dt;
+  }
+  state.particles = state.particles.filter(p => p.life > 0);
+
   if (state.landed && state.landedOn) {
     // Ride the platform the ball is resting on, until the player fires.
     // Preserve the impact y-offset, re-clamping each frame so the ball
@@ -278,16 +289,6 @@ function update(dt) {
   state.trail.push({ x: b.x, y: b.y, age: 0 });
   if (state.trail.length > 24) state.trail.shift();
   for (const t of state.trail) t.age += dt;
-
-  // Particles
-  for (const part of state.particles) {
-    part.x += part.vx;
-    part.y += part.vy;
-    part.vx *= 0.96;
-    part.vy *= 0.96;
-    part.life -= dt;
-  }
-  state.particles = state.particles.filter(p => p.life > 0);
 
   // Wall + platform collision. Detect which wall the ball overlaps,
   // then look for ANY platform on that side whose y-range contains the ball.
