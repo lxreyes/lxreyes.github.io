@@ -108,6 +108,7 @@ class Game {
     this.skyrateTimer = rand(24, 42); // time until the first skyrate appears
     this.incomeTimer = INCOME_INTERVAL; // countdown to the next city payout
     this.lastIncome = 0;
+    this.floatingTexts = [];
 
     for (let i = 0; i < ENEMY_TARGET; i++) this._spawnEnemy();
     for (let i = 0; i < TREASURE_TARGET; i++) this._spawnTreasure();
@@ -180,6 +181,7 @@ class Game {
     for (const p of this.particles) p.update(dt);
     for (const a of this.airships) a.update(dt, this);
     for (const bomb of this.bombs) bomb.update(dt, this);
+    for (const ft of this.floatingTexts) ft.update(dt);
 
     this._collisions();
 
@@ -190,6 +192,7 @@ class Game {
     this.enemies = this.enemies.filter((e) => !e.dead);
     this.airships = this.airships.filter((a) => !a.dead);
     this.bombs = this.bombs.filter((b) => !b.dead);
+    this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
 
     // Keep the world populated
     if (this.enemies.length < ENEMY_TARGET && Math.random() < 0.01) this._spawnEnemy();
@@ -215,10 +218,12 @@ class Game {
         if (v.owned) {
           total += v.income;
           this._spawnPickupBurst(v.island.x, v.island.y); // little coin pop
+          this._floatText(v.island.x, v.island.y - v.island.radius - 26, `+${v.income}`, "#f0c860");
         }
       }
       this.gold += total;
       this.lastIncome = total;
+      if (total > 0) Sound.coin();
     }
 
     // Camera follows the player; shake decays over time.
@@ -297,6 +302,7 @@ class Game {
   // Battle reports its outcome here. result: "win" | "lose".
   onPlunderEnd(result, loot, text) {
     document.getElementById("plunder-ui").classList.add("hidden");
+    if (result === "win") Sound.win(); else Sound.lose();
     let title;
     if (result === "win") {
       this.gold += loot;
@@ -400,6 +406,7 @@ class Game {
           b.dead = true;
           this.spawnSplash(b.x, b.y);
           this.spawnSmoke(b.x, b.y);
+          Sound.hit();
           if (s.isPlayer) this.shake(8);
           break;
         }
@@ -412,6 +419,7 @@ class Game {
             a.takeDamage(b.damage, this);
             b.dead = true;
             this.spawnSmoke(b.x, b.y);
+            Sound.hit();
             break;
           }
         }
@@ -426,11 +434,14 @@ class Game {
         t.dead = true;
         this.gold += t.value;
         this._spawnPickupBurst(t.x, t.y);
+        this._floatText(t.x, t.y - 12, `+${t.value}`, "#f0c860");
+        Sound.coin();
       }
     }
   }
 
   onShipSunk(ship) {
+    Sound.explosion();
     // A satisfying sink: smoke, splash, and a screen kick.
     for (let i = 0; i < 18; i++) {
       const a = rand(0, TWO_PI);
@@ -481,6 +492,7 @@ class Game {
   onSkyrateDowned(airship) {
     this.skyratesDowned++;
     this.spawnExplosion(airship.x, airship.y);
+    this._floatText(airship.x, airship.y, "SKYRATE DOWN!", "#c77dff");
     this.shake(16);
     // A skyrate's hoard rains down — sail through it to collect.
     const drops = randInt(5, 7);
@@ -493,7 +505,12 @@ class Game {
     }
   }
 
+  _floatText(x, y, text, color) {
+    this.floatingTexts.push(new FloatingText(x, y, text, color));
+  }
+
   spawnExplosion(x, y) {
+    Sound.explosion();
     for (let i = 0; i < 22; i++) {
       const a = rand(0, TWO_PI);
       const sp = rand(30, 150);
@@ -593,7 +610,7 @@ class Game {
 
     const view = { x: this.camX, y: this.camY, w: W, h: H };
     this._drawWaves(ctx, view);
-    this.world.draw(ctx, view);
+    this.world.draw(ctx, view, this.time);
     this._drawPort(ctx);
     this._drawVillages(ctx, view);
 
@@ -604,6 +621,7 @@ class Game {
     this.player.draw(ctx);
     for (const b of this.cannonballs) b.draw(ctx);
     for (const a of this.airships) a.draw(ctx); // skyrates fly above everything
+    for (const ft of this.floatingTexts) ft.draw(ctx);
     this._drawMoveTarget(ctx);
 
     ctx.restore();
@@ -891,6 +909,7 @@ class Game {
     p.fireAt(this, wx, wy); // cannonballs fly straight at the click point
     p.cooldown = p.fireCooldownTime;
     this.shake(6);
+    Sound.cannon();
   }
 
   _onMapClick(e) {
@@ -1019,6 +1038,7 @@ class Game {
   }
 
   _showGameOver() {
+    Sound.lose();
     document.getElementById("final-score").textContent =
       `You plundered ${this.gold} gold and sank ${this.shipsSunk} ships.`;
     document.getElementById("gameover").classList.remove("hidden");

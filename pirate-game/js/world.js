@@ -59,7 +59,7 @@ class World {
   }
 
   // Draw every island visible within the given world-space view rectangle.
-  draw(ctx, view) {
+  draw(ctx, view, time = 0) {
     for (const isle of this.islands) {
       if (
         isle.x + isle.radius < view.x ||
@@ -69,11 +69,11 @@ class World {
       ) {
         continue; // off-screen — skip
       }
-      this._drawIsland(ctx, isle);
+      this._drawIsland(ctx, isle, time);
     }
   }
 
-  _drawIsland(ctx, isle) {
+  _drawIsland(ctx, isle, time) {
     ctx.save();
     ctx.translate(isle.x, isle.y);
 
@@ -82,6 +82,19 @@ class World {
     ctx.beginPath();
     ctx.arc(0, 0, isle.radius * 1.18, 0, TWO_PI);
     ctx.fill();
+
+    // Shimmering foam ring at the waterline (short arcs that bob with time).
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    const seg = 26;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * TWO_PI;
+      const wob = Math.sin(time * 2 + i * 0.8 + isle.x * 0.01) * 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, isle.radius * 1.04 + wob, a0, a0 + 0.14);
+      ctx.stroke();
+    }
 
     // Sand
     this._outlinePath(ctx, isle.verts, 1.0);

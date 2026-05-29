@@ -382,6 +382,37 @@ class Treasure {
 }
 
 // ---------------------------------------------------------------------------
+// Rising, fading text — used for "+gold" pops and battle call-outs.
+class FloatingText {
+  constructor(x, y, text, color) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.color = color || "#f0c860";
+    this.life = 1.1;
+    this.maxLife = 1.1;
+    this.dead = false;
+  }
+  update(dt) {
+    this.y -= 24 * dt;
+    this.life -= dt;
+    if (this.life <= 0) this.dead = true;
+  }
+  draw(ctx) {
+    const t = clamp(this.life / this.maxLife, 0, 1);
+    ctx.globalAlpha = t;
+    ctx.font = "bold 16px Trebuchet MS, sans-serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+    ctx.strokeText(this.text, this.x, this.y);
+    ctx.fillStyle = this.color;
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Lightweight particle used for wakes, smoke, and splashes.
 class Particle {
   constructor(x, y, opts) {

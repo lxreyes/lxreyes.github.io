@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Salt & Plunder — Open World Pirate Game</title>
-  <link rel="stylesheet" href="css/style.css?v=11" />
+  <link rel="stylesheet" href="css/style.css?v=12" />
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -71,6 +71,7 @@
         <li><b>Left-click</b> — sail there (or pick a tile in battle)</li>
         <li><b>Right-click</b> — fire cannons straight at your cursor</li>
         <li><b>E</b> — dock at the Cove · plunder a village</li>
+        <li><b>M</b> — mute / unmute sound</li>
       </ul>
       <p class="hint">Sink rival ships and grab floating gold. Dock at <b>The Pirate's Cove</b> to buy ships, crew, cutlasses &amp; muskets, then <b>plunder villages</b> in turn-based grid battles — rout the defenders or grab the chest.</p>
       <button id="start-btn">Set Sail</button>
@@ -87,11 +88,12 @@
   </div>
 
   <!-- Load order matters: dependencies first -->
-  <script src="js/utils.js?v=11"></script>
-  <script src="js/entities.js?v=11"></script>
-  <script src="js/world.js?v=11"></script>
-  <script src="js/plunder.js?v=11"></script>
-  <script src="js/game.js?v=11"></script>
-  <script src="js/main.js?v=11"></script>
+  <script src="js/utils.js?v=12"></script>
+  <script src="js/audio.js?v=12"></script>
+  <script src="js/entities.js?v=12"></script>
+  <script src="js/world.js?v=12"></script>
+  <script src="js/plunder.js?v=12"></script>
+  <script src="js/game.js?v=12"></script>
+  <script src="js/main.js?v=12"></script>
 </body>
 </html>

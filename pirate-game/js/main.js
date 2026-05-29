@@ -14,11 +14,13 @@ window.addEventListener("DOMContentLoaded", () => {
   const gameover = document.getElementById("gameover");
 
   document.getElementById("start-btn").addEventListener("click", () => {
+    Sound.unlock(); // browsers need a gesture before audio can play
     overlay.classList.add("hidden");
     game.start();
   });
 
   document.getElementById("restart-btn").addEventListener("click", () => {
+    Sound.unlock();
     gameover.classList.add("hidden");
     game.start();
   });
@@ -32,6 +34,8 @@ window.addEventListener("DOMContentLoaded", () => {
       else game.interact();
     } else if (e.code === "Escape" && game.shopOpen) {
       game.closeShop();
+    } else if (e.code === "KeyM") {
+      Sound.toggleMute();
     }
   });
 
