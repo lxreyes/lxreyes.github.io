@@ -51,7 +51,7 @@
 <body>
 <div id="wrap">
   <h1>B A L L &nbsp; B O U N C E</h1>
-  <div class="sub">hold <kbd>SPACE</kbd> to draw &middot; release to launch &middot; bounce off platforms &middot; don&rsquo;t miss the wall</div>
+  <div class="sub">hold <kbd>SPACE</kbd> to draw &middot; release to fire &middot; land on a platform &middot; don&rsquo;t miss</div>
   <canvas id="c" width="800" height="600"></canvas>
 </div>
 <script>
@@ -113,13 +113,12 @@ const state = {
   // power, release to fire. chargeAmount is 0..1.
   charging: false,
   chargeAmount: 0,
-  // Bounce wind-up: while chargeTime > 0 the ball is pinned to `chargingOn`
-  // and held compressed; on hit 0 we commit pendingVx/Vy and release.
-  chargeTime: 0,
-  pendingVx: 0,
-  pendingVy: 0,
-  chargingOn: null,
+  // The ball rests on `landedOn` until the player fires. While landed it
+  // rides the platform's y and ignores physics/collision.
+  landed: true,
+  landedOn: null,
 };
+state.landedOn = state.platforms[0];
 
 const MAX_CHARGE_TIME = 0.8;   // seconds of hold to reach full draw
 const LAUNCH_VX_MIN  = 2.0;    // tap-release fires weak
@@ -137,15 +136,18 @@ function startCharging() {
 }
 
 function fireLaunch() {
-  // Convert the current chargeAmount into a launch velocity.
-  const p = state.platforms[0];
+  // Convert the current chargeAmount into a launch velocity. Fire toward
+  // the opposite wall — left platform → +vx, right platform → -vx.
+  const p = state.landedOn;
   const t = state.chargeAmount;
-  state.ball.vx = LAUNCH_VX_MIN + (LAUNCH_VX_MAX - LAUNCH_VX_MIN) * t;
+  const dir = p.side === 'left' ? 1 : -1;
+  state.ball.vx = dir * (LAUNCH_VX_MIN + (LAUNCH_VX_MAX - LAUNCH_VX_MIN) * t);
   state.ball.vy = p.speed * p.dir * 0.4;
-  // Hold the squish at its drawn amount, then let it decay normally.
   state.squish = Math.max(state.squish, 0.3 + t * 0.65);
   state.squishAxis = 'x';
   state.starting = false;
+  state.landed = false;
+  state.landedOn = null;
   state.charging = false;
   state.chargeAmount = 0;
   state.shake = 4 + t * 6;
@@ -154,12 +156,11 @@ function fireLaunch() {
 
 function onPress() {
   if (state.gameOver) { restart(); return; }
-  if (state.starting && !state.charging) startCharging();
+  if (state.landed && !state.charging) startCharging();
 }
 
 function onRelease() {
-  // Only the launch uses press-and-release; bounces are automatic.
-  if (state.starting && state.charging) fireLaunch();
+  if (state.landed && state.charging) fireLaunch();
 }
 
 window.addEventListener('keydown', (e) => {
@@ -197,6 +198,8 @@ const PLATFORM_HALF_W = 5;
 
 function restart() {
   state.platforms = makePlatforms();
+  state.landedOn = state.platforms[0];
+  state.landed = true;
   state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
   state.ball.y = state.platforms[0].y;
   state.ball.vx = 0;
@@ -209,10 +212,6 @@ function restart() {
   state.flash = 0;
   state.shake = 0;
   state.squish = 0;
-  state.chargeTime = 0;
-  state.chargingOn = null;
-  state.pendingVx = 0;
-  state.pendingVy = 0;
   state.charging = false;
   state.chargeAmount = 0;
 }
@@ -230,17 +229,19 @@ function update(dt) {
     if (p.y < -p.h / 2)     p.y += LOOP_LEN;
   }
 
-  if (state.starting) {
-    // Ride the first left platform until launch.
-    state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
-    state.ball.y = state.platforms[0].y;
+  if (state.landed && state.landedOn) {
+    // Ride the platform the ball is resting on, until the player fires.
+    const p = state.landedOn;
+    state.ball.x = (p.side === 'left' ? WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r
+                                       : WALL_X_RIGHT - PLATFORM_HALF_W - state.ball.r);
+    state.ball.y = p.y;
+    state.ball.vx = 0;
+    state.ball.vy = 0;
     if (state.charging) {
-      // Drawing the bow — chargeAmount grows from 0 → 1, squish tracks it.
       state.chargeAmount = Math.min(1, state.chargeAmount + dt / MAX_CHARGE_TIME);
       state.squish = state.chargeAmount * 0.95;
       state.squishAxis = 'x';
     } else {
-      // Idle — let any residual squish settle so the ball reads as "ready".
       state.squish *= Math.pow(0.88, dt * 60);
     }
     input.spaceJustPressed = false;
@@ -257,27 +258,6 @@ function update(dt) {
   }
 
   const b = state.ball;
-
-  // Charge: ball pinned to the platform, held compressed, then released.
-  if (state.chargeTime > 0) {
-    state.chargeTime -= dt;
-    state.squish = Math.max(state.squish, 0.7);
-    // Ride the platform's motion so the ball doesn't visually detach.
-    if (state.chargingOn) {
-      b.y += state.chargingOn.speed * state.chargingOn.dir;
-    }
-    if (state.chargeTime <= 0) {
-      b.vx = state.pendingVx;
-      b.vy = state.pendingVy;
-      state.chargingOn = null;
-      // Fall through to apply the launched velocity this frame.
-    } else {
-      state.flash = Math.max(0, state.flash - dt * 4);
-      state.shake = Math.max(0, state.shake - dt * 60);
-      input.spaceJustPressed = false;
-      return;
-    }
-  }
 
   b.x += b.vx;
   b.y += b.vy;
@@ -314,8 +294,9 @@ function update(dt) {
       if (b.y + b.r >= p.y - p.h / 2 && b.y - b.r <= p.y + p.h / 2) { hit = p; break; }
     }
     if (hit) {
-      // Platforms are solid — touch = bounce. No timing required.
-      bounceOff(hit);
+      // Ball lands on the platform — it sticks and waits for the player to
+      // draw the bow again. No automatic bounce.
+      landOn(hit);
     } else {
       // No platform aligned at the ball's y → ball flies past the wall plane.
       const pastWall =
@@ -341,39 +322,36 @@ function update(dt) {
   input.spaceJustPressed = false;
 }
 
-function bounceOff(p) {
+function landOn(p) {
   const b = state.ball;
-  // Compute the launch velocity now (Pong-style vy based on hit position),
-  // but commit it after a brief charge — the ball pins against the platform
-  // and squishes before snapping away.
-  const rel = (b.y - p.y) / (p.h / 2); // -1 at top, 1 at bottom
-  const newVx = -Math.sign(b.vx) * Math.min(18, Math.abs(b.vx) + 0.5);
-  const newVy = Math.max(-7, Math.min(7, rel * 3.6));
-
-  // Pin to the platform's inner face and freeze movement during charge.
+  // Stick the ball to the platform's inner face at the platform's y. The
+  // ball waits here, riding the platform, until the player draws the bow
+  // and fires again.
   if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r;
   else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r;
+  b.y = p.y;
   b.vx = 0;
   b.vy = 0;
 
-  state.chargeTime = 0.08;
-  state.pendingVx = newVx;
-  state.pendingVy = newVy;
-  state.chargingOn = p;
+  state.landed = true;
+  state.landedOn = p;
+  state.charging = false;
+  state.chargeAmount = 0;
 
   state.score++;
   if (state.score > state.best) state.best = state.score;
 
-  // Ramp difficulty
+  // Ramp difficulty — landings are now deliberate, so make platforms harder
+  // to aim for as the score grows.
   for (const pp of state.platforms) {
     pp.speed = Math.min(7, pp.speed + 0.12);
     pp.h = Math.max(40, pp.h - 1.6);
   }
 
-  // FX
-  state.flash = 0.5;
-  state.shake = 6;
-  state.squish = 1;
+  // Impact FX
+  state.flash = 0.4;
+  state.shake = 5;
+  state.squish = 0.7;
   state.squishAxis = 'x';
   spawnBurst(p.side === 'left' ? WALL_X_LEFT : WALL_X_RIGHT, b.y, '#0ff');
 }
@@ -523,7 +501,7 @@ function draw() {
 
   // Overlays
   if (state.starting) {
-    drawCenterMessage('READY', 'press SPACE to launch');
+    drawCenterMessage('READY', 'hold SPACE to draw, release to fire');
   } else if (state.gameOver) {
     drawCenterMessage('GAME OVER', 'press SPACE to retry');
   }
