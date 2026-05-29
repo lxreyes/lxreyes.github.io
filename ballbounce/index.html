@@ -107,17 +107,20 @@ const state = {
   flash: 0,
   shake: 0,
   scanlinePhase: 0,
+  squish: 0,        // 0..1 — amplitude of the current squash-stretch
+  squishAxis: 'x',  // 'x' = squish horizontally (side bounce), 'y' = vertically (top/bottom)
 };
 
 // ---------- Input ----------
 const input = { spacePressed: false, spaceJustPressed: false };
 
 function launch() {
-  // Inherit a tiny vy from the platform's current direction so the launch
-  // feels reactive — push off "with" the platform's motion.
+  // Build-up mode: launch slow, ramp aggressively per bounce.
   const p = state.platforms[0];
-  state.ball.vx = 6.5;
+  state.ball.vx = 3.0;
   state.ball.vy = p.speed * p.dir * 0.4;
+  state.squish = 0.7;
+  state.squishAxis = 'x';
   state.starting = false;
 }
 
@@ -189,6 +192,7 @@ function update(dt) {
     input.spaceJustPressed = false;
     state.flash = Math.max(0, state.flash - dt * 4);
     state.shake = Math.max(0, state.shake - dt * 60);
+    state.squish *= Math.pow(0.88, dt * 60);
     return;
   }
 
@@ -238,11 +242,18 @@ function update(dt) {
   }
 
   // Soft top/bottom rails so the ball can't escape the playfield vertically.
-  if (b.y - b.r < 10) { b.y = 10 + b.r; b.vy = Math.abs(b.vy) || 1; }
-  if (b.y + b.r > H - 10) { b.y = H - 10 - b.r; b.vy = -(Math.abs(b.vy) || 1); }
+  if (b.y - b.r < 10) {
+    b.y = 10 + b.r; b.vy = Math.abs(b.vy) || 1;
+    state.squish = 0.6; state.squishAxis = 'y';
+  }
+  if (b.y + b.r > H - 10) {
+    b.y = H - 10 - b.r; b.vy = -(Math.abs(b.vy) || 1);
+    state.squish = 0.6; state.squishAxis = 'y';
+  }
 
   state.flash = Math.max(0, state.flash - dt * 4);
   state.shake = Math.max(0, state.shake - dt * 60);
+  state.squish *= Math.pow(0.88, dt * 60);
   input.spaceJustPressed = false;
 }
 
@@ -250,10 +261,10 @@ function bounceOff(p) {
   const b = state.ball;
   // Reverse horizontal, nudge vy based on hit position (Pong-style)
   const rel = (b.y - p.y) / (p.h / 2); // -1 at top, 1 at bottom
-  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.3);
+  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.5);
   b.vy = rel * 3.6;
   // Clamp so it doesn't get insane
-  b.vx = Math.max(-16, Math.min(16, b.vx));
+  b.vx = Math.max(-18, Math.min(18, b.vx));
   b.vy = Math.max(-7, Math.min(7, b.vy));
   // Push ball off the platform's inner face so it doesn't re-trigger and
   // doesn't visibly clip into the bumper.
@@ -272,6 +283,8 @@ function bounceOff(p) {
   // FX
   state.flash = 0.5;
   state.shake = 6;
+  state.squish = 1;
+  state.squishAxis = 'x';
   spawnBurst(p.side === 'left' ? WALL_X_LEFT : WALL_X_RIGHT, b.y, '#0ff');
 }
 
@@ -357,18 +370,25 @@ function draw() {
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
 
-  // Ball
+  // Ball — squash & stretch on bounce. Compress along the impact axis,
+  // stretch perpendicular so it reads as a real squish (volume-ish preserved).
   ctx.save();
+  ctx.translate(state.ball.x, state.ball.y);
+  const compress = 1 - state.squish * 0.45;
+  const stretch  = 1 + state.squish * 0.35;
+  const ballSX = state.squishAxis === 'x' ? compress : stretch;
+  const ballSY = state.squishAxis === 'x' ? stretch  : compress;
+  ctx.scale(ballSX, ballSY);
   ctx.shadowColor = '#f0f';
   ctx.shadowBlur = 24;
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(state.ball.x, state.ball.y, state.ball.r, 0, Math.PI * 2);
+  ctx.arc(0, 0, state.ball.r, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 12;
   ctx.fillStyle = '#f0f';
   ctx.beginPath();
-  ctx.arc(state.ball.x, state.ball.y, state.ball.r * 0.55, 0, Math.PI * 2);
+  ctx.arc(0, 0, state.ball.r * 0.55, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
