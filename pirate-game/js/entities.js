@@ -403,50 +403,6 @@ class Particle {
 }
 
 // ---------------------------------------------------------------------------
-// The captain on foot. Top-down character that walks (click-to-move) around a
-// village island. Movement is direct (no momentum) — feet, not sails.
-class Pirate {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.angle = 0;
-    this.speed = 115;     // px/sec on foot
-    this.radius = 8;
-    this.moveTarget = null;
-    this.step = 0;        // little walk-bob phase
-  }
-
-  update(dt, game) {
-    if (this.moveTarget) {
-      const d = dist(this.x, this.y, this.moveTarget.x, this.moveTarget.y);
-      if (d < 4) {
-        this.moveTarget = null;
-      } else {
-        this.angle = angleTo(this.x, this.y, this.moveTarget.x, this.moveTarget.y);
-        this.x += Math.cos(this.angle) * this.speed * dt;
-        this.y += Math.sin(this.angle) * this.speed * dt;
-        this.step += dt * 10;
-      }
-    }
-
-    // Stay on the island they came ashore on — can't walk on water.
-    const isle = game.landedVillage.island;
-    const d = dist(this.x, this.y, isle.x, isle.y);
-    const maxR = isle.radius - 6;
-    if (d > maxR) {
-      const a = angleTo(isle.x, isle.y, this.x, this.y);
-      this.x = isle.x + Math.cos(a) * maxR;
-      this.y = isle.y + Math.sin(a) * maxR;
-      this.moveTarget = null;
-    }
-  }
-
-  draw(ctx) {
-    drawPerson(ctx, this.x, this.y, this.angle, "#2b1c0e", "#e0b48a", true);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // A villager that idly wanders around its island. Purely for life/ambiance.
 class Villager {
   constructor(x, y, isle) {

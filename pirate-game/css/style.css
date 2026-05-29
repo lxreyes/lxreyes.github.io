@@ -105,6 +105,58 @@ html, body {
   50%      { transform: translateX(-50%) translateY(-5px); }
 }
 
+/* ---------- Plunder battle UI ---------- */
+#plunder-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none; /* let grid clicks pass through to the canvas */
+}
+
+#plunder-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(11, 31, 51, 0.85);
+  border: 2px solid #c9a14a;
+  border-radius: 10px;
+  padding: 9px 22px;
+  font-size: 17px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #000;
+}
+
+#plunder-buttons {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  pointer-events: auto; /* but the buttons themselves are clickable */
+}
+
+#plunder-buttons button {
+  font-size: 16px;
+  padding: 10px 22px;
+}
+
+#retreat {
+  background: linear-gradient(180deg, #d07a5a, #a8493a);
+  box-shadow: 0 4px 0 #6e2c20;
+}
+
+#plunder-result {
+  position: absolute;
+  inset: 0;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(11, 31, 51, 0.6), rgba(4, 12, 20, 0.92));
+}
+
 /* ---------- Shop ---------- */
 #shop {
   position: absolute;

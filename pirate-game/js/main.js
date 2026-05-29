@@ -37,6 +37,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("leave-port").addEventListener("click", () => game.closeShop());
 
+  // Plunder battle controls.
+  document.getElementById("end-turn").addEventListener("click", () => {
+    if (game.battle) game.battle.endTurn();
+  });
+  document.getElementById("retreat").addEventListener("click", () => game.retreatPlunder());
+  document.getElementById("plunder-continue").addEventListener("click", () => game.endPlunder());
+
   // One delegated listener turns any shop buy-button into the right purchase.
   document.getElementById("shop").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-buy]");

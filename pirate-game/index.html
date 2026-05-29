@@ -38,17 +38,35 @@
     </div>
   </div>
 
+  <!-- Plunder battle UI (banner + turn controls) -->
+  <div id="plunder-ui" class="hidden">
+    <div id="plunder-banner"></div>
+    <div id="plunder-buttons">
+      <button id="end-turn">End Turn</button>
+      <button id="retreat">Retreat</button>
+    </div>
+  </div>
+
+  <!-- Plunder result -->
+  <div id="plunder-result" class="hidden">
+    <div class="panel">
+      <h1 id="plunder-result-title"></h1>
+      <p id="plunder-result-text" class="tagline"></p>
+      <button id="plunder-continue">Continue</button>
+    </div>
+  </div>
+
   <!-- Start / instructions screen -->
   <div id="overlay">
     <div class="panel">
       <h1>☠️ Salt &amp; Plunder ☠️</h1>
       <p class="tagline">An open world of islands, gold, and rival pirates.</p>
       <ul class="controls">
-        <li><b>Left-click</b> — sail there (or walk, when ashore)</li>
+        <li><b>Left-click</b> — sail there (or pick a tile in battle)</li>
         <li><b>Right-click</b> — fire cannons straight at your cursor</li>
-        <li><b>E</b> — dock at the Cove · go ashore · board ship</li>
+        <li><b>E</b> — dock at the Cove · plunder a village</li>
       </ul>
-      <p class="hint">Sink rival ships and grab floating gold. Dock at <b>The Pirate's Cove</b> to buy bigger ships and upgrades, or go ashore at a village to explore on foot and raid its chest.</p>
+      <p class="hint">Sink rival ships and grab floating gold. Dock at <b>The Pirate's Cove</b> to buy ships, upgrades, and crew, then <b>plunder villages</b> in turn-based grid battles for their loot.</p>
       <button id="start-btn">Set Sail</button>
     </div>
   </div>
@@ -63,10 +81,11 @@
   </div>
 
   <!-- Load order matters: dependencies first -->
-  <script src="js/utils.js?v=5"></script>
-  <script src="js/entities.js?v=5"></script>
-  <script src="js/world.js?v=5"></script>
-  <script src="js/game.js?v=5"></script>
-  <script src="js/main.js?v=5"></script>
+  <script src="js/utils.js?v=6"></script>
+  <script src="js/entities.js?v=6"></script>
+  <script src="js/world.js?v=6"></script>
+  <script src="js/plunder.js?v=6"></script>
+  <script src="js/game.js?v=6"></script>
+  <script src="js/main.js?v=6"></script>
 </body>
 </html>

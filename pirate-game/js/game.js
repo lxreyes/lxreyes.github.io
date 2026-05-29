@@ -28,6 +28,7 @@ const UPGRADES = [
   { key: "hull",      name: "Reinforced Hull", icon: "🛡️", desc: "+25 max hull",             max: 8, baseCost: 50, growth: 1.5 },
   { key: "range",     name: "Long Nines",      icon: "🎯", desc: "+12% shot range & speed",  max: 4, baseCost: 90, growth: 1.8 },
   { key: "extraGuns", name: "Extra Gun Deck",  icon: "⚓", desc: "+1 cannon per side",        max: 2, baseCost: 300, growth: 2.2 },
+  { key: "crew",      name: "Recruit Crew",    icon: "🏴‍☠️", desc: "+1 pirate in plunder raids", max: 4, baseCost: 120, growth: 1.6 },
 ];
 
 // Cost to go from the current level to the next.
@@ -84,15 +85,13 @@ class Game {
     // Villages to explore on foot (built from the larger islands).
     this.villages = this._makeVillages();
 
-    // Movement modes: "sailing" the ship vs. "onfoot" ashore in a village.
+    // Modes: "sailing" the ship vs. "plunder" (grid battle ashore).
     this.mode = "sailing";
-    this.pirate = null;
-    this.landedVillage = null;
-    this.landingPoint = null;   // shore spot to return to in order to re-board
+    this.battle = null;         // active Battle while plundering a village
     this.interaction = null;    // what pressing E does right now
 
     // Fresh upgrade slate for a new run.
-    this.upgrades = { shipTier: 0, damage: 0, reload: 0, speed: 0, hull: 0, range: 0, extraGuns: 0 };
+    this.upgrades = { shipTier: 0, damage: 0, reload: 0, speed: 0, hull: 0, range: 0, extraGuns: 0, crew: 0 };
     this.applyUpgrades();
     this.player.health = this.player.maxHealth;
 
@@ -157,15 +156,10 @@ class Game {
   update(dt) {
     if (this.gameOver || this.shopOpen) return;
 
-    // Ashore: only the on-foot world ticks; the sea waits for our return.
-    if (this.mode === "onfoot") {
-      this.pirate.update(dt, this);
-      for (const v of this.landedVillage.villagers) v.update(dt);
-      this._collectChest();
-      this.camX = this.pirate.x - this.canvas.width / 2;
-      this.camY = this.pirate.y - this.canvas.height / 2;
+    // Plundering: only the grid battle ticks; the sea waits for our return.
+    if (this.mode === "plunder") {
+      this.battle.update(dt);
       this.shakeAmt *= 0.85;
-      this._updatePrompt();
       this._updateHUD();
       return;
     }
@@ -220,14 +214,13 @@ class Game {
   // One place decides the current contextual action + its on-screen prompt.
   _updatePrompt() {
     let it = null;
-    if (this.mode === "onfoot") {
-      const d = dist(this.pirate.x, this.pirate.y, this.landingPoint.x, this.landingPoint.y);
-      if (d < 42) it = { type: "board", text: "⛵ Press <b>E</b> to board your ship" };
+    if (this.mode === "plunder") {
+      // No contextual prompt during a battle.
     } else if (this.canDock()) {
       it = { type: "cove", text: "⚓ Press <b>E</b> to dock at The Pirate's Cove" };
     } else {
       const v = this._nearbyVillage();
-      if (v) it = { type: "village", village: v, text: `🏝️ Press <b>E</b> to go ashore at ${v.name}` };
+      if (v && !v.plundered) it = { type: "village", village: v, text: `⚔️ Press <b>E</b> to plunder ${v.name}` };
     }
 
     this.interaction = it;
@@ -245,41 +238,55 @@ class Game {
     const it = this.interaction;
     if (!it) return;
     if (it.type === "cove") this.openShop();
-    else if (it.type === "village") this.goAshore(it.village);
-    else if (it.type === "board") this.boardShip();
+    else if (it.type === "village") this.startPlunder(it.village);
   }
 
-  goAshore(village) {
-    this.mode = "onfoot";
+  // ---- Plunder (grid battle) ----
+  startPlunder(village) {
+    this.mode = "plunder";
     this.player.moveTarget = null; // drop anchor
-    const isle = village.island;
-    // Step off onto the shoreline nearest the ship.
-    const a = angleTo(isle.x, isle.y, this.player.x, this.player.y);
-    const r = isle.radius - 14;
-    const px = isle.x + Math.cos(a) * r;
-    const py = isle.y + Math.sin(a) * r;
-    this.pirate = new Pirate(px, py);
-    this.landedVillage = village;
-    this.landingPoint = { x: px, y: py };
-    this._updatePrompt();
+    this.battle = new Battle(this, village);
+    this.interaction = null;
+    document.getElementById("dock-prompt").classList.add("hidden");
+    document.getElementById("plunder-ui").classList.remove("hidden");
   }
 
-  boardShip() {
-    this.mode = "sailing";
-    this.pirate = null;
-    this.landedVillage = null;
-    this.landingPoint = null;
-    this._updatePrompt();
-  }
-
-  _collectChest() {
-    const ch = this.landedVillage.chest;
-    if (ch.collected) return;
-    if (dist(this.pirate.x, this.pirate.y, ch.x, ch.y) < this.pirate.radius + 14) {
-      ch.collected = true;
-      this.gold += ch.value;
-      this._spawnPickupBurst(ch.x, ch.y);
+  // Battle reports its outcome here. result: "win" | "lose".
+  onPlunderEnd(result, loot) {
+    document.getElementById("plunder-ui").classList.add("hidden");
+    let title, text;
+    if (result === "win") {
+      this.gold += loot;
+      this.battle.village.plundered = true;
+      title = "🏆 Village Plundered!";
+      text = `You routed the defenders and carried off ${loot} gold.`;
+    } else {
+      const dmg = 20;
+      this.player.health = Math.max(1, this.player.health - dmg);
+      title = "🏳️ Driven Off!";
+      text = `The villagers repelled your raid. Your hull took ${dmg} damage in the retreat.`;
     }
+    document.getElementById("plunder-result-title").textContent = title;
+    document.getElementById("plunder-result-text").textContent = text;
+    document.getElementById("plunder-result").classList.remove("hidden");
+  }
+
+  // "Continue" after a finished battle returns to the open sea.
+  endPlunder() {
+    document.getElementById("plunder-result").classList.add("hidden");
+    document.getElementById("plunder-ui").classList.add("hidden");
+    this.battle = null;
+    this.mode = "sailing";
+    this.lastTime = performance.now();
+  }
+
+  // Bail out mid-raid: no loot, no penalty.
+  retreatPlunder() {
+    document.getElementById("plunder-ui").classList.add("hidden");
+    document.getElementById("plunder-result").classList.add("hidden");
+    this.battle = null;
+    this.mode = "sailing";
+    this.lastTime = performance.now();
   }
 
   // Turn the biggest islands into villages you can land on.
@@ -317,10 +324,9 @@ class Game {
       x: isle.x + Math.cos(ca) * cr,
       y: isle.y + Math.sin(ca) * cr,
       value: randInt(40, 90),
-      collected: false,
     };
 
-    return { name, island: isle, huts, villagers, chest };
+    return { name, island: isle, huts, villagers, chest, plundered: false };
   }
 
   _collisions() {
@@ -456,6 +462,12 @@ class Game {
     const W = this.canvas.width;
     const H = this.canvas.height;
 
+    // The plunder battle is its own full-screen view.
+    if (this.mode === "plunder" && this.battle) {
+      this.battle.draw(ctx, this.canvas);
+      return;
+    }
+
     // Ocean base (drawn in screen space so it always fills the view).
     const grad = ctx.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, "#1b6f93");
@@ -480,7 +492,6 @@ class Game {
     for (const e of this.enemies) e.draw(ctx);
     this.player.draw(ctx);
     for (const b of this.cannonballs) b.draw(ctx);
-    if (this.mode === "onfoot") this.pirate.draw(ctx);
     this._drawMoveTarget(ctx);
 
     ctx.restore();
@@ -549,11 +560,10 @@ class Game {
     ctx.textBaseline = "middle";
     ctx.fillText("⚓", this.port.x * scale, this.port.y * scale);
 
-    // You (the ship, or the captain on foot)
-    const me = this.mode === "onfoot" ? this.pirate : this.player;
+    // Your ship
     ctx.fillStyle = "#46e08a";
     ctx.beginPath();
-    ctx.arc(me.x * scale, me.y * scale, 3.5, 0, TWO_PI);
+    ctx.arc(this.player.x * scale, this.player.y * scale, 3.5, 0, TWO_PI);
     ctx.fill();
   }
 
@@ -636,8 +646,8 @@ class Game {
 
       for (const h of v.huts) this._drawHut(ctx, h);
 
-      // Treasure chest (until looted)
-      if (!v.chest.collected) {
+      // Treasure chest (until the village is plundered)
+      if (!v.plundered) {
         const ch = v.chest;
         ctx.save();
         ctx.translate(ch.x, ch.y);
@@ -687,10 +697,8 @@ class Game {
   }
 
   _drawMoveTarget(ctx) {
-    // Marker follows whichever character is currently under your control.
-    const actor = this.mode === "onfoot" ? this.pirate : this.player;
-    const t = actor.moveTarget;
-    if (!t || actor.dead) return;
+    const t = this.player.moveTarget;
+    if (!t || this.player.dead) return;
     const pulse = 9 + Math.sin(this.time * 6) * 3;
     ctx.strokeStyle = "rgba(245,233,201,0.85)";
     ctx.lineWidth = 2;
@@ -709,9 +717,9 @@ class Game {
     const wx = e.clientX + this.camX;
     const wy = e.clientY + this.camY;
 
-    if (this.mode === "onfoot") {
-      // On land: left-click walks the captain there (no cannons on foot).
-      if (e.button === 0 && this.pirate) this.pirate.moveTarget = { x: wx, y: wy };
+    if (this.mode === "plunder") {
+      // The battle is screen-space; forward the raw click to the grid.
+      if (e.button === 0 && this.battle) this.battle.handleClick(e.clientX, e.clientY);
       return;
     }
 
