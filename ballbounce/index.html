@@ -51,7 +51,7 @@
 <body>
 <div id="wrap">
   <h1>B A L L &nbsp; B O U N C E</h1>
-  <div class="sub">press <kbd>SPACE</kbd> to launch &middot; bounce off platforms &middot; don&rsquo;t miss the wall</div>
+  <div class="sub">hold <kbd>SPACE</kbd> to draw &middot; release to launch &middot; bounce off platforms &middot; don&rsquo;t miss the wall</div>
   <canvas id="c" width="800" height="600"></canvas>
 </div>
 <script>
@@ -109,38 +109,57 @@ const state = {
   scanlinePhase: 0,
   squish: 0,        // 0..1 — amplitude of the current squash-stretch
   squishAxis: 'x',  // 'x' = squish horizontally (side bounce), 'y' = vertically (top/bottom)
-  // Charge: while > 0, the ball is pinned to `chargingOn` and held compressed.
-  // When it hits 0, `pendingVx/Vy` are committed and the ball launches.
+  // Bow-style launch charge: press SPACE to start drawing, hold to build
+  // power, release to fire. chargeAmount is 0..1.
+  charging: false,
+  chargeAmount: 0,
+  // Bounce wind-up: while chargeTime > 0 the ball is pinned to `chargingOn`
+  // and held compressed; on hit 0 we commit pendingVx/Vy and release.
   chargeTime: 0,
   pendingVx: 0,
   pendingVy: 0,
   chargingOn: null,
-  // Input-grace window: a recent space press counts as "pressed" for up to
-  // ~150ms after keydown, so timing pre-impact still feels fair at high vx.
-  spaceWindow: 0,
 };
+
+const MAX_CHARGE_TIME = 0.8;   // seconds of hold to reach full draw
+const LAUNCH_VX_MIN  = 2.0;    // tap-release fires weak
+const LAUNCH_VX_MAX  = 8.0;    // full draw fires hot
 
 // ---------- Input ----------
 const input = { spacePressed: false, spaceJustPressed: false };
 
-function launch() {
-  // Charge first, then launch. Build-up mode: launch slow, ramp aggressively.
+function startCharging() {
+  // Begin drawing the "bow". Squish builds during the hold (see update()).
+  state.charging = true;
+  state.chargeAmount = 0;
+  state.squish = 0;
+  state.squishAxis = 'x';
+}
+
+function fireLaunch() {
+  // Convert the current chargeAmount into a launch velocity.
   const p = state.platforms[0];
-  state.pendingVx = 3.0;
-  state.pendingVy = p.speed * p.dir * 0.4;
-  state.chargeTime = 0.18;
-  state.chargingOn = p;
-  state.ball.vx = 0;
-  state.ball.vy = 0;
-  state.squish = 0.95;
+  const t = state.chargeAmount;
+  state.ball.vx = LAUNCH_VX_MIN + (LAUNCH_VX_MAX - LAUNCH_VX_MIN) * t;
+  state.ball.vy = p.speed * p.dir * 0.4;
+  // Hold the squish at its drawn amount, then let it decay normally.
+  state.squish = Math.max(state.squish, 0.3 + t * 0.65);
   state.squishAxis = 'x';
   state.starting = false;
+  state.charging = false;
+  state.chargeAmount = 0;
+  state.shake = 4 + t * 6;
+  state.flash = 0.3 + t * 0.4;
 }
 
 function onPress() {
-  state.spaceWindow = 0.15;
-  if (state.gameOver) restart();
-  else if (state.starting) launch();
+  if (state.gameOver) { restart(); return; }
+  if (state.starting && !state.charging) startCharging();
+}
+
+function onRelease() {
+  // Only the launch uses press-and-release; bounces are automatic.
+  if (state.starting && state.charging) fireLaunch();
 }
 
 window.addEventListener('keydown', (e) => {
@@ -151,15 +170,25 @@ window.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('keyup', (e) => {
-  if (e.code === 'Space') input.spacePressed = false;
+  if (e.code === 'Space') {
+    input.spacePressed = false;
+    onRelease();
+  }
 });
-// Tap-to-bounce for touch / mouse — easier on laptops without keyboards
+// Tap-and-hold for touch / mouse — same bow mechanic.
 c.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   onPress();
   input.spacePressed = true;
 });
-c.addEventListener('pointerup', () => { input.spacePressed = false; });
+c.addEventListener('pointerup', () => {
+  input.spacePressed = false;
+  onRelease();
+});
+c.addEventListener('pointercancel', () => {
+  input.spacePressed = false;
+  onRelease();
+});
 
 // Platform is drawn 10px wide, centered on the wall — its inner face is at
 // WALL_X_LEFT + 5 (or WALL_X_RIGHT - 5). Park the ball flush against that
@@ -184,7 +213,8 @@ function restart() {
   state.chargingOn = null;
   state.pendingVx = 0;
   state.pendingVy = 0;
-  state.spaceWindow = 0;
+  state.charging = false;
+  state.chargeAmount = 0;
 }
 
 // ---------- Update ----------
@@ -204,6 +234,15 @@ function update(dt) {
     // Ride the first left platform until launch.
     state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
     state.ball.y = state.platforms[0].y;
+    if (state.charging) {
+      // Drawing the bow — chargeAmount grows from 0 → 1, squish tracks it.
+      state.chargeAmount = Math.min(1, state.chargeAmount + dt / MAX_CHARGE_TIME);
+      state.squish = state.chargeAmount * 0.95;
+      state.squishAxis = 'x';
+    } else {
+      // Idle — let any residual squish settle so the ball reads as "ready".
+      state.squish *= Math.pow(0.88, dt * 60);
+    }
     input.spaceJustPressed = false;
     state.flash = Math.max(0, state.flash - dt * 4);
     state.shake = Math.max(0, state.shake - dt * 60);
@@ -235,7 +274,6 @@ function update(dt) {
     } else {
       state.flash = Math.max(0, state.flash - dt * 4);
       state.shake = Math.max(0, state.shake - dt * 60);
-      state.spaceWindow = Math.max(0, state.spaceWindow - dt);
       input.spaceJustPressed = false;
       return;
     }
@@ -300,7 +338,6 @@ function update(dt) {
   state.flash = Math.max(0, state.flash - dt * 4);
   state.shake = Math.max(0, state.shake - dt * 60);
   state.squish *= Math.pow(0.88, dt * 60);
-  state.spaceWindow = Math.max(0, state.spaceWindow - dt);
   input.spaceJustPressed = false;
 }
 
@@ -422,6 +459,25 @@ function draw() {
   }
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
+
+  // Charge aura — while drawing the bow, a cyan ring grows and brightens
+  // around the ball, hitting a pulsing magenta at full draw.
+  if (state.charging && state.chargeAmount > 0) {
+    const t = state.chargeAmount;
+    const pulse = t >= 1 ? 1 + Math.sin(performance.now() / 80) * 0.12 : 1;
+    const auraR = (state.ball.r + 6 + t * 16) * pulse;
+    const auraColor = t >= 1 ? '#f0f' : '#0ff';
+    ctx.save();
+    ctx.translate(state.ball.x, state.ball.y);
+    ctx.strokeStyle = `rgba(${t >= 1 ? '255,0,255' : '0,255,255'}, ${0.35 + t * 0.5})`;
+    ctx.lineWidth = 2 + t * 2.5;
+    ctx.shadowColor = auraColor;
+    ctx.shadowBlur = 14 + t * 26;
+    ctx.beginPath();
+    ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Ball — squash & stretch on bounce. Compress along the impact axis,
   // stretch perpendicular so it reads as a real squish (volume-ish preserved).
