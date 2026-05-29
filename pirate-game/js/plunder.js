@@ -16,6 +16,24 @@ function hash2(x, y) {
   return n - Math.floor(n);
 }
 
+// Unit classes — each has a role and a trait that changes how it fights:
+//   rally    : gives adjacent allies +2 attack (leaders)
+//   duelist  : counter-attacks at full strength (not half)
+//   marksman : +1 damage when firing from range 2+
+//   heavy    : tough, hard-hitting, but slow
+const PB_PLAYER_TYPES = {
+  captain:      { name: "Captain",      hp: 26, atk: 8, move: 3, range: 1, def: 1, trait: "rally",    color: "#2a6f97", hat: true },
+  swashbuckler: { name: "Swashbuckler", hp: 18, atk: 6, move: 3, range: 1, def: 1, trait: "duelist",  color: "#2e8b57" },
+  gunner:       { name: "Gunner",       hp: 12, atk: 5, move: 3, range: 2, def: 0, trait: "marksman", color: "#3b78c2" },
+  brute:        { name: "Brute",        hp: 24, atk: 9, move: 2, range: 1, def: 2, trait: "heavy",    color: "#5f7a39" },
+};
+const PB_ENEMY_TYPES = {
+  militia:   { name: "Militia",        hp: 10, atk: 3, move: 3, range: 1, def: 0, color: "#a8322d" },
+  musketeer: { name: "Musketeer",      hp: 8,  atk: 4, move: 2, range: 2, def: 0, trait: "marksman", color: "#cf6a2e" },
+  brute:     { name: "Brute",          hp: 16, atk: 5, move: 2, range: 1, def: 2, trait: "heavy",    color: "#7a2f3a" },
+  garrison:  { name: "Garrison Capt.", hp: 24, atk: 6, move: 3, range: 1, def: 1, trait: "rally",    color: "#b51e2b", hat: true, boss: true },
+};
+
 class Battle {
   constructor(game, village) {
     this.game = game;
@@ -38,7 +56,7 @@ class Battle {
     this.flashes = [];        // brief hit markers
     this.enemyQueue = [];
     this.enemyTimer = 0;
-    this.message = "Your turn — reach the chest or rout the defenders!";
+    this.message = "Your turn — push up the road; reach the chest or rout the garrison!";
   }
 
   // ---- Setup ----
@@ -78,23 +96,58 @@ class Battle {
 
   _buildUnits() {
     this.units = [];
-    const crew = this.game.upgrades.crew || 0;
-    const sword = (this.game.upgrades.cutlass || 0) * 2;  // +attack
-    const gun = this.game.upgrades.musket || 0;           // +range
-    const playerCount = 1 + crew;
-    const enemyCount = Math.max(2, playerCount + 1);
+    const U = this.game.upgrades;
+    const sword = (U.cutlass || 0) * 2;  // +attack to your whole party
+    const gun = U.musket || 0;           // +range to your whole party
+    const playerCount = 1 + (U.crew || 0);
 
-    // You land at the bottom and fight your way up.
+    // You land at the bottom: a captain plus a rotating mix of crew classes.
     const start = this._spawnCells("player", playerCount);
-    this.units.push(this._mk("player", start[0], "Captain", 26, 8 + sword, 3, 1 + gun));
+    this.units.push(this._mk("player", start[0], PB_PLAYER_TYPES.captain, sword, gun));
+    const cycle = [PB_PLAYER_TYPES.swashbuckler, PB_PLAYER_TYPES.gunner, PB_PLAYER_TYPES.brute];
     for (let i = 1; i < playerCount; i++) {
-      this.units.push(this._mk("player", start[i], "Crew", 16, 5 + sword, 3, 1 + gun));
+      this.units.push(this._mk("player", start[i], cycle[(i - 1) % cycle.length], sword, gun));
     }
 
-    const def = this._spawnCells("enemy", enemyCount);
-    for (let i = 0; i < enemyCount; i++) {
-      this.units.push(this._mk("enemy", def[i], "Defender", 10, 3, 3, 1));
+    // Defenders scale with your party and the village's size; big towns post
+    // a Garrison Captain who rallies the rest.
+    const r = this.village.island.radius;
+    this.enemyMax = Math.min(9, playerCount + 2 + Math.floor(r / 120));
+    const roster = this._enemyRoster(this.enemyMax, r);
+    const def = this._spawnCells("enemy", this.enemyMax);
+    for (let i = 0; i < this.enemyMax; i++) {
+      this.units.push(this._mk("enemy", def[i], roster[i], 0, 0));
     }
+
+    // Reinforcements can rally to the defence over the course of the fight.
+    this.reinforceMax = 4;
+    this.reinforced = 0;
+    this.round = 1;
+  }
+
+  _enemyRoster(n, radius) {
+    const list = [];
+    if (radius > 200) list.push(PB_ENEMY_TYPES.garrison); // a boss for big towns
+    const pool = [
+      PB_ENEMY_TYPES.militia, PB_ENEMY_TYPES.militia,
+      PB_ENEMY_TYPES.musketeer, PB_ENEMY_TYPES.brute,
+    ];
+    while (list.length < n) list.push(pick(pool));
+    return list.slice(0, n);
+  }
+
+  _mk(side, cell, tmpl, sword, gun) {
+    const range = tmpl.range + (side === "player" ? gun : 0);
+    return {
+      side, name: tmpl.name, x: cell.x, y: cell.y,
+      maxHp: tmpl.hp, hp: tmpl.hp,
+      atk: tmpl.atk + (side === "player" ? sword : 0),
+      move: tmpl.move, range, def: tmpl.def,
+      trait: tmpl.trait || null,
+      color: tmpl.color, hat: !!tmpl.hat, boss: !!tmpl.boss,
+      ranged: range > 1,
+      hasMoved: false, hasActed: false, alive: true,
+    };
   }
 
   // Spawn cells: the player lands on a thin path up the middle from the
@@ -255,17 +308,48 @@ class Battle {
   }
 
   // ---- Combat ----
+  // +2 attack while standing next to a living ally with the rally trait.
+  _rally(u) {
+    for (const [dx, dy] of PB_DIRS) {
+      const a = this.unitAt(u.x + dx, u.y + dy);
+      if (a && a.side === u.side && a.trait === "rally") return 2;
+    }
+    return 0;
+  }
+
+  // A unit in cover (next to a hut/rock/crate) takes less damage.
+  _inCover(u) {
+    for (const [dx, dy] of PB_DIRS) {
+      const nx = u.x + dx;
+      const ny = u.y + dy;
+      if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+      if (this.tiles[ny][nx].obstacle) return true;
+    }
+    return false;
+  }
+
+  // Damage = attack (+rally, +marksman) minus the target's defence and cover.
+  _damage(att, def, isCounter) {
+    let atk = att.atk + this._rally(att);
+    if (att.trait === "marksman" && this._manhattan(att, def) > 1) atk += 1;
+    if (isCounter && att.trait !== "duelist") atk = Math.ceil(atk * 0.5);
+    const cover = this._inCover(def) ? 2 : 0;
+    return Math.max(1, atk - def.def - cover);
+  }
+
   _resolveAttack(att, def) {
-    def.hp -= att.atk;
+    def.hp -= this._damage(att, def, false);
     this.flashes.push({ x: def.x, y: def.y, life: 0.3 });
     this.game.shake(5);
+    Sound.hit();
     if (def.hp <= 0) {
       def.alive = false;
       return;
     }
-    // Counter-attack if the defender survives and the attacker is in reach.
+    // Counter only if the defender can actually reach the attacker — so a
+    // gunner firing from afar takes no return blow.
     if (this._manhattan(att, def) <= def.range) {
-      att.hp -= Math.max(1, Math.ceil(def.atk * 0.5));
+      att.hp -= this._damage(def, att, true);
       this.flashes.push({ x: att.x, y: att.y, life: 0.3 });
       if (att.hp <= 0) att.alive = false;
     }
@@ -309,11 +393,14 @@ class Battle {
     if (this.enemyQueue.length === 0) {
       // Back to the player; refresh everyone's action budget.
       this.phase = "player";
+      this.round++;
       this.message = "Your turn";
       for (const u of this.units) {
         u.hasMoved = false;
         u.hasActed = false;
       }
+      // The town rallies reinforcements every few rounds — don't dawdle.
+      if (this.round % 3 === 0 && this.reinforced < this.reinforceMax) this._reinforce();
       return;
     }
 
@@ -322,6 +409,25 @@ class Battle {
       this._enemyAct(e);
       this._checkEnd();
     }
+  }
+
+  _reinforce() {
+    const cell = this._freeTopCell();
+    if (!cell) return;
+    this.units.push(this._mk("enemy", cell, PB_ENEMY_TYPES.militia, 0, 0));
+    this.reinforced++;
+    this.message = "⚠ Reinforcements arrive!";
+  }
+
+  _freeTopCell() {
+    for (let r = 0; r < 2; r++) {
+      for (let c = 1; c < this.cols - 1; c++) {
+        if (this.tiles[r][c].obstacle || this.unitAt(c, r)) continue;
+        if (c === this.treasure.x && r === this.treasure.y) continue;
+        return { x: c, y: r };
+      }
+    }
+    return null;
   }
 
   _enemyAct(e) {
@@ -370,9 +476,14 @@ class Battle {
     const banner = document.getElementById("plunder-banner");
     const p = this.units.filter((u) => u.alive && u.side === "player").length;
     const e = this.units.filter((u) => u.alive && u.side === "enemy").length;
-    banner.textContent = `⚔️ ${this.village.name} — ${this.message}   (You ${p} · Defenders ${e})`;
-    const endBtn = document.getElementById("end-turn");
-    endBtn.disabled = this.phase !== "player";
+    let txt = `⚔️ ${this.village.name} — ${this.message}   (You ${p} · Foes ${e})`;
+    if (this.selected) {
+      const u = this.selected;
+      const cover = this._inCover(u) ? " 🌿cover" : "";
+      txt += `   ▸ ${u.name}: ⚔${u.atk} 🎯${u.range} 🛡${u.def} ❤${Math.max(0, u.hp)}/${u.maxHp}${cover}`;
+    }
+    banner.textContent = txt;
+    document.getElementById("end-turn").disabled = this.phase !== "player";
   }
 
   draw(ctx, canvas) {
@@ -494,6 +605,17 @@ class Battle {
       ctx.fillStyle = `rgba(255,80,60,${(f.life / 0.3) * 0.6})`;
       ctx.fillRect(this.ox + f.x * cell, this.oy + f.y * cell, cell, cell);
     }
+
+    // Quick legend so the mechanics are readable.
+    ctx.textAlign = "left";
+    ctx.font = "12px Trebuchet MS, sans-serif";
+    ctx.fillStyle = "rgba(245,233,201,0.85)";
+    let ly = H - 84;
+    [
+      "Classes: Captain rallies allies · Swashbuckler counters hard · Gunner shoots from afar · Brute is tough",
+      "Stand next to huts/rocks for cover (−damage). 🛡 = armour. Leaders give adjacent allies +attack.",
+      "Win: reach the gold chest OR rout every foe — but the town calls in reinforcements over time.",
+    ].forEach((t) => { ctx.fillText(t, 14, ly); ly += 16; });
   }
 
   // Wobbly ellipse used for the beach/grass outlines.
@@ -601,9 +723,18 @@ class Battle {
   _drawUnit(ctx, u, cell) {
     const cx = this.ox + u.x * cell + cell / 2;
     const cy = this.oy + u.y * cell + cell / 2;
-    const r = cell * 0.3;
+    const r = cell * (u.boss ? 0.36 : 0.3);
 
     ctx.globalAlpha = this.phase === "player" && u.side === "player" && this._done(u) ? 0.5 : 1;
+
+    // Cover glow ring (this unit is taking cover, so it's harder to hit).
+    if (this._inCover(u)) {
+      ctx.strokeStyle = "rgba(120,220,160,0.7)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 4, 0, TWO_PI);
+      ctx.stroke();
+    }
 
     // shadow
     ctx.fillStyle = "rgba(0,0,0,0.25)";
@@ -611,9 +742,19 @@ class Battle {
     ctx.ellipse(cx, cy + r * 0.7, r, r * 0.5, 0, 0, TWO_PI);
     ctx.fill();
 
-    // body (coat)
-    const captain = u.name === "Captain";
-    ctx.fillStyle = u.side === "enemy" ? "#a8322d" : captain ? "#2a6f97" : "#2e8b57";
+    // Defence shield (armoured / heavy units)
+    if (u.def >= 2) {
+      ctx.fillStyle = "rgba(200,205,210,0.9)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.8, cy, r * 0.4, 0, TWO_PI);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // body (coat) coloured by class
+    ctx.fillStyle = u.color;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.fill();
@@ -627,8 +768,18 @@ class Battle {
     ctx.arc(cx, cy - r * 0.15, r * 0.5, 0, TWO_PI);
     ctx.fill();
 
-    // captain's tricorn hat
-    if (captain) {
+    // ranged units carry a musket barrel
+    if (u.ranged) {
+      ctx.strokeStyle = "#2b1c0e";
+      ctx.lineWidth = Math.max(2, r * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(cx + r * 0.2, cy + r * 0.2);
+      ctx.lineTo(cx + r * 1.05, cy - r * 0.5);
+      ctx.stroke();
+    }
+
+    // leaders wear a tricorn hat
+    if (u.hat) {
       ctx.fillStyle = "#15110a";
       ctx.beginPath();
       ctx.arc(cx, cy - r * 0.32, r * 0.58, Math.PI, TWO_PI);
@@ -641,7 +792,7 @@ class Battle {
     // HP bar
     const bw = cell * 0.62;
     const frac = clamp(u.hp / u.maxHp, 0, 1);
-    const by = cy - r - 8;
+    const by = cy - r - 9;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(cx - bw / 2, by, bw, 5);
     ctx.fillStyle = u.side === "enemy" ? "#e74c3c" : "#46c46a";
