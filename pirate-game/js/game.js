@@ -29,6 +29,8 @@ const UPGRADES = [
   { key: "range",     name: "Long Nines",      icon: "🎯", desc: "+12% shot range & speed",  max: 4, baseCost: 90, growth: 1.8 },
   { key: "extraGuns", name: "Extra Gun Deck",  icon: "⚓", desc: "+1 cannon per side",        max: 2, baseCost: 300, growth: 2.2 },
   { key: "crew",      name: "Recruit Crew",    icon: "🏴‍☠️", desc: "+1 pirate in plunder raids", max: 4, baseCost: 120, growth: 1.6 },
+  { key: "cutlass",   name: "Cutlasses",       icon: "🗡️", desc: "+2 raid attack damage",     max: 3, baseCost: 90,  growth: 1.6 },
+  { key: "musket",    name: "Muskets",         icon: "🔫", desc: "+1 attack range in raids",  max: 2, baseCost: 150, growth: 1.9 },
 ];
 
 // Cost to go from the current level to the next.
@@ -91,7 +93,7 @@ class Game {
     this.interaction = null;    // what pressing E does right now
 
     // Fresh upgrade slate for a new run.
-    this.upgrades = { shipTier: 0, damage: 0, reload: 0, speed: 0, hull: 0, range: 0, extraGuns: 0, crew: 0 };
+    this.upgrades = { shipTier: 0, damage: 0, reload: 0, speed: 0, hull: 0, range: 0, extraGuns: 0, crew: 0, cutlass: 0, musket: 0 };
     this.applyUpgrades();
     this.player.health = this.player.maxHealth;
 
@@ -271,19 +273,18 @@ class Game {
   }
 
   // Battle reports its outcome here. result: "win" | "lose".
-  onPlunderEnd(result, loot) {
+  onPlunderEnd(result, loot, text) {
     document.getElementById("plunder-ui").classList.add("hidden");
-    let title, text;
+    let title;
     if (result === "win") {
       this.gold += loot;
       this.battle.village.plundered = true;
       title = "🏆 Village Plundered!";
-      text = `You routed the defenders and carried off ${loot} gold.`;
     } else {
       const dmg = 20;
       this.player.health = Math.max(1, this.player.health - dmg);
       title = "🏳️ Driven Off!";
-      text = `The villagers repelled your raid. Your hull took ${dmg} damage in the retreat.`;
+      text = text + ` Your hull took ${dmg} damage in the retreat.`;
     }
     document.getElementById("plunder-result-title").textContent = title;
     document.getElementById("plunder-result-text").textContent = text;

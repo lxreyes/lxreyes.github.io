@@ -38,7 +38,7 @@ class Battle {
     this.flashes = [];        // brief hit markers
     this.enemyQueue = [];
     this.enemyTimer = 0;
-    this.message = "Your turn — storm the village!";
+    this.message = "Your turn — reach the chest or rout the defenders!";
   }
 
   // ---- Setup ----
@@ -58,53 +58,70 @@ class Battle {
       for (let x = 0; x < this.cols; x++) row.push({ obstacle: false });
       this.tiles.push(row);
     }
-    // Scatter cover (huts/rocks) in the middle — never in the spawn columns.
+    // The loot chest sits at the top-centre — the objective you push toward.
+    this.treasure = { x: Math.floor(this.cols / 2), y: 0 };
+
+    // Scatter cover through the middle band, leaving the top (defenders +
+    // chest), the bottom (your landing path) and the central road clear.
+    const cxCol = Math.floor(this.cols / 2);
     const n = randInt(5, 9);
     for (let i = 0; i < n; i++) {
-      const x = randInt(2, this.cols - 3);
-      const y = randInt(1, this.rows - 2);
+      const x = randInt(1, this.cols - 2);
+      const y = randInt(2, this.rows - 3);
+      if (x === cxCol) continue; // keep the central path open
       const t = this.tiles[y][x];
       t.obstacle = true;
       t.kind = pick(["hut", "hut", "rocks", "crates"]); // mostly huts
     }
-    // The loot sits on the defenders' side.
-    this.treasure = { x: this.cols - 2, y: Math.floor(this.rows / 2) };
     this.tiles[this.treasure.y][this.treasure.x].obstacle = false;
   }
 
   _buildUnits() {
     this.units = [];
     const crew = this.game.upgrades.crew || 0;
+    const sword = (this.game.upgrades.cutlass || 0) * 2;  // +attack
+    const gun = this.game.upgrades.musket || 0;           // +range
     const playerCount = 1 + crew;
     const enemyCount = Math.max(2, playerCount + 1);
 
-    const left = this._spawnCells("left", playerCount);
-    this.units.push(this._mk("player", left[0], "Captain", 26, 8, 4));
+    // You land at the bottom and fight your way up.
+    const start = this._spawnCells("player", playerCount);
+    this.units.push(this._mk("player", start[0], "Captain", 26, 8 + sword, 3, 1 + gun));
     for (let i = 1; i < playerCount; i++) {
-      this.units.push(this._mk("player", left[i], "Crew", 16, 5, 4));
+      this.units.push(this._mk("player", start[i], "Crew", 16, 5 + sword, 3, 1 + gun));
     }
 
-    const right = this._spawnCells("right", enemyCount);
+    const def = this._spawnCells("enemy", enemyCount);
     for (let i = 0; i < enemyCount; i++) {
-      this.units.push(this._mk("enemy", right[i], "Defender", 10, 3, 3));
+      this.units.push(this._mk("enemy", def[i], "Defender", 10, 3, 3, 1));
     }
   }
 
-  // Distinct, obstacle-free cells in a side's spawn columns.
+  // Spawn cells: the player lands on a thin path up the middle from the
+  // bottom; defenders hold the top rows.
   _spawnCells(side, count) {
-    const cols = side === "left" ? [0, 1] : [this.cols - 1, this.cols - 2];
     const cells = [];
-    for (const c of cols) {
-      for (let r = 0; r < this.rows && cells.length < count; r++) cells.push({ x: c, y: r });
-      if (cells.length >= count) break;
+    if (side === "player") {
+      const cx = Math.floor(this.cols / 2);
+      for (const c of [cx, cx - 1, cx + 1]) { // widen the lane only if needed
+        for (let r = this.rows - 1; r >= 0 && cells.length < count; r--) cells.push({ x: c, y: r });
+        if (cells.length >= count) break;
+      }
+    } else {
+      for (let r = 0; r < this.rows && cells.length < count; r++) {
+        for (let c = 1; c < this.cols - 1 && cells.length < count; c++) {
+          if (c === this.treasure.x && r === this.treasure.y) continue; // leave the chest free
+          cells.push({ x: c, y: r });
+        }
+      }
     }
     return cells;
   }
 
-  _mk(side, cell, name, hp, atk, move) {
+  _mk(side, cell, name, hp, atk, move, range) {
     return {
       side, name, x: cell.x, y: cell.y,
-      hp, maxHp: hp, atk, move, range: 1,
+      hp, maxHp: hp, atk, move, range,
       hasMoved: false, hasActed: false, alive: true,
     };
   }
@@ -122,15 +139,13 @@ class Battle {
       this.palms.push({ ang: (i / pc) * TWO_PI + rand(-0.25, 0.25), h: rand(0.55, 0.9) });
     }
 
-    // A couple of dirt footpaths from the edges through the centre.
-    this.paths = [];
-    const mid = { x: Math.floor(this.cols / 2), y: Math.floor(this.rows / 2) };
-    const n = randInt(2, 3);
-    for (let i = 0; i < n; i++) {
-      const a = { x: randInt(0, this.cols - 1), y: i % 2 ? 0 : this.rows - 1 };
-      const b = { x: randInt(0, this.cols - 1), y: i % 2 ? this.rows - 1 : 0 };
-      this.paths.push([a, mid, b]);
-    }
+    // The main road runs up the middle (where you land), with a cross street.
+    const cx = Math.floor(this.cols / 2);
+    const my = Math.floor(this.rows / 2);
+    this.paths = [
+      [{ x: cx, y: this.rows - 1 }, { x: cx, y: 0 }],
+      [{ x: 0, y: my }, { x: this.cols - 1, y: my }],
+    ];
   }
 
   // ---- Queries ----
@@ -169,11 +184,12 @@ class Battle {
     return set;
   }
 
+  // Enemies within this unit's attack range (Manhattan). Melee = 1; muskets
+  // reach further, and can fire without drawing a counter from melee foes.
   _attackTargets(unit) {
     const out = [];
-    for (const [dx, dy] of PB_DIRS) {
-      const e = this.unitAt(unit.x + dx, unit.y + dy);
-      if (e && e.side !== unit.side) out.push(e);
+    for (const u of this.units) {
+      if (u.alive && u.side !== unit.side && this._manhattan(unit, u) <= unit.range) out.push(u);
     }
     return out;
   }
@@ -211,6 +227,11 @@ class Battle {
         sel.x = g.x;
         sel.y = g.y;
         sel.hasMoved = true;
+        // Reaching the loot chest cracks it open and wins the raid.
+        if (sel.x === this.treasure.x && sel.y === this.treasure.y) {
+          this._openChest();
+          return;
+        }
         this._select(sel); // refresh: no more move, maybe new attack targets
         if (this.attackable.length === 0) this._select(null);
         return;
@@ -250,17 +271,26 @@ class Battle {
     }
   }
 
+  // Reaching the chest = grab the loot and go.
+  _openChest() {
+    if (this.phase === "over") return;
+    this.phase = "over";
+    this.message = "Loot seized!";
+    this._select(null);
+    this.game.onPlunderEnd("win", this.loot, `You cracked open the loot chest and escaped with ${this.loot} gold!`);
+  }
+
   _checkEnd() {
     const enemies = this.units.filter((u) => u.alive && u.side === "enemy");
     const players = this.units.filter((u) => u.alive && u.side === "player");
     if (enemies.length === 0) {
       this.phase = "over";
       this.message = "Victory!";
-      this.game.onPlunderEnd("win", this.loot);
+      this.game.onPlunderEnd("win", this.loot, `You routed the defenders and carried off ${this.loot} gold.`);
     } else if (players.length === 0) {
       this.phase = "over";
       this.message = "Defeated!";
-      this.game.onPlunderEnd("lose", 0);
+      this.game.onPlunderEnd("lose", 0, "Your raiding party was cut down.");
     }
   }
 
@@ -302,7 +332,7 @@ class Battle {
     let target = targets[0];
     for (const t of targets) if (this._manhattan(e, t) < this._manhattan(e, target)) target = t;
 
-    if (this._manhattan(e, target) > 1) {
+    if (this._manhattan(e, target) > e.range) {
       // Step toward the target as far as our move range allows.
       const reach = this._reachable(e);
       let best = null;
@@ -321,9 +351,9 @@ class Battle {
       }
     }
 
-    // Strike if we ended up adjacent to anyone.
+    // Strike if anyone is now within range.
     const victim = this.units.find(
-      (u) => u.alive && u.side === "player" && this._manhattan(e, u) === 1
+      (u) => u.alive && u.side === "player" && this._manhattan(e, u) <= e.range
     );
     if (victim) this._resolveAttack(e, victim);
   }
@@ -428,7 +458,14 @@ class Battle {
         if (t.obstacle) this._drawObstacle(ctx, this.ox + x * cell, this.oy + y * cell, cell, t.kind);
       }
     }
-    this._drawChest(ctx, this.ox + this.treasure.x * cell, this.oy + this.treasure.y * cell, cell);
+    // Objective glow so it's clear the chest is the goal.
+    const tpx = this.ox + this.treasure.x * cell;
+    const tpy = this.oy + this.treasure.y * cell;
+    const pulse = 0.5 + 0.5 * Math.sin(this.game.time * 4);
+    ctx.strokeStyle = `rgba(240,200,96,${0.45 + 0.4 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(tpx + 3, tpy + 3, cell - 6, cell - 6);
+    this._drawChest(ctx, tpx, tpy, cell);
 
     // Movement + attack highlights.
     if (this.phase === "player") {
