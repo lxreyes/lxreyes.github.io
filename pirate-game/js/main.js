@@ -8,7 +8,6 @@ window.addEventListener("DOMContentLoaded", () => {
   minimap.width = 180;
   minimap.height = 180;
 
-  bindInput();
   const game = new Game(canvas, minimap);
 
   const overlay = document.getElementById("overlay");

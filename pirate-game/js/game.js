@@ -55,9 +55,9 @@ class Game {
     this.resize();
     window.addEventListener("resize", () => this.resize());
 
-    // Click-to-move: a click on the sea sets a destination the ship sails to.
-    this.canvas.addEventListener("mousedown", (e) => this._onSeaClick(e));
-    // The minimap doubles as a chart — click anywhere on it to set course.
+    // Left-click the sea to sail there; right-click to fire the broadside
+    // that bears on the cursor. The minimap doubles as a navigation chart.
+    this.canvas.addEventListener("mousedown", (e) => this._onCanvasMouseDown(e));
     this.minimap.addEventListener("mousedown", (e) => this._onMapClick(e));
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -140,7 +140,6 @@ class Game {
     this.update(dt);
     this.render();
 
-    Input.update();
     requestAnimationFrame(this._loop);
   }
 
@@ -491,10 +490,31 @@ class Game {
     ctx.stroke();
   }
 
-  // ---- Input: click-to-move ----
-  _onSeaClick(e) {
-    if (!this.running || this.gameOver || this.shopOpen || e.button !== 0) return;
-    this.player.moveTarget = { x: e.clientX + this.camX, y: e.clientY + this.camY };
+  // ---- Input: mouse ----
+  _onCanvasMouseDown(e) {
+    if (!this.running || this.gameOver || this.shopOpen) return;
+    const wx = e.clientX + this.camX;
+    const wy = e.clientY + this.camY;
+    if (e.button === 0) {
+      // Left-click: set sail for that point.
+      this.player.moveTarget = { x: wx, y: wy };
+    } else if (e.button === 2) {
+      // Right-click: open fire on the side facing the cursor.
+      this._fireAtCursor(wx, wy);
+    }
+  }
+
+  _fireAtCursor(wx, wy) {
+    const p = this.player;
+    if (p.dead || p.cooldown > 0) return;
+    const toCursor = angleTo(p.x, p.y, wx, wy);
+    // Whichever broadside points closest to the cursor is the one that fires.
+    const starErr = Math.abs(angleDiff(p.angle + Math.PI / 2, toCursor));
+    const portErr = Math.abs(angleDiff(p.angle - Math.PI / 2, toCursor));
+    const side = starErr <= portErr ? 1 : -1;
+    p.fireSide(this, side);
+    p.cooldown = p.fireCooldownTime;
+    this.shake(6);
   }
 
   _onMapClick(e) {

@@ -99,25 +99,9 @@ class Ship {
   }
 
   _playerControls(dt, game) {
-    const manual = Input.forward || Input.back || Input.left || Input.right;
-
-    if (manual) {
-      // Any key on the helm cancels the click destination and takes over.
-      this.moveTarget = null;
-      if (Input.forward) this.speed += this.accel * dt;
-      if (Input.back) this.speed -= this.accel * dt;
-      const turn = (Input.right ? 1 : 0) - (Input.left ? 1 : 0);
-      this._steer(dt, turn);
-    } else if (this.moveTarget) {
-      this._navigateTo(dt, this.moveTarget);
-    }
-
-    if (Input.firePressed && this.cooldown <= 0) {
-      this.fireSide(game, 1);
-      this.fireSide(game, -1);
-      this.cooldown = this.fireCooldownTime;
-      game.shake(6);
-    }
+    // The player sails entirely by click-to-move; firing is driven by the
+    // game on right-click (see Game._fireAtCursor).
+    if (this.moveTarget) this._navigateTo(dt, this.moveTarget);
   }
 
   // Sail automatically toward a clicked point: steer onto the bearing, give
