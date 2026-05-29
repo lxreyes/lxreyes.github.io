@@ -235,6 +235,12 @@ class Ship {
 
   // ---- Rendering (drawn in local space, bow pointing +x) ----
   draw(ctx) {
+    // Soft drop shadow on the water gives the hull some depth.
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
+    ctx.beginPath();
+    ctx.ellipse(this.x + 4, this.y + 6, this.length * 0.42, this.width * 0.42, this.angle, 0, TWO_PI);
+    ctx.fill();
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
@@ -348,9 +354,17 @@ class Treasure {
 
   draw(ctx) {
     const yOff = Math.sin(this.bob) * 2;
-    // Floating barrel
     ctx.save();
     ctx.translate(this.x, this.y + yOff);
+    // Soft golden glow so loot is easy to spot.
+    const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 17);
+    glow.addColorStop(0, "rgba(240,200,96,0.45)");
+    glow.addColorStop(1, "rgba(240,200,96,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 17, 0, TWO_PI);
+    ctx.fill();
+    // Floating barrel
     ctx.fillStyle = "#7a4a23";
     ctx.strokeStyle = "#3a2410";
     ctx.lineWidth = 2;

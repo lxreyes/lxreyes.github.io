@@ -578,6 +578,13 @@ class Game {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
+    // Soft sun sheen pouring in from the top of the sky.
+    const sheen = ctx.createRadialGradient(W * 0.5, -H * 0.25, 40, W * 0.5, -H * 0.25, H * 1.2);
+    sheen.addColorStop(0, "rgba(255,250,225,0.16)");
+    sheen.addColorStop(1, "rgba(255,250,225,0)");
+    ctx.fillStyle = sheen;
+    ctx.fillRect(0, 0, W, H);
+
     // Enter world space (with screen shake).
     const sx = (Math.random() * 2 - 1) * this.shakeAmt;
     const sy = (Math.random() * 2 - 1) * this.shakeAmt;
@@ -601,6 +608,13 @@ class Game {
 
     ctx.restore();
 
+    // Vignette: gently darken the screen edges for atmosphere.
+    const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.36, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.34)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+
     this._drawMinimap();
   }
 
@@ -615,12 +629,20 @@ class Game {
       for (let y = startY; y < view.y + view.h + spacing; y += spacing) {
         const phase = x * 0.01 + y * 0.013 + this.time * 0.9;
         const off = Math.sin(phase) * 4;
-        const a = 0.05 + 0.05 * (Math.sin(phase) * 0.5 + 0.5);
+        const wave = Math.sin(phase) * 0.5 + 0.5;
+        const a = 0.05 + 0.05 * wave;
         ctx.strokeStyle = `rgba(255,255,255,${a})`;
         ctx.beginPath();
         ctx.moveTo(x - 6, y + off);
         ctx.lineTo(x + 6, y - off);
         ctx.stroke();
+        // Occasional bright sparkle catching the light.
+        if (wave > 0.92) {
+          ctx.fillStyle = `rgba(255,255,255,${(wave - 0.92) * 6})`;
+          ctx.beginPath();
+          ctx.arc(x + 12, y - 10, 1.6, 0, TWO_PI);
+          ctx.fill();
+        }
       }
     }
   }
