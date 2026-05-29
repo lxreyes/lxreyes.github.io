@@ -5,6 +5,7 @@
 const WORLD_SIZE = 6000;
 const ENEMY_TARGET = 6;
 const TREASURE_TARGET = 16;
+const INCOME_INTERVAL = 8; // seconds between tribute payouts from your cities
 
 // Buyable ship hulls, smallest to grandest. Each is a complete stat profile;
 // the shop just swaps which one the player sails.
@@ -105,6 +106,8 @@ class Game {
     this.bombs = [];
     this.skyratesDowned = 0;
     this.skyrateTimer = rand(24, 42); // time until the first skyrate appears
+    this.incomeTimer = INCOME_INTERVAL; // countdown to the next city payout
+    this.lastIncome = 0;
 
     for (let i = 0; i < ENEMY_TARGET; i++) this._spawnEnemy();
     for (let i = 0; i < TREASURE_TARGET; i++) this._spawnTreasure();
@@ -203,6 +206,21 @@ class Game {
       }
     }
 
+    // Your captured cities pay tribute on a steady tick.
+    this.incomeTimer -= dt;
+    if (this.incomeTimer <= 0) {
+      this.incomeTimer = INCOME_INTERVAL;
+      let total = 0;
+      for (const v of this.villages) {
+        if (v.owned) {
+          total += v.income;
+          this._spawnPickupBurst(v.island.x, v.island.y); // little coin pop
+        }
+      }
+      this.gold += total;
+      this.lastIncome = total;
+    }
+
     // Camera follows the player; shake decays over time.
     this.camX = this.player.x - this.canvas.width / 2;
     this.camY = this.player.y - this.canvas.height / 2;
@@ -241,7 +259,11 @@ class Game {
       it = { type: "cove", text: "⚓ Press <b>E</b> to dock at The Pirate's Cove" };
     } else {
       const v = this._nearbyVillage();
-      if (v && !v.plundered) it = { type: "village", village: v, text: `⚔️ Press <b>E</b> to plunder ${v.name}` };
+      if (v && v.owned) {
+        it = { type: "city", text: `🏛️ ${v.name} — your city (+${v.income}/tick)` };
+      } else if (v) {
+        it = { type: "village", village: v, text: `⚔️ Press <b>E</b> to plunder ${v.name}` };
+      }
     }
 
     this.interaction = it;
@@ -278,8 +300,9 @@ class Game {
     let title;
     if (result === "win") {
       this.gold += loot;
-      this.battle.village.plundered = true;
-      title = "🏆 Village Plundered!";
+      this.battle.village.owned = true;
+      title = "🏛️ City Captured!";
+      text = text + " It flies your colours now — expect tribute over time.";
     } else {
       const dmg = 20;
       this.player.health = Math.max(1, this.player.health - dmg);
@@ -346,7 +369,9 @@ class Game {
       value: randInt(40, 90),
     };
 
-    return { name, island: isle, huts, villagers, chest, plundered: false };
+    // Bigger islands make richer cities. Income is paid as tribute each tick.
+    const income = 5 + Math.floor(isle.radius / 55);
+    return { name, island: isle, huts, villagers, chest, income, owned: false };
   }
 
   _collisions() {
@@ -634,9 +659,9 @@ class Game {
       ctx.arc(a.x * scale, a.y * scale, 3.5, 0, TWO_PI);
       ctx.fill();
     }
-    // Villages
-    ctx.fillStyle = "#f0a04b";
+    // Villages — gold once captured, orange while still independent.
     for (const v of this.villages) {
+      ctx.fillStyle = v.owned ? "#f0c860" : "#f0a04b";
       ctx.fillRect(v.island.x * scale - 2, v.island.y * scale - 2, 4, 4);
     }
 
@@ -660,6 +685,10 @@ class Game {
     document.getElementById("gold").textContent = `🪙 ${this.gold} gold`;
     document.getElementById("bounty").textContent = `☠️ Ships sunk: ${this.shipsSunk}`;
     document.getElementById("skyrates").textContent = `🎈 Skyrates downed: ${this.skyratesDowned}`;
+    const cities = this.villages.filter((v) => v.owned);
+    const inc = cities.reduce((s, v) => s + v.income, 0);
+    document.getElementById("empire").textContent =
+      `🏛️ Cities: ${cities.length}${cities.length ? ` (+${inc}/tick)` : ""}`;
   }
 
   // ---- Port & click-to-move rendering ----
@@ -734,8 +763,22 @@ class Game {
 
       for (const h of v.huts) this._drawHut(ctx, h);
 
-      // Treasure chest (until the village is plundered)
-      if (!v.plundered) {
+      if (v.owned) {
+        // Captured city: fly your colours from a flagpole at the centre.
+        ctx.strokeStyle = "#3a2410";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(isle.x, isle.y);
+        ctx.lineTo(isle.x, isle.y - 34);
+        ctx.stroke();
+        ctx.fillStyle = "#1d3557"; // your flag
+        ctx.fillRect(isle.x, isle.y - 34, 22, 14);
+        ctx.fillStyle = "#f4ecd6"; // skull
+        ctx.beginPath();
+        ctx.arc(isle.x + 11, isle.y - 27, 4, 0, TWO_PI);
+        ctx.fill();
+      } else {
+        // Loot chest sits in the village until you plunder it.
         const ch = v.chest;
         ctx.save();
         ctx.translate(ch.x, ch.y);
@@ -755,10 +798,10 @@ class Game {
       for (const villager of v.villagers) villager.draw(ctx);
 
       // Name banner above the island
-      ctx.fillStyle = "rgba(245,233,201,0.92)";
+      ctx.fillStyle = v.owned ? "#f0c860" : "rgba(245,233,201,0.92)";
       ctx.font = "bold 15px Trebuchet MS, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("🏝️ " + v.name, isle.x, isle.y - isle.radius - 10);
+      ctx.fillText((v.owned ? "🏛️ " : "🏝️ ") + v.name, isle.x, isle.y - isle.radius - 10);
     }
   }
 
