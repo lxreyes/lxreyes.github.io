@@ -109,28 +109,45 @@ const state = {
   scanlinePhase: 0,
   squish: 0,        // 0..1 — amplitude of the current squash-stretch
   squishAxis: 'x',  // 'x' = squish horizontally (side bounce), 'y' = vertically (top/bottom)
+  // Charge: while > 0, the ball is pinned to `chargingOn` and held compressed.
+  // When it hits 0, `pendingVx/Vy` are committed and the ball launches.
+  chargeTime: 0,
+  pendingVx: 0,
+  pendingVy: 0,
+  chargingOn: null,
+  // Input-grace window: a recent space press counts as "pressed" for up to
+  // ~150ms after keydown, so timing pre-impact still feels fair at high vx.
+  spaceWindow: 0,
 };
 
 // ---------- Input ----------
 const input = { spacePressed: false, spaceJustPressed: false };
 
 function launch() {
-  // Build-up mode: launch slow, ramp aggressively per bounce.
+  // Charge first, then launch. Build-up mode: launch slow, ramp aggressively.
   const p = state.platforms[0];
-  state.ball.vx = 3.0;
-  state.ball.vy = p.speed * p.dir * 0.4;
-  state.squish = 0.7;
+  state.pendingVx = 3.0;
+  state.pendingVy = p.speed * p.dir * 0.4;
+  state.chargeTime = 0.18;
+  state.chargingOn = p;
+  state.ball.vx = 0;
+  state.ball.vy = 0;
+  state.squish = 0.95;
   state.squishAxis = 'x';
   state.starting = false;
+}
+
+function onPress() {
+  state.spaceWindow = 0.15;
+  if (state.gameOver) restart();
+  else if (state.starting) launch();
 }
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') {
     e.preventDefault();
-    if (!input.spacePressed) input.spaceJustPressed = true;
+    if (!input.spacePressed) onPress();
     input.spacePressed = true;
-    if (state.gameOver) restart();
-    else if (state.starting) launch();
   }
 });
 window.addEventListener('keyup', (e) => {
@@ -139,10 +156,8 @@ window.addEventListener('keyup', (e) => {
 // Tap-to-bounce for touch / mouse — easier on laptops without keyboards
 c.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  input.spaceJustPressed = true;
+  onPress();
   input.spacePressed = true;
-  if (state.gameOver) restart();
-  else if (state.starting) launch();
 });
 c.addEventListener('pointerup', () => { input.spacePressed = false; });
 
@@ -164,6 +179,12 @@ function restart() {
   state.particles.length = 0;
   state.flash = 0;
   state.shake = 0;
+  state.squish = 0;
+  state.chargeTime = 0;
+  state.chargingOn = null;
+  state.pendingVx = 0;
+  state.pendingVy = 0;
+  state.spaceWindow = 0;
 }
 
 // ---------- Update ----------
@@ -197,6 +218,29 @@ function update(dt) {
   }
 
   const b = state.ball;
+
+  // Charge: ball pinned to the platform, held compressed, then released.
+  if (state.chargeTime > 0) {
+    state.chargeTime -= dt;
+    state.squish = Math.max(state.squish, 0.7);
+    // Ride the platform's motion so the ball doesn't visually detach.
+    if (state.chargingOn) {
+      b.y += state.chargingOn.speed * state.chargingOn.dir;
+    }
+    if (state.chargeTime <= 0) {
+      b.vx = state.pendingVx;
+      b.vy = state.pendingVy;
+      state.chargingOn = null;
+      // Fall through to apply the launched velocity this frame.
+    } else {
+      state.flash = Math.max(0, state.flash - dt * 4);
+      state.shake = Math.max(0, state.shake - dt * 60);
+      state.spaceWindow = Math.max(0, state.spaceWindow - dt);
+      input.spaceJustPressed = false;
+      return;
+    }
+  }
+
   b.x += b.vx;
   b.y += b.vy;
   // gentle vertical drift damping
@@ -231,8 +275,17 @@ function update(dt) {
       // otherwise a visible edge-contact reads as a miss.
       if (b.y + b.r >= p.y - p.h / 2 && b.y - b.r <= p.y + p.h / 2) { hit = p; break; }
     }
-    if (hit && input.spaceJustPressed) {
+    if (hit && state.spaceWindow > 0) {
+      state.spaceWindow = 0;
       bounceOff(hit);
+    } else if (hit) {
+      // Touched a platform without a recent press — die against the
+      // platform's inner face so the ball doesn't visually clip through.
+      if (wallSide === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r;
+      else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r;
+      b.vx = 0;
+      b.vy = 0;
+      endGame();
     } else {
       const pastWall =
         (wallSide === 'left' && b.x + b.r < WALL_X_LEFT) ||
@@ -254,22 +307,29 @@ function update(dt) {
   state.flash = Math.max(0, state.flash - dt * 4);
   state.shake = Math.max(0, state.shake - dt * 60);
   state.squish *= Math.pow(0.88, dt * 60);
+  state.spaceWindow = Math.max(0, state.spaceWindow - dt);
   input.spaceJustPressed = false;
 }
 
 function bounceOff(p) {
   const b = state.ball;
-  // Reverse horizontal, nudge vy based on hit position (Pong-style)
+  // Compute the launch velocity now (Pong-style vy based on hit position),
+  // but commit it after a brief charge — the ball pins against the platform
+  // and squishes before snapping away.
   const rel = (b.y - p.y) / (p.h / 2); // -1 at top, 1 at bottom
-  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.5);
-  b.vy = rel * 3.6;
-  // Clamp so it doesn't get insane
-  b.vx = Math.max(-18, Math.min(18, b.vx));
-  b.vy = Math.max(-7, Math.min(7, b.vy));
-  // Push ball off the platform's inner face so it doesn't re-trigger and
-  // doesn't visibly clip into the bumper.
-  if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r + 1;
-  else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r - 1;
+  const newVx = -Math.sign(b.vx) * Math.min(18, Math.abs(b.vx) + 0.5);
+  const newVy = Math.max(-7, Math.min(7, rel * 3.6));
+
+  // Pin to the platform's inner face and freeze movement during charge.
+  if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r;
+  else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r;
+  b.vx = 0;
+  b.vy = 0;
+
+  state.chargeTime = 0.08;
+  state.pendingVx = newVx;
+  state.pendingVy = newVy;
+  state.chargingOn = p;
 
   state.score++;
   if (state.score > state.best) state.best = state.score;
