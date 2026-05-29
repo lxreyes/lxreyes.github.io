@@ -73,24 +73,25 @@ const LOOP_LEN = H + PLATFORM_H;
 function makePlatforms() {
   const ps = [];
   const spacing = LOOP_LEN / PLATFORMS_PER_SIDE;
-  // Each platform gets a small random y-offset and a small speed variance
-  // so the conveyor doesn't read as a perfectly regular metronome.
-  // First left platform stays anchored at center — the ball starts on it,
-  // and we want it visible the moment the game loads.
-  const jitter = spacing * 0.25;
+  // Each platform gets a small random y-offset for variety. All platforms
+  // on the same side share ONE speed, otherwise faster ones drift into
+  // slower ones over time and they pass through each other.
+  const jitter = spacing * 0.2;
   const rand = (n) => (Math.random() - 0.5) * 2 * n;
   const wrap = (y) => {
     while (y > H + PLATFORM_H / 2) y -= LOOP_LEN;
     while (y < -PLATFORM_H / 2)    y += LOOP_LEN;
     return y;
   };
+  const leftSpeed  = 2.1 + Math.random() * 0.6;
+  const rightSpeed = 2.1 + Math.random() * 0.6;
   for (let i = 0; i < PLATFORMS_PER_SIDE; i++) {
     const leftBase  = H / 2 + i * spacing;
     const rightBase = H / 2 + i * spacing + spacing / 2;
     const leftY  = wrap(leftBase  + (i === 0 ? 0 : rand(jitter)));
     const rightY = wrap(rightBase + rand(jitter));
-    ps.push({ side: 'left',  y: leftY,  h: PLATFORM_H, speed: 2.4 + rand(0.4), dir: 1  });
-    ps.push({ side: 'right', y: rightY, h: PLATFORM_H, speed: 2.4 + rand(0.4), dir: -1 });
+    ps.push({ side: 'left',  y: leftY,  h: PLATFORM_H, speed: leftSpeed,  dir: 1  });
+    ps.push({ side: 'right', y: rightY, h: PLATFORM_H, speed: rightSpeed, dir: -1 });
   }
   return ps;
 }
@@ -114,9 +115,12 @@ const state = {
   charging: false,
   chargeAmount: 0,
   // The ball rests on `landedOn` until the player fires. While landed it
-  // rides the platform's y and ignores physics/collision.
+  // rides the platform's y and ignores physics/collision. `landYOffset`
+  // is the impact y minus the platform's center y — preserved so the ball
+  // stays where it touched down instead of snapping to the middle.
   landed: true,
   landedOn: null,
+  landYOffset: 0,
 };
 state.landedOn = state.platforms[0];
 
@@ -200,6 +204,7 @@ function restart() {
   state.platforms = makePlatforms();
   state.landedOn = state.platforms[0];
   state.landed = true;
+  state.landYOffset = 0;
   state.ball.x = WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r;
   state.ball.y = state.platforms[0].y;
   state.ball.vx = 0;
@@ -231,10 +236,15 @@ function update(dt) {
 
   if (state.landed && state.landedOn) {
     // Ride the platform the ball is resting on, until the player fires.
+    // Preserve the impact y-offset, re-clamping each frame so the ball
+    // stays within the platform as it shrinks from difficulty ramping.
     const p = state.landedOn;
+    const maxOff = Math.max(0, p.h / 2 - state.ball.r);
+    const off = Math.max(-maxOff, Math.min(maxOff, state.landYOffset));
+    state.landYOffset = off;
     state.ball.x = (p.side === 'left' ? WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r
                                        : WALL_X_RIGHT - PLATFORM_HALF_W - state.ball.r);
-    state.ball.y = p.y;
+    state.ball.y = p.y + off;
     state.ball.vx = 0;
     state.ball.vy = 0;
     if (state.charging) {
@@ -324,17 +334,20 @@ function update(dt) {
 
 function landOn(p) {
   const b = state.ball;
-  // Stick the ball to the platform's inner face at the platform's y. The
-  // ball waits here, riding the platform, until the player draws the bow
-  // and fires again.
+  // Stick the ball to the platform's inner face. Keep the impact y by
+  // recording its offset from the platform center (clamped so the ball
+  // doesn't poke off the platform edge).
+  const maxOff = Math.max(0, p.h / 2 - b.r);
+  const offset = Math.max(-maxOff, Math.min(maxOff, b.y - p.y));
   if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r;
   else b.x = WALL_X_RIGHT - PLATFORM_HALF_W - b.r;
-  b.y = p.y;
+  b.y = p.y + offset;
   b.vx = 0;
   b.vy = 0;
 
   state.landed = true;
   state.landedOn = p;
+  state.landYOffset = offset;
   state.charging = false;
   state.chargeAmount = 0;
 
