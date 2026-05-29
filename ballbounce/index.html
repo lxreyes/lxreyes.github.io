@@ -73,9 +73,24 @@ const LOOP_LEN = H + PLATFORM_H;
 function makePlatforms() {
   const ps = [];
   const spacing = LOOP_LEN / PLATFORMS_PER_SIDE;
+  // Each platform gets a small random y-offset and a small speed variance
+  // so the conveyor doesn't read as a perfectly regular metronome.
+  // First left platform stays anchored at center — the ball starts on it,
+  // and we want it visible the moment the game loads.
+  const jitter = spacing * 0.25;
+  const rand = (n) => (Math.random() - 0.5) * 2 * n;
+  const wrap = (y) => {
+    while (y > H + PLATFORM_H / 2) y -= LOOP_LEN;
+    while (y < -PLATFORM_H / 2)    y += LOOP_LEN;
+    return y;
+  };
   for (let i = 0; i < PLATFORMS_PER_SIDE; i++) {
-    ps.push({ side: 'left',  y: i * spacing,            h: PLATFORM_H, speed: 2.4, dir: 1  });
-    ps.push({ side: 'right', y: i * spacing + spacing/2, h: PLATFORM_H, speed: 2.4, dir: -1 });
+    const leftBase  = H / 2 + i * spacing;
+    const rightBase = H / 2 + i * spacing + spacing / 2;
+    const leftY  = wrap(leftBase  + (i === 0 ? 0 : rand(jitter)));
+    const rightY = wrap(rightBase + rand(jitter));
+    ps.push({ side: 'left',  y: leftY,  h: PLATFORM_H, speed: 2.4 + rand(0.4), dir: 1  });
+    ps.push({ side: 'right', y: rightY, h: PLATFORM_H, speed: 2.4 + rand(0.4), dir: -1 });
   }
   return ps;
 }
@@ -208,7 +223,9 @@ function update(dt) {
     let hit = null;
     for (const p of state.platforms) {
       if (p.side !== wallSide) continue;
-      if (b.y >= p.y - p.h / 2 && b.y <= p.y + p.h / 2) { hit = p; break; }
+      // Use ball-extent vs platform-extent overlap, not center-in-range —
+      // otherwise a visible edge-contact reads as a miss.
+      if (b.y + b.r >= p.y - p.h / 2 && b.y - b.r <= p.y + p.h / 2) { hit = p; break; }
     }
     if (hit && input.spaceJustPressed) {
       bounceOff(hit);
