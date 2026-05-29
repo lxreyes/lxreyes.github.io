@@ -99,6 +99,10 @@ class Game {
     this.cannonballs = [];
     this.treasures = [];
     this.particles = [];
+    this.airships = [];
+    this.bombs = [];
+    this.skyratesDowned = 0;
+    this.skyrateTimer = rand(24, 42); // time until the first skyrate appears
 
     for (let i = 0; i < ENEMY_TARGET; i++) this._spawnEnemy();
     for (let i = 0; i < TREASURE_TARGET; i++) this._spawnTreasure();
@@ -169,6 +173,8 @@ class Game {
     for (const b of this.cannonballs) b.update(dt);
     for (const t of this.treasures) t.update(dt);
     for (const p of this.particles) p.update(dt);
+    for (const a of this.airships) a.update(dt, this);
+    for (const bomb of this.bombs) bomb.update(dt, this);
 
     this._collisions();
 
@@ -177,10 +183,23 @@ class Game {
     this.particles = this.particles.filter((p) => !p.dead);
     this.treasures = this.treasures.filter((t) => !t.dead);
     this.enemies = this.enemies.filter((e) => !e.dead);
+    this.airships = this.airships.filter((a) => !a.dead);
+    this.bombs = this.bombs.filter((b) => !b.dead);
 
     // Keep the world populated
     if (this.enemies.length < ENEMY_TARGET && Math.random() < 0.01) this._spawnEnemy();
     if (this.treasures.length < TREASURE_TARGET && Math.random() < 0.02) this._spawnTreasure();
+
+    // A rare skyrate raid drifts in from time to time.
+    this.skyrateTimer -= dt;
+    if (this.skyrateTimer <= 0) {
+      if (this.airships.length < 1) {
+        this._spawnAirship();
+        this.skyrateTimer = rand(45, 80);
+      } else {
+        this.skyrateTimer = rand(15, 25);
+      }
+    }
 
     // Camera follows the player; shake decays over time.
     this.camX = this.player.x - this.canvas.width / 2;
@@ -359,6 +378,18 @@ class Game {
           break;
         }
       }
+
+      // Your shots can also bring down skyrate airships.
+      if (!b.dead && b.faction === "player") {
+        for (const a of this.airships) {
+          if (distSq(b.x, b.y, a.x, a.y) < (a.radius + b.radius) ** 2) {
+            a.takeDamage(b.damage, this);
+            b.dead = true;
+            this.spawnSmoke(b.x, b.y);
+            break;
+          }
+        }
+      }
     }
 
     // Player scooping up treasure
@@ -401,6 +432,52 @@ class Game {
         ));
       }
     }
+  }
+
+  // ---- Skyrates (flying airships) ----
+  _spawnAirship() {
+    // Drift in from somewhere off-screen around the player.
+    const ang = rand(0, TWO_PI);
+    const d = 820;
+    const x = clamp(this.player.x + Math.cos(ang) * d, 0, this.world.size);
+    const y = clamp(this.player.y + Math.sin(ang) * d, 0, this.world.size);
+    this.airships.push(new Airship(x, y));
+  }
+
+  dropBomb(airship, player) {
+    // Lead the target a little so dodging actually works.
+    const lead = 0.55;
+    const tx = player.x + Math.cos(player.angle) * player.speed * lead;
+    const ty = player.y + Math.sin(player.angle) * player.speed * lead;
+    this.bombs.push(new Bomb(airship.x, airship.y, tx, ty));
+  }
+
+  onSkyrateDowned(airship) {
+    this.skyratesDowned++;
+    this.spawnExplosion(airship.x, airship.y);
+    this.shake(16);
+    // A skyrate's hoard rains down — sail through it to collect.
+    const drops = randInt(5, 7);
+    for (let i = 0; i < drops; i++) {
+      this.treasures.push(new Treasure(
+        airship.x + rand(-60, 60),
+        airship.y + rand(-60, 60),
+        randInt(25, 55)
+      ));
+    }
+  }
+
+  spawnExplosion(x, y) {
+    for (let i = 0; i < 22; i++) {
+      const a = rand(0, TWO_PI);
+      const sp = rand(30, 150);
+      this.particles.push(new Particle(x, y, {
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: rand(0.4, 0.9), size: rand(3, 8),
+        color: i % 2 ? "#ff8c3b" : "#444", grow: 4,
+      }));
+    }
+    this.spawnSplash(x, y);
   }
 
   // ---- Spawning helpers ----
@@ -489,9 +566,11 @@ class Game {
 
     for (const t of this.treasures) t.draw(ctx);
     for (const p of this.particles) p.draw(ctx);
+    for (const bomb of this.bombs) bomb.draw(ctx); // target rings sit on the water
     for (const e of this.enemies) e.draw(ctx);
     this.player.draw(ctx);
     for (const b of this.cannonballs) b.draw(ctx);
+    for (const a of this.airships) a.draw(ctx); // skyrates fly above everything
     this._drawMoveTarget(ctx);
 
     ctx.restore();
@@ -547,6 +626,13 @@ class Game {
       ctx.arc(e.x * scale, e.y * scale, 2.5, 0, TWO_PI);
       ctx.fill();
     }
+    // Skyrates
+    ctx.fillStyle = "#c77dff";
+    for (const a of this.airships) {
+      ctx.beginPath();
+      ctx.arc(a.x * scale, a.y * scale, 3.5, 0, TWO_PI);
+      ctx.fill();
+    }
     // Villages
     ctx.fillStyle = "#f0a04b";
     for (const v of this.villages) {
@@ -572,6 +658,7 @@ class Game {
     document.getElementById("health-fill").style.width = frac * 100 + "%";
     document.getElementById("gold").textContent = `🪙 ${this.gold} gold`;
     document.getElementById("bounty").textContent = `☠️ Ships sunk: ${this.shipsSunk}`;
+    document.getElementById("skyrates").textContent = `🎈 Skyrates downed: ${this.skyratesDowned}`;
   }
 
   // ---- Port & click-to-move rendering ----

@@ -471,3 +471,184 @@ function drawPerson(ctx, x, y, angle, coat, skin, hat) {
   }
   ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// Skyrates! A rare flying pirate airship that drifts over the sea and bombs
+// you from above. Ignores islands (it flies). Tough, and worth a fortune.
+class Airship {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.angle = rand(0, TWO_PI);
+    this.speed = 70;          // slow, ominous drift
+    this.maxHealth = 120;
+    this.health = 120;
+    this.radius = 46;         // big target
+    this.altitude = 64;       // how far below the shadow sits
+    this.bob = rand(0, TWO_PI);
+    this.bombTimer = rand(2.5, 4.5);
+    this.dead = false;
+  }
+
+  update(dt, game) {
+    this.bob += dt * 2;
+    const p = game.player;
+
+    if (p && !p.dead) {
+      // Hover at a menacing mid-range: approach if far, back off if close.
+      const d = dist(this.x, this.y, p.x, p.y);
+      const toP = angleTo(this.x, this.y, p.x, p.y);
+      let target;
+      if (d > 520) target = toP;
+      else if (d < 320) target = toP + Math.PI;
+      else target = toP + Math.PI / 2; // circle
+      this.angle += angleDiff(this.angle, target) * Math.min(1, dt * 1.5);
+    }
+
+    this.x = clamp(this.x + Math.cos(this.angle) * this.speed * dt, 0, game.world.size);
+    this.y = clamp(this.y + Math.sin(this.angle) * this.speed * dt, 0, game.world.size);
+
+    // Bombing run
+    this.bombTimer -= dt;
+    if (this.bombTimer <= 0 && p && !p.dead && dist(this.x, this.y, p.x, p.y) < 640) {
+      this.bombTimer = rand(2.6, 4.2);
+      game.dropBomb(this, p);
+    }
+  }
+
+  takeDamage(n, game) {
+    this.health -= n;
+    if (this.health <= 0 && !this.dead) {
+      this.dead = true;
+      game.onSkyrateDowned(this);
+    }
+  }
+
+  draw(ctx) {
+    const bobOff = Math.sin(this.bob) * 3;
+
+    // Shadow on the water gives away that it's flying high.
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(this.x + 10, this.y + this.altitude, this.radius * 0.9, this.radius * 0.5, 0, 0, TWO_PI);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(this.x, this.y - bobOff);
+    ctx.rotate(this.angle);
+    const L = this.radius * 2.2;
+    const Wd = this.radius * 1.25;
+
+    // Gas envelope
+    ctx.fillStyle = "#7c1f2b";
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, L / 2, Wd / 2, 0, 0, TWO_PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.12)"; // top highlight
+    ctx.beginPath();
+    ctx.ellipse(0, -Wd * 0.12, L * 0.42, Wd * 0.26, 0, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = "#5a1620"; // stripes
+    ctx.fillRect(-L * 0.18, -Wd / 2, L * 0.06, Wd);
+    ctx.fillRect(L * 0.06, -Wd / 2, L * 0.06, Wd);
+
+    // Nose cone
+    ctx.fillStyle = "#caa15b";
+    ctx.beginPath();
+    ctx.moveTo(L * 0.5, 0);
+    ctx.lineTo(L * 0.4, -Wd * 0.16);
+    ctx.lineTo(L * 0.4, Wd * 0.16);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tail fins
+    ctx.fillStyle = "#3a2b3d";
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.5, 0); ctx.lineTo(-L * 0.62, -Wd * 0.3); ctx.lineTo(-L * 0.4, -Wd * 0.1);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.5, 0); ctx.lineTo(-L * 0.62, Wd * 0.3); ctx.lineTo(-L * 0.4, Wd * 0.1);
+    ctx.closePath(); ctx.fill();
+
+    // Skull emblem
+    ctx.fillStyle = "#f4ecd6";
+    ctx.beginPath();
+    ctx.arc(0, 0, Wd * 0.17, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = "#3a2b3d";
+    ctx.beginPath();
+    ctx.arc(-Wd * 0.06, -Wd * 0.02, Wd * 0.04, 0, TWO_PI);
+    ctx.arc(Wd * 0.06, -Wd * 0.02, Wd * 0.04, 0, TWO_PI);
+    ctx.fill();
+    ctx.restore();
+
+    // Health bar
+    if (this.health < this.maxHealth) {
+      const w = 64;
+      const frac = clamp(this.health / this.maxHealth, 0, 1);
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(this.x - w / 2, this.y - this.radius - 14, w, 6);
+      ctx.fillStyle = "#c77dff";
+      ctx.fillRect(this.x - w / 2, this.y - this.radius - 14, w * frac, 6);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A bomb dropped by an airship. Falls onto a telegraphed spot and explodes in
+// an area — sail out of the ring to avoid it.
+class Bomb {
+  constructor(sx, sy, tx, ty) {
+    this.sx = sx;
+    this.sy = sy;
+    this.tx = tx;
+    this.ty = ty;
+    this.x = sx;
+    this.y = sy;
+    this.t = 0;
+    this.fall = 1.15;     // seconds to impact
+    this.blast = 72;
+    this.damage = 16;
+    this.exploded = false;
+    this.dead = false;
+  }
+
+  update(dt, game) {
+    this.t += dt;
+    const k = clamp(this.t / this.fall, 0, 1);
+    this.x = lerp(this.sx, this.tx, k);
+    this.y = lerp(this.sy, this.ty, k);
+    if (k >= 1 && !this.exploded) {
+      this.exploded = true;
+      this.dead = true;
+      const p = game.player;
+      if (p && !p.dead && dist(this.tx, this.ty, p.x, p.y) < this.blast + p.radius) {
+        p.takeDamage(this.damage, game);
+        game.shake(10);
+      }
+      game.spawnExplosion(this.tx, this.ty);
+    }
+  }
+
+  draw(ctx) {
+    const k = clamp(this.t / this.fall, 0, 1);
+    // Telegraph ring on the water
+    ctx.strokeStyle = `rgba(231,76,60,${0.35 + 0.5 * k})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(this.tx, this.ty, this.blast, 0, TWO_PI);
+    ctx.stroke();
+    // Shrinking inner ring = impact countdown
+    ctx.beginPath();
+    ctx.arc(this.tx, this.ty, this.blast * (1 - k), 0, TWO_PI);
+    ctx.stroke();
+    // The falling bomb, dropping from on high
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y - (1 - k) * 46, 5, 0, TWO_PI);
+    ctx.fill();
+  }
+}
