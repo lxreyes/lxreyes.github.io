@@ -868,9 +868,9 @@ const WEAPONS = {
   // Spaghetti Beam — sustained laser. Each shot rips through the line of fire
   // at very high speed (pierces everything) and explodes any zombie it kills
   // into a small sauce hazard.
-  noodle:  { name: 'Spaghetti Beam',  shots: 1, spread: 0.0, damage: 7.0, fireRate: 0.4, bulletSpeed: 6.0, pierce: 99, life: 0.6, color: '#ff5050', tag: 'N', traderOnly: true,
-             bulletKind: 'laser', explodesIntoSauce: true,
-             desc: 'Heavy sniper-beam · ~2.5s cooldown · pierces everything · sauce splat on kill' },
+  noodle:  { name: 'Spaghetti Beam',  shots: 1, spread: 0.0, damage: 4.0, fireRate: 0.4, bulletSpeed: 6.0, pierce: 99, life: 0.6, color: '#ff5050', tag: 'N', traderOnly: true,
+             bulletKind: 'noodle', explodesIntoSauce: true, lockedRate: true,
+             desc: 'Heavy spaghetti volley · fixed ~2.5s cooldown · pierces · sauce splat on kill' },
   // ---- Food Trader exclusives ----
   // Cheaper / weaker than the main trader's gag guns. The Food Trader visits
   // more often and stays for 5 waves so these are the easier-access novelty
@@ -977,6 +977,18 @@ function shouldDropOldWeapon(weapon) {
   const def = WEAPONS[weapon];
   // Trader-only weapons and cheat-only god weapons never enter the world —
   // they vanish silently when swapped out instead of dropping for pickup.
+  if (def && (def.traderOnly || def.cheatOnly)) return false;
+  return true;
+}
+
+// Separate gate for the swap-to-Storage path. The pistol is allowed here
+// (it's the infinite default, but the player still expects a "→ Storage"
+// floater every time they swap regardless of which gun was held). Trader-
+// only / cheat-only weapons still can't enter Storage — same invariant as
+// the world-drop gate.
+function shouldStoreOldWeapon(weapon) {
+  if (!weapon) return false;
+  const def = WEAPONS[weapon];
   if (def && (def.traderOnly || def.cheatOnly)) return false;
   return true;
 }
@@ -3171,6 +3183,66 @@ function drawBullet(b) {
     }
     return;
   }
+  if (b.bulletKind === 'noodle') {
+    // Spaghetti — a wiggling bundle of yellow noodle strands with red sauce
+    // smear underneath and a few sauce splats sprinkled along. Replaces the
+    // generic 'laser' render for the Spaghetti Beam so the projectile reads
+    // as actual pasta instead of a sci-fi energy beam.
+    const ang = Math.atan2(b.vy, b.vx);
+    const sp = Math.hypot(b.vx, b.vy);
+    const len = Math.min(90, sp * 0.035);
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(ang);
+    // Sauce smear behind the bundle — soft red halo
+    ctx.strokeStyle = 'rgba(207, 42, 24, 0.40)';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(-len, 0); ctx.lineTo(4, 0); ctx.stroke();
+    // Three wiggling noodle strands, each phase-shifted
+    const t = gameTime * 14 + b.x * 0.05;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 1.6;
+    for (let strand = 0; strand < 3; strand++) {
+      const phase = strand * 1.6;
+      const yOff = (strand - 1) * 1.5;
+      ctx.strokeStyle = strand === 1 ? '#ffe690' : '#ffd966';
+      ctx.beginPath();
+      const segs = 10;
+      for (let i = 0; i <= segs; i++) {
+        const sx = -len + (len + 4) * (i / segs);
+        const wave = Math.sin(t + i * 0.7 + phase) * 1.8;
+        const sy = yOff + wave;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+    // Bright highlight strand on top — adds a sense of motion
+    ctx.strokeStyle = '#fff5b8';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    const segs = 10;
+    for (let i = 0; i <= segs; i++) {
+      const sx = -len + (len + 4) * (i / segs);
+      const wave = Math.sin(t + i * 0.7) * 1.4;
+      if (i === 0) ctx.moveTo(sx, wave);
+      else ctx.lineTo(sx, wave);
+    }
+    ctx.stroke();
+    // A few red sauce splats sprinkled along the bundle
+    ctx.fillStyle = '#cf2a18';
+    for (let k = 0; k < 3; k++) {
+      const sx = -len * (0.20 + k * 0.30);
+      const sy = Math.sin(t * 0.7 + k * 2.1) * 2.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.lineCap = 'butt';
+    ctx.restore();
+    return;
+  }
   if (b.bulletKind === 'laser') {
     // Spaghetti Beam — bright sauce-red streak with a soft yellow halo and
     // a hot white core. Length scales with velocity for that "beam in flight"
@@ -4120,10 +4192,11 @@ function buyArsenalPrimary(id) {
   if (!entry || player.money < entry.cost) return;
   if (player.weapon === id) return; // already wielding it
   player.money -= entry.cost;
-  // Old weapon goes straight to Storage (pistol / traderOnly / cheatOnly still
-  // vanish via the shouldDropOldWeapon gate).
+  // Old weapon goes straight to Storage. Pistol is allowed (it's the
+  // default fallback but the player wants a consistent swap log);
+  // traderOnly / cheatOnly weapons still vanish silently.
   const old = player.weapon;
-  if (shouldDropOldWeapon(old)) {
+  if (shouldStoreOldWeapon(old)) {
     pushToStorage('weapon', old);
     floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
@@ -4175,13 +4248,14 @@ function pushToStorage(kind, id) {
 }
 
 // Swap helpers — single entry point for ANY weapon swap (cheats, swap pickup,
-// shop buy). Routes the OLD weapon into storage via the same shouldDropOldWeapon
-// gate the world-drop paths use, so pistol / traderOnly / cheatOnly are still
-// filtered out and can't enter storage.
+// shop buy). Routes the OLD weapon into Storage via shouldStoreOldWeapon
+// (pistol IS allowed here, even though it's the infinite default — the
+// player wants a consistent swap log; traderOnly / cheatOnly are still
+// filtered out and can't enter storage).
 function setPrimaryAndStoreOld(id) {
   const old = player.weapon;
   if (old === id) return;
-  if (shouldDropOldWeapon(old)) {
+  if (shouldStoreOldWeapon(old)) {
     pushToStorage('weapon', old);
     floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
@@ -4856,9 +4930,10 @@ function buyFromStock(id, stock, traderPresent) {
   if (player.weapon === id) return;
   player.money -= entry.cost;
   const old = player.weapon;
-  // Old weapon goes straight to Storage. Trader-only / cheat-only / pistol
-  // still vanish silently via shouldDropOldWeapon — they can't enter storage either.
-  if (shouldDropOldWeapon(old)) {
+  // Old weapon goes to Storage. Trader-only / cheat-only still vanish
+  // silently; the pistol IS allowed to enter storage (the player wants
+  // consistent swap behavior even for the default weapon).
+  if (shouldStoreOldWeapon(old)) {
     pushToStorage('weapon', old);
     floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
@@ -5045,7 +5120,12 @@ function tryShoot(nowSec) {
 // `p.lastShot` for the per-shooter cadence.
 function tryShootFor(p, baseAng, nowSec) {
   const w = WEAPONS[player.weapon] || WEAPONS.pistol;
-  const fr = player.fireRate * w.fireRate * (player.buffs.rapid > 0 ? 2 : 1);
+  // lockedRate weapons ignore the player's fireRate upgrades AND the Rapid buff —
+  // their cooldown is part of the weapon's identity (e.g. the Spaghetti Beam
+  // is a heavy charged shot every ~2.5s; speeding it up would break it).
+  const fr = w.lockedRate
+    ? w.fireRate
+    : player.fireRate * w.fireRate * (player.buffs.rapid > 0 ? 2 : 1);
   const interval = 1 / fr;
   if (nowSec - p.lastShot < interval) return;
   p.lastShot = nowSec;
@@ -7797,9 +7877,9 @@ function doSwapWeapon() {
   const idx = guns.indexOf(nearbyGun);
   if (idx >= 0) guns.splice(idx, 1);
   // Swapped-out weapon goes straight into the shop's Storage box — no more
-  // ground-crate babysitting. Pistol / traderOnly / cheatOnly weapons still
-  // vanish silently via the shouldDropOldWeapon gate.
-  if (shouldDropOldWeapon(old)) {
+  // ground-crate babysitting. Pistol is allowed (the player wants a
+  // consistent swap log); traderOnly / cheatOnly weapons still vanish.
+  if (shouldStoreOldWeapon(old)) {
     pushToStorage('weapon', old);
     floaters.push({ x: player.x, y: player.y - 28, text: '→ Storage', life: 1.4, color: WEAPONS[old].color });
   }
@@ -11541,9 +11621,13 @@ function drawSwapPrompt() {
     const worse  = parseFloat(b) < parseFloat(a);
     return [k, a, b, better ? '#5cb85c' : worse ? '#d36' : '#fff'];
   };
+  // lockedRate weapons show their fixed fireRate instead of multiplying
+  // the player's upgrades through (upgrades don't apply to them).
+  const curRate = (cur.lockedRate ? cur.fireRate : player.fireRate * cur.fireRate).toFixed(2);
+  const newRate = (newW.lockedRate ? newW.fireRate : player.fireRate * newW.fireRate).toFixed(2);
   const rows = [
     stat('Dmg',    (player.damage * cur.damage).toFixed(1),                (player.damage * newW.damage).toFixed(1)),
-    stat('Rate',   (player.fireRate * cur.fireRate).toFixed(2),            (player.fireRate * newW.fireRate).toFixed(2)),
+    stat('Rate',   curRate,                                                newRate),
     stat('Shots',  cur.shots,                                              newW.shots),
     stat('Pierce', cur.pierce + player.pierce,                             newW.pierce + player.pierce),
   ];
@@ -11619,9 +11703,12 @@ function drawStats() {
   ctx.fillStyle = '#22252e';
   ctx.fillRect(px + 12, py + 42, pw - 24, 1);
 
+  // lockedRate weapons (e.g. Spaghetti Beam) ignore the player's fireRate
+  // upgrades, so the displayed rate is the raw weapon value.
+  const effRate = (w.lockedRate ? w.fireRate : player.fireRate * w.fireRate).toFixed(1);
   const rows = [
     ['Damage',    (player.damage * w.damage).toFixed(1)],
-    ['Fire Rate', (player.fireRate * w.fireRate).toFixed(1) + '/s'],
+    ['Fire Rate', effRate + '/s' + (w.lockedRate ? ' · fixed' : '')],
     ['Bullet Sp', Math.round(player.bulletSpeed * w.bulletSpeed)],
     ['Pierce',    w.pierce + player.pierce],
     ['Speed',     Math.round(player.speed)],
