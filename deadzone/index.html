@@ -225,6 +225,23 @@ let musicCombatLayer = null;
 let musicTargetState = null;
 let musicCurrentSong = null;
 let musicLoopTimer = null;
+// Every osc/buffer source created by playMusicNote / playMusicNoise pushes
+// itself here. updateMusicForState() iterates this list and hard-stops every
+// tracked node before scheduling a new song — otherwise notes from a prior
+// scheduleSong call remain on the audio clock and can become re-audible if
+// their layer's gain ramps back up (rapid pause/unpause = music stacking).
+// Each node also installs an onended handler that splices itself out, so the
+// array auto-prunes as notes finish naturally and never grows unbounded.
+let scheduledMusicNodes = [];
+
+function stopAllScheduledMusicNodes() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  for (const node of scheduledMusicNodes) {
+    try { node.stop(t); } catch (_) { /* already stopped */ }
+  }
+  scheduledMusicNodes.length = 0;
+}
 
 // Note name → frequency lookup for the few octaves we use.
 const NOTE_FREQ = {
@@ -441,6 +458,11 @@ function playMusicNote(freq, startTime, duration, type, vol, dest) {
   env.connect(dest);
   osc.start(startTime);
   osc.stop(startTime + duration + 0.05);
+  scheduledMusicNodes.push(osc);
+  osc.onended = () => {
+    const i = scheduledMusicNodes.indexOf(osc);
+    if (i >= 0) scheduledMusicNodes.splice(i, 1);
+  };
 }
 
 // Schedule a noise hit (kick / hat / snare etc) routed into the music layer.
@@ -469,6 +491,11 @@ function playMusicNoise(startTime, duration, vol, lowpass, hipass, dest) {
   node.connect(env); env.connect(dest);
   src.start(startTime);
   src.stop(startTime + duration + 0.05);
+  scheduledMusicNodes.push(src);
+  src.onended = () => {
+    const i = scheduledMusicNodes.indexOf(src);
+    if (i >= 0) scheduledMusicNodes.splice(i, 1);
+  };
 }
 
 // Pre-schedule one full loop of a song; setTimeout queues the next loop just
@@ -516,8 +543,16 @@ function updateMusicForState() {
   }
   musicMenuGain.gain.linearRampToValueAtTime(inCombat ? 0 : 1, t + fade);
   musicCombatGain.gain.linearRampToValueAtTime(inCombat ? 1 : 0, t + fade);
-  // Switch which song is being scheduled. The crossfade on the layer gains
-  // hides the swap — both songs always schedule into their own layer.
+  // Hard-stop every note from the prior scheduleSong call BEFORE queueing
+  // the new song. Without this, rapid pause/unpause causes the prior song's
+  // notes to remain on the audio clock, and the layer's gain ramping back
+  // up makes them re-audible alongside the freshly-scheduled notes — two
+  // playthroughs of the same song overlapping out of phase = "music stacks
+  // on each other". Trade-off: the smooth simultaneous-fade crossfade
+  // becomes "old song stops; new song fades in" — predictable and stack-free.
+  stopAllScheduledMusicNodes();
+  // Switch which song is being scheduled. Both songs always schedule into
+  // their own layer (menu layer vs combat layer).
   scheduleSong(inCombat ? SONG_COMBAT : SONG_MENU);
 }
 function resumeAudio() {
@@ -1164,6 +1199,13 @@ const hazards = [];     // lingering damage zones (Lawnmower clippings) — { x,
 // visual side-effect can persist for a few seconds).
 let pendingEvent = null;     // { type, fireIn }
 let activeEvent = null;      // { type, timer, ... }
+// Absolute Chaos — meta-event that fires multiple normal arena events back to
+// back over a short window. chaosTimer counts down the window; chaosNextSub
+// is the gameTime at which the next sub-event fires. Tracked separately from
+// pending/activeEvent so a fired sub-event overwriting activeEvent doesn't
+// wipe the chaos window itself.
+let chaosTimer = 0;          // remaining seconds in the chaos window
+let chaosNextSub = 0;        // gameTime when the next sub-event fires
 // ---------- Roaming trader (visits sometimes; sells exclusive gag weapons) ----------
 // While `trader` is non-null the Shop UI grows a Trader tab and a humanoid
 // NPC stands inside the shop rect. The trader stays for a fixed number of
@@ -1867,7 +1909,14 @@ const cheatSections = [
     { label: '+Horde Push',  run() { fireArenaEvent('hordePush'); } },
     { label: '+Blackout',    run() { fireArenaEvent('blackout'); } },
     { label: '+Heal Zone',   run() { fireArenaEvent('healZone'); } },
-    { label: 'Clear Active', run() { activeEvent = null; pendingEvent = null; } },
+    { label: '+Absolute Chaos', run() { triggerChaos(); } },
+    { label: 'Clear Active', run() {
+        activeEvent = null;
+        pendingEvent = null;
+        chaosTimer = 0;
+        chaosNextSub = 0;
+        chaosBanner = 0;
+      } },
   ]},
   // Pets cheats — map over PET_KEYS so new pets (e.g. Dragon) get a button
   // automatically. Previously these were hardcoded per-pet which is why
@@ -4828,11 +4877,43 @@ function spawnMiniBoss() {
 // effect; some events also leave behind state (active = { type, timer })
 // for a few seconds so their visual lingers.
 const ARENA_EVENTS = ['supplyDrop', 'blackout', 'hordePush', 'healZone'];
+// Sub-pool for Absolute Chaos. Blackout is intentionally excluded — its
+// fade math (line ~9425 area) assumes a fresh 10s window, so overlapping
+// blackouts would jump. Boss Rush isn't in the arena event pool to begin
+// with (handled in the wave-spawn branch). healZone stays because a
+// surprise heal mid-panic is a fun beat.
+const CHAOS_SUB_EVENTS = ['supplyDrop', 'hordePush', 'healZone'];
+const CHAOS_DURATION = 18;            // total seconds the chaos window lasts
+const CHAOS_SUB_INTERVAL = 3;         // seconds between sub-event fires
+const CHAOS_MIN_WAVE = 10;            // earliest wave chaos can roll
+const CHAOS_ROLL_CHANCE = 0.02;       // 2% of eligible wave-event rolls
+
+let chaosBanner = 0;                  // gameTime when the chaos banner fades out
+
+function triggerChaos() {
+  chaosTimer = CHAOS_DURATION;
+  // First sub-event fires immediately so the banner and the action land
+  // together (no 3-9s windup like a normal pendingEvent).
+  chaosNextSub = gameTime;
+  chaosBanner = gameTime + 4.5;
+  // Nuke any pending normal event — it would have been a chaos pool member
+  // anyway, and chaos is firing its own pulses now.
+  pendingEvent = null;
+  shake(28);
+  if (SFX && SFX.bossSpawn) SFX.bossSpawn();
+  floaters.push({ x: W / 2, y: 96, text: 'EVENT: ABSOLUTE CHAOS', life: 2.4, color: '#ff2a2a' });
+}
 
 function scheduleArenaEvent() {
   // 30% of waves are quiet — no event. Otherwise pick one at random and queue
   // it to fire a few seconds in.
   if (trainingMode) return;
+  // Absolute Chaos pre-empts a normal event roll. Rare (2%), gated by minimum
+  // wave so the player has some build before the chaos window opens.
+  if (wave >= CHAOS_MIN_WAVE && Math.random() < CHAOS_ROLL_CHANCE) {
+    triggerChaos();
+    return;
+  }
   if (Math.random() < 0.30) { pendingEvent = null; return; }
   const type = ARENA_EVENTS[Math.floor(Math.random() * ARENA_EVENTS.length)];
   pendingEvent = { type, fireIn: 3 + Math.random() * 6 };
@@ -4959,12 +5040,81 @@ function updateArenaEvent(dt) {
     activeEvent.timer -= dt;
     if (activeEvent.timer <= 0) activeEvent = null;
   }
+  // Absolute Chaos — every CHAOS_SUB_INTERVAL seconds during the window,
+  // fire a uniform-random sub-event (blackout / boss rush excluded). Window
+  // counts down independently so a sub-event overwriting activeEvent doesn't
+  // wipe chaos itself.
+  if (chaosTimer > 0) {
+    chaosTimer = Math.max(0, chaosTimer - dt);
+    if (gameTime >= chaosNextSub) {
+      const t = CHAOS_SUB_EVENTS[Math.floor(Math.random() * CHAOS_SUB_EVENTS.length)];
+      fireArenaEvent(t);
+      chaosNextSub = gameTime + CHAOS_SUB_INTERVAL;
+    }
+  }
 }
 
 // BOSS RUSH — very rare variant of a boss wave where 5 bosses spawn instead
 // of 1. Triggered only on wave 60+ to keep early bosses approachable. The
 // boss-rush banner is shown for a few seconds when it fires.
 let bossRushBanner = 0; // game-time when banner should disappear
+
+// ---------- Shop-camping shame ----------
+// If P1 sits inside the shop rect for an extremely long time WHILE a wave is
+// actively running, pop a deadpan banner shaming them (with a small "sorry
+// if you weren't camping" apology underneath). State lives here so all the
+// gates (begin/end wave, hardReset, in-shop edge transitions) can reach it.
+const SHAME_THRESHOLD_SEC = 45;     // continuous shop-camping seconds before the banner
+const SHAME_BANNER_LIFE   = 5.0;    // total banner duration incl. fades
+let shopCampTimer = 0;              // seconds accumulated continuously inside the shop
+let shameBannerLife = 0;            // remaining banner display time (counts down)
+let shameFiredThisWave = false;     // hard cap: at most once per wave
+let shameFiredThisSession = false;  // once per continuous in-shop session
+let wasInShopLastFrame = false;     // edge-detect inShop() flips
+
+function triggerShameBanner() {
+  shameBannerLife = SHAME_BANNER_LIFE;
+  shameFiredThisWave = true;
+  shameFiredThisSession = true;
+}
+
+function updateShameTimer(dt) {
+  // Banner display countdown runs independently of the camp timer so the
+  // banner can fade out gracefully even if the wave ends mid-fade.
+  if (shameBannerLife > 0) {
+    shameBannerLife = Math.max(0, shameBannerLife - dt);
+  }
+  // Hard gates — every "not really fighting" condition resets the camp timer
+  // and short-circuits accumulation.
+  const inGame =
+    gameState === 'playing' &&
+    !pendingCards &&
+    !resetConfirm &&
+    !trainingMode &&
+    !guidedActive &&
+    intermission <= 0 &&
+    wave >= 1 &&
+    bossRushBanner <= gameTime;
+  const inShopNow = inGame && inShop();
+  // Edge: left the shop (or any gate fell) → reset both the accumulator and
+  // the per-session "already shamed" flag so a fresh entry re-arms the joke.
+  if (wasInShopLastFrame && !inShopNow) {
+    shopCampTimer = 0;
+    shameFiredThisSession = false;
+  }
+  wasInShopLastFrame = inShopNow;
+  if (!inShopNow) return;
+  // Accumulate continuous shop time.
+  shopCampTimer += dt;
+  // Trigger when we cross the threshold, but only once per wave AND once per session.
+  if (
+    !shameFiredThisWave &&
+    !shameFiredThisSession &&
+    shopCampTimer >= SHAME_THRESHOLD_SEC
+  ) {
+    triggerShameBanner();
+  }
+}
 
 function spawnBossRush() {
   // Spread the 5 bosses across different edge spawn points so they don't
@@ -4983,6 +5133,11 @@ function beginNextWave() {
   bestWave = Math.max(bestWave, wave);
   // Battle Cry — start every wave with a one-hit shield
   if (player.special.battleCry) player.buffs.shield = 1;
+  // Reset shop-camping state for the new wave — fresh wave = fresh chance
+  // to be shamed (or to avoid shame entirely by, you know, fighting).
+  shameFiredThisWave = false;
+  shameFiredThisSession = false;
+  shopCampTimer = 0;
   isBossWave = (wave % 20 === 0);
   if (isBossWave) {
     waveZombiesToSpawn = 0;
@@ -5007,9 +5162,14 @@ function beginNextWave() {
   spawnRandomPickup();
   if (wave > 0 && wave % 5 === 0) spawnRandomPickup(); // bonus every 5 waves
   // Roll a random arena event (skipped on boss waves so the boss fight is
-  // a focused duel and any in-flight event is cleared).
+  // a focused duel and any in-flight event is cleared). Chaos state cleared
+  // here too — a chaos window in flight when the next wave starts gets cut
+  // off cleanly.
   pendingEvent = null;
   activeEvent = null;
+  chaosTimer = 0;
+  chaosNextSub = 0;
+  chaosBanner = 0;
   if (!isBossWave) scheduleArenaEvent();
 }
 
@@ -8012,6 +8172,11 @@ function checkDeath() {
   healPulses.length = 0;
   pendingEvent = null;
   activeEvent = null;
+  // A chaos window in flight is cancelled when the player dies — they get a
+  // clean wave restart, not chaos sub-events spawning into a fresh corpse.
+  chaosTimer = 0;
+  chaosNextSub = 0;
+  chaosBanner = 0;
   if (wave > 0) {
     if (isBossWave) {
       spawnBoss();
@@ -8080,6 +8245,9 @@ function hardReset() {
   hazards.length = 0;
   pendingEvent = null;
   activeEvent = null;
+  chaosTimer = 0;
+  chaosNextSub = 0;
+  chaosBanner = 0;
   trader = null;
   traderCooldown = 0;
   foodTrader = null;
@@ -8093,6 +8261,13 @@ function hardReset() {
   gameTime = 0;
   wave = 0; isBossWave = false; waveZombiesToSpawn = 0;
   waveSpawnTimer = 0; intermission = 3;
+  // Banners + shop-camp shame — zero out so a fresh run starts clean
+  bossRushBanner = 0;
+  shameBannerLife = 0;
+  shopCampTimer = 0;
+  shameFiredThisWave = false;
+  shameFiredThisSession = false;
+  wasInShopLastFrame = false;
   // restore upgrade costs
   const base = [25, 35, 45, 55, 90, 18, 28, 32, 70];
   upgrades.forEach((u, i) => u.cost = base[i]);
@@ -9431,6 +9606,8 @@ function render() {
   drawStats();
   drawWaveBanner();
   drawBossRushBanner();
+  drawShameBanner();
+  drawChaosBanner();
   drawGuidedTutorialBanner();
   drawPauseButton();
   drawCheats();
@@ -11928,6 +12105,81 @@ function drawBossRushBanner() {
   ctx.restore();
 }
 
+// Shop-camping shame banner — deadpan headline + small apology subtitle.
+// Mirrors drawBossRushBanner: deadline-gated alpha (fade-in/hold/fade-out),
+// non-modal, drawn in HUD-screen space (after the world transform restored).
+function drawShameBanner() {
+  if (shameBannerLife <= 0) return;
+  // Fade in over the first 0.6s, hold, fade out over the last 1.2s.
+  let alpha = 1;
+  const elapsed = SHAME_BANNER_LIFE - shameBannerLife;
+  if (elapsed < 0.6) alpha = elapsed / 0.6;
+  else if (shameBannerLife < 1.2) alpha = shameBannerLife / 1.2;
+  alpha = Math.max(0, Math.min(1, alpha));
+  const cx = W / 2;
+  const cy = Math.floor(H * 0.38); // above middle, below wave / boss bar
+  ctx.save();
+  // Stacked dim panels behind the text — deep crimson over near-black so the
+  // shame reads as "you're in trouble" without competing with the existing
+  // boss-rush red.
+  ctx.fillStyle = `rgba(60, 0, 0, ${0.40 * alpha})`;
+  ctx.fillRect(0, cy - 60, W, 130);
+  ctx.fillStyle = `rgba(0, 0, 0, ${0.55 * alpha})`;
+  ctx.fillRect(0, cy - 44, W, 96);
+  ctx.translate(cx, cy);
+  ctx.textAlign = 'center';
+  // Glowy red headline — slightly smaller than BOSS RUSH so the two visual
+  // weights stay distinct if they ever overlap (boss rush wins).
+  ctx.shadowColor = `rgba(255, 80, 80, ${alpha})`;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = `rgba(255, 110, 110, ${alpha})`;
+  ctx.font = 'bold 44px system-ui';
+  ctx.fillText('YOU SHOULD BE ASHAMED', 0, 0);
+  ctx.shadowBlur = 0;
+  // Tiny apology subtitle in light grey italic
+  ctx.fillStyle = `rgba(210, 210, 220, ${0.85 * alpha})`;
+  ctx.font = 'italic 14px system-ui';
+  ctx.fillText('(sorry if you were not camping)', 0, 26);
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+
+// Absolute Chaos banner — pulses on top of the screen for ~4.5s when the
+// chaos meta-event triggers. Pattern mirrors drawBossRushBanner but uses a
+// brighter red and the subtitle hints at the spam to come. Non-modal.
+function drawChaosBanner() {
+  if (chaosBanner <= gameTime) return;
+  const remaining = chaosBanner - gameTime;
+  // Fade in over the first 0.5s, hold, fade out over the last 0.6s.
+  let alpha = 1;
+  if (remaining > 4.0) alpha = (4.5 - remaining) / 0.5;
+  else if (remaining < 0.6) alpha = remaining / 0.6;
+  alpha = Math.max(0, Math.min(1, alpha));
+  // Tighter pulse than Boss Rush to feel more frantic.
+  const pulse = 1 + Math.sin(gameTime * 10) * 0.05;
+  const cx = W / 2;
+  const cy = H / 2 - 80;       // higher than Boss Rush so they don't collide
+  ctx.save();
+  ctx.fillStyle = `rgba(120, 0, 0, ${0.42 * alpha})`;
+  ctx.fillRect(0, cy - 70, W, 160);
+  ctx.fillStyle = `rgba(0, 0, 0, ${0.55 * alpha})`;
+  ctx.fillRect(0, cy - 50, W, 120);
+  ctx.translate(cx, cy);
+  ctx.scale(pulse, pulse);
+  ctx.textAlign = 'center';
+  ctx.shadowColor = `rgba(255, 42, 42, ${alpha})`;
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = `rgba(255, 60, 60, ${alpha})`;
+  ctx.font = 'bold 64px system-ui';
+  ctx.fillText('ABSOLUTE CHAOS', 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = `rgba(255, 220, 220, ${alpha})`;
+  ctx.font = 'bold 18px system-ui';
+  ctx.fillText('EVENT STORM INCOMING', 0, 30);
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+
 function drawHud() {
   // HP
   const hpW = 220, hpH = 14;
@@ -13308,6 +13560,7 @@ function tickBody() {
     updateDecals(dt);
     updateTooltips(dt);
     updateWave(dt);
+    updateShameTimer(dt);
     updateGuidedTutorial();
     // decay visual effects only while playing
     if (shakeAmt > 0) {
