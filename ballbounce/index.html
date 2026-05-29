@@ -116,7 +116,7 @@ function launch() {
   // Inherit a tiny vy from the platform's current direction so the launch
   // feels reactive — push off "with" the platform's motion.
   const p = state.platforms[0];
-  state.ball.vx = 4;
+  state.ball.vx = 6.5;
   state.ball.vy = p.speed * p.dir * 0.4;
   state.starting = false;
 }
@@ -250,11 +250,11 @@ function bounceOff(p) {
   const b = state.ball;
   // Reverse horizontal, nudge vy based on hit position (Pong-style)
   const rel = (b.y - p.y) / (p.h / 2); // -1 at top, 1 at bottom
-  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.18);
-  b.vy = rel * 3.2;
+  b.vx = -Math.sign(b.vx) * (Math.abs(b.vx) + 0.3);
+  b.vy = rel * 3.6;
   // Clamp so it doesn't get insane
-  b.vx = Math.max(-12, Math.min(12, b.vx));
-  b.vy = Math.max(-6, Math.min(6, b.vy));
+  b.vx = Math.max(-16, Math.min(16, b.vx));
+  b.vy = Math.max(-7, Math.min(7, b.vy));
   // Push ball off the platform's inner face so it doesn't re-trigger and
   // doesn't visibly clip into the bumper.
   if (p.side === 'left') b.x = WALL_X_LEFT + PLATFORM_HALF_W + b.r + 1;
