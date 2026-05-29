@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salt & Plunder — Open World Pirate Game</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Heads-up display -->
+  <div id="hud">
+    <div class="hud-row">
+      <span class="hud-label">❤️ Hull</span>
+      <div class="bar"><div id="health-fill" class="bar-fill"></div></div>
+    </div>
+    <div class="hud-row">
+      <span id="gold">🪙 0 gold</span>
+    </div>
+    <div class="hud-row">
+      <span id="bounty">☠️ Ships sunk: 0</span>
+    </div>
+  </div>
+
+  <!-- Minimap -->
+  <canvas id="minimap"></canvas>
+
+  <!-- "Press E to dock" prompt -->
+  <div id="dock-prompt" class="hidden">⚓ Press <b>E</b> to dock at Port Royale</div>
+
+  <!-- Shop -->
+  <div id="shop" class="hidden">
+    <div class="shop-panel">
+      <h1>⚓ Port Royale — Shipwright &amp; Armory</h1>
+      <div id="shop-body"></div>
+      <button id="leave-port">Set Sail ⛵</button>
+    </div>
+  </div>
+
+  <!-- Start / instructions screen -->
+  <div id="overlay">
+    <div class="panel">
+      <h1>☠️ Salt &amp; Plunder ☠️</h1>
+      <p class="tagline">An open world of islands, gold, and rival pirates.</p>
+      <ul class="controls">
+        <li><b>Click</b> the sea (or minimap) — sail there</li>
+        <li><b>W A S D</b> / <b>arrows</b> — steer manually</li>
+        <li><b>Space</b> — fire both broadsides</li>
+        <li><b>E</b> — dock at port (open shop)</li>
+      </ul>
+      <p class="hint">Sink rival ships and grab floating gold, then dock at <b>Port Royale</b> to buy bigger ships, more guns, and upgrades.</p>
+      <button id="start-btn">Set Sail</button>
+    </div>
+  </div>
+
+  <!-- Death screen -->
+  <div id="gameover" class="hidden">
+    <div class="panel">
+      <h1>🪦 Sent to the Depths</h1>
+      <p id="final-score" class="tagline"></p>
+      <button id="restart-btn">Sail Again</button>
+    </div>
+  </div>
+
+  <!-- Load order matters: dependencies first -->
+  <script src="js/utils.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
