@@ -51,13 +51,193 @@
 <body>
 <div id="wrap">
   <h1>B A L L &nbsp; B O U N C E</h1>
-  <div class="sub">hold <kbd>SPACE</kbd> to draw &middot; release to fire &middot; land on a platform &middot; don&rsquo;t miss</div>
+  <div class="sub">hold <kbd>SPACE</kbd> to draw &middot; release to fire &middot; land on a platform &middot; <kbd>M</kbd> mute</div>
   <canvas id="c" width="800" height="600"></canvas>
 </div>
 <script>
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
 const W = c.width, H = c.height;
+
+// ---------- Audio ----------
+// Single AudioContext + master gain, lazily created on the first user
+// gesture so browser autoplay policies are satisfied. Two tiny synth
+// primitives (tone, noise) feed every named SFX and the music tracks.
+let audioCtx = null;
+let sfxGain  = null;
+let musicGain = null;
+let muted = false;
+let musicArmed = false;   // is the music loop scheduled?
+let musicTimer = null;
+
+const SFX_BASE   = 0.34;
+const MUSIC_BASE = 0.22;
+
+function ensureAudio() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  audioCtx = new AC();
+  sfxGain = audioCtx.createGain();
+  musicGain = audioCtx.createGain();
+  sfxGain.gain.value   = muted ? 0 : SFX_BASE;
+  musicGain.gain.value = muted ? 0 : MUSIC_BASE;
+  sfxGain.connect(audioCtx.destination);
+  musicGain.connect(audioCtx.destination);
+  startMusic();
+}
+
+function applyMute() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  sfxGain.gain.cancelScheduledValues(now);
+  musicGain.gain.cancelScheduledValues(now);
+  sfxGain.gain.linearRampToValueAtTime(muted ? 0 : SFX_BASE,   now + 0.15);
+  musicGain.gain.linearRampToValueAtTime(muted ? 0 : MUSIC_BASE, now + 0.15);
+}
+
+// tone — short oscillator with linear attack + exponential decay. `sweep`
+// bends the frequency over the note's life; `delay` lets one SFX layer
+// notes in sequence without scheduling helpers.
+function tone({ freq = 440, type = 'square', dur = 0.12, vol = 0.2,
+                sweep = 0, delay = 0, attack = 0.005, bus = sfxGain }) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (sweep) osc.frequency.linearRampToValueAtTime(Math.max(20, freq + sweep), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(vol, t0 + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(bus);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+
+function noise({ dur = 0.15, vol = 0.2, lowpass = 0, hipass = 0, delay = 0,
+                 bus = sfxGain }) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  let node = src;
+  if (lowpass) {
+    const f = audioCtx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = lowpass;
+    node.connect(f); node = f;
+  }
+  if (hipass) {
+    const f = audioCtx.createBiquadFilter();
+    f.type = 'highpass'; f.frequency.value = hipass;
+    node.connect(f); node = f;
+  }
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  node.connect(g).connect(bus);
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+const SFX = {
+  drawStart() {
+    tone({ freq: 220, type: 'square', dur: 0.08, vol: 0.14, sweep: 80 });
+  },
+  fire(t) {
+    // t = 0..1 charge amount. Twangy bow release — pitch rises with draw.
+    const f = 180 + t * 320;
+    tone({ freq: f,         type: 'sawtooth', dur: 0.18, vol: 0.16, sweep: -120 });
+    tone({ freq: f * 1.5,   type: 'square',   dur: 0.10, vol: 0.10, sweep: -80, delay: 0.005 });
+    noise({ dur: 0.08, vol: 0.10, hipass: 1200 });
+  },
+  chargeFull() {
+    // Bright chime the moment the bow hits max draw.
+    tone({ freq: 880,  type: 'triangle', dur: 0.10, vol: 0.13 });
+    tone({ freq: 1320, type: 'triangle', dur: 0.16, vol: 0.10, delay: 0.04 });
+  },
+  land() {
+    // Soft thud + cyan ping.
+    tone({ freq: 140, type: 'square',   dur: 0.07, vol: 0.18, sweep: -50 });
+    tone({ freq: 660, type: 'triangle', dur: 0.12, vol: 0.10, delay: 0.01 });
+    noise({ dur: 0.05, vol: 0.10, lowpass: 1600 });
+  },
+  rail() {
+    // Quiet tick when the ball clips a top/bottom rail.
+    tone({ freq: 520, type: 'square', dur: 0.04, vol: 0.08, sweep: -120 });
+  },
+  gameOver() {
+    tone({ freq: 330, type: 'sawtooth', dur: 0.20, vol: 0.18, sweep: -180 });
+    tone({ freq: 165, type: 'sawtooth', dur: 0.32, vol: 0.16, sweep: -100, delay: 0.10 });
+    noise({ dur: 0.30, vol: 0.10, lowpass: 700, delay: 0.05 });
+  },
+};
+
+// ---------- Music ----------
+// Chiptune loop in A minor. Two tracks: a square-wave lead and a sawtooth
+// bass. Notes scheduled on the audio clock; setTimeout re-arms before the
+// loop ends so we never run out of scheduled events.
+const NOTE_FREQ = {
+  'A2': 110.00, 'C3': 130.81, 'D3': 146.83, 'E3': 164.81, 'G3': 196.00,
+  'A3': 220.00, 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+  'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25, 'D5': 587.33,
+  'E5': 659.25, 'G5': 783.99, 'A5': 880.00,
+};
+const BPM = 132;
+const BEAT = 60 / BPM;
+const BARS = 4;
+const LOOP_BEATS = BARS * 4;
+
+// [beatOffset, note, durationBeats]
+const LEAD_TRACK = [
+  [0.0, 'A4', 0.5], [0.5, 'C5', 0.5], [1.0, 'E5', 0.5], [1.5, 'A5', 0.5],
+  [2.0, 'G5', 0.5], [2.5, 'E5', 0.5], [3.0, 'C5', 0.5], [3.5, 'D5', 0.5],
+  [4.0, 'E5', 1.0], [5.0, 'D5', 0.5], [5.5, 'C5', 0.5],
+  [6.0, 'B4', 0.5], [6.5, 'A4', 0.5], [7.0, 'E4', 1.0],
+  [8.0, 'A4', 0.5], [8.5, 'C5', 0.5], [9.0, 'E5', 0.5], [9.5, 'G5', 0.5],
+  [10.0, 'F4', 0.5], [10.5, 'A4', 0.5], [11.0, 'C5', 0.5], [11.5, 'F4', 0.5],
+  [12.0, 'E5', 0.5], [12.5, 'D5', 0.5], [13.0, 'C5', 0.5], [13.5, 'B4', 0.5],
+  [14.0, 'A4', 2.0],
+];
+const BASS_TRACK = [
+  [0.0, 'A2', 1.0], [1.0, 'A2', 1.0], [2.0, 'A2', 1.0], [3.0, 'A2', 1.0],
+  [4.0, 'E3', 1.0], [5.0, 'E3', 1.0], [6.0, 'E3', 1.0], [7.0, 'E3', 1.0],
+  [8.0, 'F4', 1.0], [9.0, 'F4', 1.0], [10.0, 'F4', 1.0], [11.0, 'F4', 1.0],
+  [12.0, 'G3', 1.0], [13.0, 'G3', 1.0], [14.0, 'A2', 2.0],
+];
+
+function scheduleLoop(startTime) {
+  for (const [b, n, d] of LEAD_TRACK) {
+    tone({ freq: NOTE_FREQ[n], type: 'square', dur: d * BEAT * 0.92,
+           vol: 0.08, attack: 0.01, delay: startTime - audioCtx.currentTime + b * BEAT,
+           bus: musicGain });
+  }
+  for (const [b, n, d] of BASS_TRACK) {
+    tone({ freq: NOTE_FREQ[n], type: 'sawtooth', dur: d * BEAT * 0.96,
+           vol: 0.06, attack: 0.005, delay: startTime - audioCtx.currentTime + b * BEAT,
+           bus: musicGain });
+  }
+}
+
+function startMusic() {
+  if (musicArmed) return;
+  musicArmed = true;
+  const loopDur = LOOP_BEATS * BEAT;
+  const armLoop = () => {
+    const start = audioCtx.currentTime + 0.05;
+    scheduleLoop(start);
+    musicTimer = setTimeout(armLoop, (loopDur - 0.2) * 1000);
+  };
+  armLoop();
+}
 
 // ---------- Game state ----------
 const WALL_X_LEFT = 240;
@@ -137,6 +317,8 @@ function startCharging() {
   state.chargeAmount = 0;
   state.squish = 0;
   state.squishAxis = 'x';
+  state.chargeFullPlayed = false;
+  SFX.drawStart();
 }
 
 function fireLaunch() {
@@ -156,9 +338,11 @@ function fireLaunch() {
   state.chargeAmount = 0;
   state.shake = 4 + t * 6;
   state.flash = 0.3 + t * 0.4;
+  SFX.fire(t);
 }
 
 function onPress() {
+  ensureAudio();
   if (state.gameOver) { restart(); return; }
   if (state.landed && !state.charging) startCharging();
 }
@@ -172,6 +356,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (!input.spacePressed) onPress();
     input.spacePressed = true;
+  } else if (e.code === 'KeyM') {
+    e.preventDefault();
+    muted = !muted;
+    ensureAudio();
+    applyMute();
   }
 });
 window.addEventListener('keyup', (e) => {
@@ -262,6 +451,10 @@ function update(dt) {
       state.chargeAmount = Math.min(1, state.chargeAmount + dt / MAX_CHARGE_TIME);
       state.squish = state.chargeAmount * 0.95;
       state.squishAxis = 'x';
+      if (state.chargeAmount >= 1 && !state.chargeFullPlayed) {
+        state.chargeFullPlayed = true;
+        SFX.chargeFull();
+      }
     } else {
       state.squish *= Math.pow(0.88, dt * 60);
     }
@@ -321,10 +514,12 @@ function update(dt) {
   if (b.y - b.r < 10) {
     b.y = 10 + b.r; b.vy = Math.abs(b.vy) || 1;
     state.squish = 0.6; state.squishAxis = 'y';
+    SFX.rail();
   }
   if (b.y + b.r > H - 10) {
     b.y = H - 10 - b.r; b.vy = -(Math.abs(b.vy) || 1);
     state.squish = 0.6; state.squishAxis = 'y';
+    SFX.rail();
   }
 
   state.flash = Math.max(0, state.flash - dt * 4);
@@ -371,6 +566,7 @@ function landOn(p) {
   state.squish = 0.7;
   state.squishAxis = 'x';
   spawnBurst(p.side === 'left' ? WALL_X_LEFT : WALL_X_RIGHT, b.y, '#0ff');
+  SFX.land();
 }
 
 function endGame() {
@@ -379,6 +575,7 @@ function endGame() {
   state.flash = 1;
   state.shake = 18;
   spawnBurst(state.ball.x, state.ball.y, '#f0f');
+  SFX.gameOver();
 }
 
 function spawnBurst(x, y, color) {
