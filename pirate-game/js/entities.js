@@ -185,6 +185,32 @@ class Ship {
     }
   }
 
+  // Fire a volley straight toward a world point (tx, ty) — used by the player
+  // to aim cannonballs directly at the mouse. All balls travel on the same
+  // bearing; with more cannons they spawn side by side for a wider volley.
+  fireAt(game, tx, ty) {
+    const dir = angleTo(this.x, this.y, tx, ty);
+    const perp = dir + Math.PI / 2;
+    const muzzle = this.length * 0.45; // clear the hull
+    const bx = this.x + Math.cos(dir) * muzzle;
+    const by = this.y + Math.sin(dir) * muzzle;
+    const n = this.cannonsPerSide;
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 0 : i / (n - 1) - 0.5;   // -0.5 .. 0.5
+      const offset = t * this.width * 0.9;
+      const mx = bx + Math.cos(perp) * offset;
+      const my = by + Math.sin(perp) * offset;
+      // Velocity points exactly at the cursor (no momentum skew) so the shot
+      // lands where you click.
+      const vx = Math.cos(dir) * this.ballSpeed;
+      const vy = Math.sin(dir) * this.ballSpeed;
+      game.cannonballs.push(
+        new Cannonball(mx, my, vx, vy, this.faction, this.cannonDamage, this.ballLife)
+      );
+      game.spawnSmoke(mx, my);
+    }
+  }
+
   takeDamage(n, game) {
     this.health -= n;
     if (this.health <= 0 && !this.dead) {

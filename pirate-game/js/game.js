@@ -507,12 +507,7 @@ class Game {
   _fireAtCursor(wx, wy) {
     const p = this.player;
     if (p.dead || p.cooldown > 0) return;
-    const toCursor = angleTo(p.x, p.y, wx, wy);
-    // Whichever broadside points closest to the cursor is the one that fires.
-    const starErr = Math.abs(angleDiff(p.angle + Math.PI / 2, toCursor));
-    const portErr = Math.abs(angleDiff(p.angle - Math.PI / 2, toCursor));
-    const side = starErr <= portErr ? 1 : -1;
-    p.fireSide(this, side);
+    p.fireAt(this, wx, wy); // cannonballs fly straight at the click point
     p.cooldown = p.fireCooldownTime;
     this.shake(6);
   }
