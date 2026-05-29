@@ -242,18 +242,9 @@ function update(dt) {
     const maxOff = Math.max(0, p.h / 2 - state.ball.r);
     const off = Math.max(-maxOff, Math.min(maxOff, state.landYOffset));
     state.landYOffset = off;
-    const newX = (p.side === 'left' ? WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r
-                                     : WALL_X_RIGHT - PLATFORM_HALF_W - state.ball.r);
-    const newY = p.y + off;
-    // Shift the trail by the same delta as the ball so it rides along
-    // instead of being abandoned in mid-air when the platform scrolls.
-    const dx = newX - state.ball.x;
-    const dy = newY - state.ball.y;
-    if (dx || dy) {
-      for (const t of state.trail) { t.x += dx; t.y += dy; }
-    }
-    state.ball.x = newX;
-    state.ball.y = newY;
+    state.ball.x = (p.side === 'left' ? WALL_X_LEFT + PLATFORM_HALF_W + state.ball.r
+                                       : WALL_X_RIGHT - PLATFORM_HALF_W - state.ball.r);
+    state.ball.y = p.y + off;
     state.ball.vx = 0;
     state.ball.vy = 0;
     if (state.charging) {
@@ -359,6 +350,9 @@ function landOn(p) {
   state.landYOffset = offset;
   state.charging = false;
   state.chargeAmount = 0;
+  // Clear the trail so the next shot's path starts fresh in its new
+  // direction instead of carrying the previous flight's shape.
+  state.trail.length = 0;
 
   state.score++;
   if (state.score > state.best) state.best = state.score;
