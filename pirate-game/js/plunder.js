@@ -6,8 +6,8 @@
 // tile to move -> click an adjacent enemy to attack. "End Turn" hands the
 // floor to the defenders' AI. Wipe out the defenders to plunder the village.
 
-const PB_COLS = 12;
-const PB_ROWS = 8;
+const PB_COLS = 16;
+const PB_ROWS = 11;
 const PB_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 // Cheap deterministic noise so grass texture is stable frame-to-frame.
@@ -81,8 +81,9 @@ class Battle {
 
     // Scatter cover through the middle band, leaving the top (defenders +
     // chest), the bottom (your landing path) and the central road clear.
+    // More cover on the bigger battlefield.
     const cxCol = Math.floor(this.cols / 2);
-    const n = randInt(5, 9);
+    const n = randInt(Math.floor(this.cols * this.rows / 22), Math.floor(this.cols * this.rows / 14));
     for (let i = 0; i < n; i++) {
       const x = randInt(1, this.cols - 2);
       const y = randInt(2, this.rows - 3);
@@ -112,7 +113,7 @@ class Battle {
     // Defenders scale with your party and the village's size; big towns post
     // a Garrison Captain who rallies the rest.
     const r = this.village.island.radius;
-    this.enemyMax = Math.min(9, playerCount + 2 + Math.floor(r / 120));
+    this.enemyMax = Math.min(12, playerCount + 3 + Math.floor(r / 110));
     const roster = this._enemyRoster(this.enemyMax, r);
     const def = this._spawnCells("enemy", this.enemyMax);
     for (let i = 0; i < this.enemyMax; i++) {
@@ -120,7 +121,7 @@ class Battle {
     }
 
     // Reinforcements can rally to the defence over the course of the fight.
-    this.reinforceMax = 4;
+    this.reinforceMax = 6;
     this.reinforced = 0;
     this.round = 1;
   }

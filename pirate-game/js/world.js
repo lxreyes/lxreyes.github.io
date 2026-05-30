@@ -9,9 +9,11 @@ class World {
   }
 
   _generate() {
-    const count = 16;
+    // Scale the number of islands with the world's area so a bigger sea
+    // doesn't feel empty.
+    const count = Math.min(36, Math.round((this.size * this.size) / 3.1e6));
     let attempts = 0;
-    while (this.islands.length < count && attempts < 400) {
+    while (this.islands.length < count && attempts < 1500) {
       attempts++;
       const r = rand(90, 320);
       const margin = r + 80;

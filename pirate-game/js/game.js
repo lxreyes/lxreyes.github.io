@@ -2,9 +2,9 @@
 // pieces (world, ships, input) together but pushes the actual behavior down
 // into those objects — this file is the conductor, not the orchestra.
 
-const WORLD_SIZE = 6000;
-const ENEMY_TARGET = 6;
-const TREASURE_TARGET = 16;
+const WORLD_SIZE = 10000;
+const ENEMY_TARGET = 12;
+const TREASURE_TARGET = 32;
 const INCOME_INTERVAL = 8; // seconds between tribute payouts from your cities
 
 // Buyable ship hulls, smallest to grandest. Each is a complete stat profile;
@@ -340,9 +340,9 @@ class Game {
 
   // Turn the biggest islands into villages you can land on.
   _makeVillages() {
-    const names = ["Tortuga Hollow", "Skull Bay", "Mermaid's Rest", "Rumport", "Gull's Landing"];
+    const names = ["Tortuga Hollow", "Skull Bay", "Mermaid's Rest", "Rumport", "Gull's Landing", "Cutlass Cay"];
     const big = this.world.islands.filter((i) => i.radius > 150).sort((a, b) => b.radius - a.radius);
-    return big.slice(0, 3).map((isle, i) => this._makeVillage(isle, names[i % names.length]));
+    return big.slice(0, 6).map((isle, i) => this._makeVillage(isle, names[i % names.length]));
   }
 
   _makeVillage(isle, name) {
