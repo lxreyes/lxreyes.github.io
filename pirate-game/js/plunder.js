@@ -172,14 +172,6 @@ class Battle {
     return cells;
   }
 
-  _mk(side, cell, name, hp, atk, move, range) {
-    return {
-      side, name, x: cell.x, y: cell.y,
-      hp, maxHp: hp, atk, move, range,
-      hasMoved: false, hasActed: false, alive: true,
-    };
-  }
-
   // Cosmetic dressing so the field reads as a village on an island.
   _decorate() {
     // Per-vertex wobble for the organic land outline.
@@ -305,7 +297,7 @@ class Battle {
     this.phase = "enemy";
     this.message = "Defenders' turn…";
     this.enemyQueue = this.units.filter((u) => u.alive && u.side === "enemy");
-    this.enemyTimer = 0.35;
+    this.enemyTimer = 0.16;
   }
 
   // ---- Combat ----
@@ -389,7 +381,7 @@ class Battle {
     if (this.phase !== "enemy") return;
     this.enemyTimer -= dt;
     if (this.enemyTimer > 0) return;
-    this.enemyTimer = 0.35;
+    this.enemyTimer = 0.16;
 
     if (this.enemyQueue.length === 0) {
       // Back to the player; refresh everyone's action budget.
