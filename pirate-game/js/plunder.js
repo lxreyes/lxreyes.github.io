@@ -22,16 +22,16 @@ function hash2(x, y) {
 //   marksman : +1 damage when firing from range 2+
 //   heavy    : tough, hard-hitting, but slow
 const PB_PLAYER_TYPES = {
-  captain:      { name: "Captain",      hp: 26, atk: 8, move: 3, range: 1, def: 1, trait: "rally",    color: "#2a6f97", hat: true },
-  swashbuckler: { name: "Swashbuckler", hp: 18, atk: 6, move: 3, range: 1, def: 1, trait: "duelist",  color: "#2e8b57" },
-  gunner:       { name: "Gunner",       hp: 12, atk: 5, move: 3, range: 2, def: 0, trait: "marksman", color: "#3b78c2" },
-  brute:        { name: "Brute",        hp: 24, atk: 9, move: 2, range: 1, def: 2, trait: "heavy",    color: "#5f7a39" },
+  captain:      { name: "Captain",      hp: 26, atk: 8, move: 3, range: 1, def: 1, trait: "rally",    color: "#2e86c1", hat: true, badge: "C" },
+  swashbuckler: { name: "Swashbuckler", hp: 18, atk: 6, move: 3, range: 1, def: 1, trait: "duelist",  color: "#27ae60", badge: "S" },
+  gunner:       { name: "Gunner",       hp: 12, atk: 5, move: 3, range: 2, def: 0, trait: "marksman", color: "#5dade2", badge: "G" },
+  brute:        { name: "Brute",        hp: 24, atk: 9, move: 2, range: 1, def: 2, trait: "heavy",    color: "#7d6608", badge: "B" },
 };
 const PB_ENEMY_TYPES = {
-  militia:   { name: "Militia",        hp: 10, atk: 3, move: 3, range: 1, def: 0, color: "#a8322d" },
-  musketeer: { name: "Musketeer",      hp: 8,  atk: 4, move: 2, range: 2, def: 0, trait: "marksman", color: "#cf6a2e" },
-  brute:     { name: "Brute",          hp: 16, atk: 5, move: 2, range: 1, def: 2, trait: "heavy",    color: "#7a2f3a" },
-  garrison:  { name: "Garrison Capt.", hp: 24, atk: 6, move: 3, range: 1, def: 1, trait: "rally",    color: "#b51e2b", hat: true, boss: true },
+  militia:   { name: "Militia",        hp: 10, atk: 3, move: 3, range: 1, def: 0, color: "#c0392b", badge: "m" },
+  musketeer: { name: "Musketeer",      hp: 8,  atk: 4, move: 2, range: 2, def: 0, trait: "marksman", color: "#935116", badge: "k" },
+  brute:     { name: "Brute",          hp: 16, atk: 5, move: 2, range: 1, def: 2, trait: "heavy",    color: "#566573", badge: "b" },
+  garrison:  { name: "Garrison Capt.", hp: 24, atk: 6, move: 3, range: 1, def: 1, trait: "rally",    color: "#8e44ad", hat: true, boss: true, badge: "★" },
 };
 
 class Battle {
@@ -145,7 +145,7 @@ class Battle {
       atk: tmpl.atk + (side === "player" ? sword : 0),
       move: tmpl.move, range, def: tmpl.def,
       trait: tmpl.trait || null,
-      color: tmpl.color, hat: !!tmpl.hat, boss: !!tmpl.boss,
+      color: tmpl.color, hat: !!tmpl.hat, boss: !!tmpl.boss, badge: tmpl.badge,
       ranged: range > 1,
       hasMoved: false, hasActed: false, alive: true,
     };
@@ -579,24 +579,30 @@ class Battle {
     ctx.strokeRect(tpx + 3, tpy + 3, cell - 6, cell - 6);
     this._drawChest(ctx, tpx, tpy, cell);
 
-    // Movement + attack highlights.
-    if (this.phase === "player") {
-      ctx.fillStyle = "rgba(90,170,255,0.32)";
+    // Movement + attack highlights. When a unit is selected, dim the rest of
+    // the board so it's unmistakable that you can ONLY reach the lit tiles.
+    if (this.phase === "player" && this.selected) {
+      ctx.fillStyle = "rgba(6,14,10,0.46)";
+      ctx.fillRect(this.ox, this.oy, gw, gh);
+
+      // Reachable tiles glow blue.
+      ctx.fillStyle = "rgba(110,180,255,0.55)";
       for (const k of this.moveSet) {
         const [x, y] = k.split(",").map(Number);
         ctx.fillRect(this.ox + x * cell, this.oy + y * cell, cell, cell);
       }
-      ctx.strokeStyle = "rgba(231,76,60,0.95)";
+      // The selected unit's own tile.
+      ctx.fillStyle = "rgba(240,200,96,0.4)";
+      ctx.fillRect(this.ox + this.selected.x * cell, this.oy + this.selected.y * cell, cell, cell);
+
+      // Enemies you can attack get a red box.
+      ctx.strokeStyle = "rgba(255,90,70,1)";
       ctx.lineWidth = 3;
       for (const e of this.attackable) {
         ctx.strokeRect(this.ox + e.x * cell + 3, this.oy + e.y * cell + 3, cell - 6, cell - 6);
       }
-    }
-
-    // Selected ring.
-    if (this.selected) {
+      // Gold ring around the selected unit.
       ctx.strokeStyle = "#f0c860";
-      ctx.lineWidth = 3;
       ctx.strokeRect(this.ox + this.selected.x * cell + 2, this.oy + this.selected.y * cell + 2, cell - 4, cell - 4);
     }
 
@@ -613,8 +619,8 @@ class Battle {
     ctx.fillStyle = "rgba(245,233,201,0.85)";
     let ly = H - 84;
     [
-      "Classes: Captain rallies allies · Swashbuckler counters hard · Gunner shoots from afar · Brute is tough",
-      "Stand next to huts/rocks for cover (−damage). 🛡 = armour. Leaders give adjacent allies +attack.",
+      "Your crew:  C Captain (rallies)  ·  S Swashbuckler (counters)  ·  G Gunner (ranged)  ·  B Brute (tough)",
+      "Select a unit — only the lit blue tiles are in reach. Stand by huts/rocks for cover (−damage). 🛡 = armour.",
       "Win: reach the gold chest OR rout every foe — but the town calls in reinforcements over time.",
     ].forEach((t) => { ctx.fillText(t, 14, ly); ly += 16; });
   }
@@ -786,6 +792,19 @@ class Battle {
       ctx.arc(cx, cy - r * 0.32, r * 0.58, Math.PI, TWO_PI);
       ctx.fill();
       ctx.fillRect(cx - r * 0.58, cy - r * 0.36, r * 1.16, r * 0.16);
+    }
+
+    // Class badge letter so every unit type is instantly recognisable.
+    if (u.badge) {
+      ctx.font = `bold ${Math.round(r * 0.95)}px Trebuchet MS, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0,0,0,0.7)";
+      ctx.strokeText(u.badge, cx, cy + r * 0.38);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(u.badge, cx, cy + r * 0.38);
+      ctx.textBaseline = "alphabetic";
     }
 
     ctx.globalAlpha = 1;
