@@ -113,7 +113,7 @@ class Battle {
     // Defenders scale with your party and the village's size; big towns post
     // a Garrison Captain who rallies the rest.
     const r = this.village.island.radius;
-    this.enemyMax = Math.min(12, playerCount + 3 + Math.floor(r / 110));
+    this.enemyMax = Math.min(8, playerCount + 1 + Math.floor(r / 160));
     const roster = this._enemyRoster(this.enemyMax, r);
     const def = this._spawnCells("enemy", this.enemyMax);
     for (let i = 0; i < this.enemyMax; i++) {
@@ -121,7 +121,7 @@ class Battle {
     }
 
     // Reinforcements can rally to the defence over the course of the fight.
-    this.reinforceMax = 6;
+    this.reinforceMax = 3;
     this.reinforced = 0;
     this.round = 1;
   }
