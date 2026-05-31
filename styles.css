@@ -154,6 +154,26 @@ main {
     overflow: hidden;
 }
 
+.project-card:not(.project-card--teaser) {
+    background:
+        linear-gradient(
+            color-mix(in srgb, var(--card-accent) 5%, transparent),
+            color-mix(in srgb, var(--card-accent) 5%, transparent)
+        ),
+        var(--surface);
+    border-color: color-mix(in srgb, var(--card-accent) 14%, var(--border));
+}
+
+.project-card:not(.project-card--teaser):hover,
+.project-card:not(.project-card--teaser):focus-within {
+    background:
+        linear-gradient(
+            color-mix(in srgb, var(--card-accent) 9%, transparent),
+            color-mix(in srgb, var(--card-accent) 9%, transparent)
+        ),
+        var(--surface-strong);
+}
+
 .project-card {
     --card-accent: var(--accent);
 }
