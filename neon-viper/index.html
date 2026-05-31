@@ -103,16 +103,15 @@
   <!-- Title -->
   <div class="overlay" id="titleOverlay">
     <h1>NEON&nbsp;<b>VIPER</b></h1>
-    <p>An <b>endless</b> neon snake you can <b style="color:var(--food)">shoot</b>. Slither across a borderless world eating orbs to grow &mdash; there are no walls, only your own tail. Aim with the mouse and fire <b style="color:var(--viper)">lasers</b> to blast the hostiles that hunt you. Chain quick bites for a <b style="color:var(--gold)">combo multiplier</b>; grab the rare golden orb for a big bonus.</p>
+    <p>An <b>endless</b> neon snake you can <b style="color:var(--food)">shoot</b>. Slither across a borderless world eating orbs to grow &mdash; there are no walls, only your own tail. Fire <b style="color:var(--viper)">lasers straight ahead</b> to shear segments off the rival snakes hunting you. If one bites you it <b style="color:var(--food)">steals a segment</b> &mdash; lose your last and it&rsquo;s over. Chain quick bites for a <b style="color:var(--gold)">combo multiplier</b>; grab the rare golden orb for a big bonus.</p>
     <button class="btn" id="startBtn">Play</button>
     <div class="controls">
       <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> turn</span>
-      <span><kbd>Mouse</kbd> aim</span>
-      <span><kbd>Click</kbd>/<kbd>Space</kbd> shoot</span>
+      <span><kbd>Space</kbd>/<kbd>Click</kbd> shoot ahead</span>
       <span><kbd>P</kbd> pause</span>
       <span><kbd>M</kbd> mute</span>
     </div>
-    <p class="tag" id="touchHint" style="display:none">On touch: swipe to turn · tap to shoot at the nearest foe</p>
+    <p class="tag" id="touchHint" style="display:none">On touch: swipe to turn · tap to fire straight ahead</p>
   </div>
 
   <!-- Pause -->
@@ -163,6 +162,8 @@
   const BULLET_SPEED = 620;        // world px / sec
   const BULLET_LIFE = 1.2;         // sec
   const FIRE_COOLDOWN = 0.16;      // sec between shots
+  const INVULN = 0.7;              // sec of i-frames after a segment is stolen
+  const ESEG_SPACING = 16;         // px between enemy-snake segments
 
   // ---------------- canvas ----------------
   const canvas = document.getElementById('game');
@@ -203,7 +204,7 @@
   let snake, prevSnake, dir, dirQueue;
   let foods, gold, goldCooldown, enemies, bullets, particles, floaters;
   let score, best, eaten, kills, stepInterval, comboMult, comboTimer;
-  let cam, shake, lastT, acc, deathT, fireTimer, enemyTimer, elapsed;
+  let cam, shake, lastT, acc, deathT, fireTimer, enemyTimer, elapsed, hurtTimer;
   let isTouch=false;
 
   best = +(localStorage.getItem('neonViperBest') || 0);
@@ -218,7 +219,7 @@
     score=0; eaten=0; kills=0;
     stepInterval=STEP_START; comboMult=1; comboTimer=0;
     cam={x:snake[0].x*CELL+CELL/2-VW/2, y:snake[0].y*CELL+CELL/2-VH/2};
-    shake=0; acc=0; deathT=0; fireTimer=0; elapsed=0;
+    shake=0; acc=0; deathT=0; fireTimer=0; elapsed=0; hurtTimer=0;
     enemyTimer=ENEMY_BASE_INTERVAL;
     for(let i=0;i<FOOD_TARGET;i++) spawnFood();
     updateHud();
@@ -247,18 +248,20 @@
     if(Math.random()<GOLD_CHANCE){ const c=ringCell(); gold={x:c.x,y:c.y,born:now,ttl:GOLD_TTL}; }
   }
 
+  function makeEnemy(type, hx, hy, len, speed, r, color, segScore){
+    const segs=[];
+    for(let i=0;i<len;i++) segs.push({x:hx-i*ESEG_SPACING, y:hy});
+    return {type, segs, speed, r, color, score:segScore, flash:0};
+  }
   function spawnEnemy(){
-    const c=ringCell();
-    // type scales in slightly with time
-    const t=elapsed/1000;
+    const c=ringCell(), hx=c.x*CELL+CELL/2, hy=c.y*CELL+CELL/2;
+    const t=elapsed/1000, roll=Math.random();
     let type='hunter';
-    const roll=Math.random();
-    if(t>25 && roll<0.25) type='charger';   // faster, moves every other... actually moves faster
-    else if(t>45 && roll<0.4) type='brute'; // takes 2 hits
-    const base={x:c.x,y:c.y, px:c.x*CELL, py:c.y*CELL, flash:0};
-    if(type==='hunter')  enemies.push({...base,type,hp:1,speed:78,r:CELL*0.34,color:'255,90,60',score:25});
-    else if(type==='charger') enemies.push({...base,type,hp:1,speed:140,r:CELL*0.30,color:'255,180,60',score:35});
-    else enemies.push({...base,type,hp:2,speed:60,r:CELL*0.46,color:'176,107,255',score:60});
+    if(t>45 && roll<0.30) type='brute';        // long & tanky
+    else if(t>20 && roll<0.55) type='charger'; // short & fast
+    if(type==='hunter')       enemies.push(makeEnemy('hunter',  hx,hy, irand(3,4), 78,  CELL*0.26, '255,90,60',  6));
+    else if(type==='charger') enemies.push(makeEnemy('charger', hx,hy, irand(3,5), 134, CELL*0.22, '255,180,60', 7));
+    else                      enemies.push(makeEnemy('brute',   hx,hy, irand(6,8), 58,  CELL*0.34, '176,107,255',9));
   }
 
   // ---------------- input ----------------
@@ -284,8 +287,7 @@
   window.addEventListener('keyup', e=>{ if(e.code==='Space') firing=false; });
   window.addEventListener('blur', ()=>{ firing=false; });
 
-  canvas.addEventListener('mousemove', e=>{ mouseX=e.clientX; mouseY=e.clientY; isTouch=false; });
-  canvas.addEventListener('mousedown', e=>{ if(e.button===0){ firing=true; mouseX=e.clientX; mouseY=e.clientY; } });
+  canvas.addEventListener('mousedown', e=>{ if(e.button===0){ firing=true; isTouch=false; } });
   window.addEventListener('mouseup', e=>{ if(e.button===0) firing=false; });
 
   // touch: swipe to turn, tap to shoot (auto-aims nearest)
@@ -337,6 +339,7 @@
     shoot(){ blip(560,0.05,'square',0.05,360); },
     hit(){ blip(220,0.04,'square',0.05); },
     kill(){ noise(0.16,0.13); blip(180,0.18,'sawtooth',0.1,70); },
+    hurt(){ blip(170,0.14,'sawtooth',0.16,80); },
     death(){ noise(0.4,0.18); blip(320,0.6,'sawtooth',0.18,50); },
   };
   function updateMuteUI(){ muteBtn.textContent=muted?'♪ Off':'♪ On'; }
@@ -377,21 +380,23 @@
   resumeBtn.addEventListener('click',resume);
 
   // ---------------- shooting ----------------
-  function nearestEnemy(){
-    const h=snake[0], hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
-    let best=null,bd=Infinity;
-    for(const e of enemies){ const dx=e.px-hx,dy=e.py-hy,d=dx*dx+dy*dy; if(d<bd){bd=d;best=e;} }
-    return best;
-  }
   function fire(){
     const h=snake[0], hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
-    let ang;
-    if(isTouch){ const ne=nearestEnemy(); if(!ne) return; ang=Math.atan2(ne.py-hy,ne.px-hx); }
-    else { const wx=cam.x+mouseX, wy=cam.y+mouseY; ang=Math.atan2(wy-hy,wx-hx); }
+    const ang=Math.atan2(dir.y, dir.x);   // perfectly straight — along the direction of travel
     bullets.push({x:hx,y:hy,vx:Math.cos(ang)*BULLET_SPEED,vy:Math.sin(ang)*BULLET_SPEED,life:BULLET_LIFE});
     sfx.shoot();
-    // muzzle spark
     burst(hx+Math.cos(ang)*CELL*0.4, hy+Math.sin(ang)*CELL*0.4, '46,230,199', 3, 0.6);
+  }
+  function stealFromPlayer(e){
+    hurtTimer=INVULN;
+    const tail=snake[snake.length-1];
+    burst(tail.x*CELL+CELL/2, tail.y*CELL+CELL/2, '46,230,199', 12, 1.2);
+    shake=Math.max(shake,9); sfx.hurt();
+    if(snake.length<=1){ gameOver(); return; }   // last segment stolen = game over
+    snake.pop();
+    if(prevSnake.length>snake.length) prevSnake.pop();
+    floatText(snake[0].x*CELL+CELL/2, snake[0].y*CELL+CELL/2, '-1', '255,90,60');
+    updateHud();
   }
 
   // ---------------- snake step (grid, infinite) ----------------
@@ -458,11 +463,12 @@
     const h=snake[0], hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
     const sdt=dt/1000;
 
-    // firing (continuous while held)
+    // timers
     fireTimer-=sdt;
-    const wantFire = isTouch ? false : firing;   // touch fires single shots via tap handler below
+    if(hurtTimer>0) hurtTimer-=sdt;
+    // firing (hold to stream on desktop; tap fires one on touch)
     if(isTouch && firing){ fire(); firing=false; fireTimer=FIRE_COOLDOWN; }
-    else if(wantFire && fireTimer<=0){ fire(); fireTimer=FIRE_COOLDOWN; }
+    else if(!isTouch && firing && fireTimer<=0){ fire(); fireTimer=FIRE_COOLDOWN; }
 
     // enemy spawning, ramping up over time
     enemyTimer-=dt;
@@ -478,15 +484,14 @@
       let dead=b.life<=0;
       if(!dead){
         for(let j=enemies.length-1;j>=0;j--){
-          const e=enemies[j], dx=b.x-e.px, dy=b.y-e.py, rr=e.r+5;
-          if(dx*dx+dy*dy<rr*rr){
-            e.hp--; e.flash=0.1; sfx.hit(); burst(b.x,b.y,e.color,5,0.8);
-            dead=true;
-            if(e.hp<=0){
-              score+=e.score; kills++;
-              burst(e.px,e.py,e.color,18,1.3); floatText(e.px,e.py,'+'+e.score,e.color); sfx.kill();
-              shake=Math.max(shake,4); enemies.splice(j,1); updateHud();
-            }
+          const e=enemies[j]; let hitSeg=-1;
+          for(let k=0;k<e.segs.length;k++){ const s=e.segs[k], dx=b.x-s.x, dy=b.y-s.y, rr=e.r+5; if(dx*dx+dy*dy<rr*rr){ hitSeg=k; break; } }
+          if(hitSeg>=0){
+            const s=e.segs[hitSeg];
+            e.flash=0.1; sfx.hit(); burst(s.x,s.y,e.color,6,0.9);
+            score+=e.score; e.segs.splice(hitSeg,1); dead=true;   // a laser shears off a segment
+            if(e.segs.length===0){ kills++; burst(b.x,b.y,e.color,16,1.3); floatText(b.x,b.y,'KILL',e.color); sfx.kill(); shake=Math.max(shake,4); enemies.splice(j,1); }
+            updateHud();
             break;
           }
         }
@@ -494,18 +499,30 @@
       if(dead) bullets.splice(i,1);
     }
 
-    // enemies chase the head; recycle if absurdly far
+    // enemy snakes slither toward the player's head
     for(let i=enemies.length-1;i>=0;i--){
       const e=enemies[i];
-      const ang=Math.atan2(hy-e.py, hx-e.px);
-      e.px+=Math.cos(ang)*e.speed*sdt; e.py+=Math.sin(ang)*e.speed*sdt;
+      const ehead=e.segs[0];
+      const ang=Math.atan2(hy-ehead.y, hx-ehead.x);
+      ehead.x+=Math.cos(ang)*e.speed*sdt; ehead.y+=Math.sin(ang)*e.speed*sdt;
+      // body trails the head at fixed spacing (classic follow-the-leader)
+      for(let k=1;k<e.segs.length;k++){
+        const a=e.segs[k-1], b=e.segs[k];
+        const dx=a.x-b.x, dy=a.y-b.y, d=Math.hypot(dx,dy)||1;
+        if(d>ESEG_SPACING){ const m=d-ESEG_SPACING; b.x+=dx/d*m; b.y+=dy/d*m; }
+      }
       if(e.flash>0) e.flash-=sdt;
-      // collision with the snake head => death
-      const dxh=e.px-hx, dyh=e.py-hy;
-      if(dxh*dxh+dyh*dyh < (e.r+CELL*0.42)*(e.r+CELL*0.42)){ gameOver(); return; }
-      // recycle far-off enemies so they re-approach from a fresh ring
-      const fdx=e.px-hx, fdy=e.py-hy;
-      if(Math.hypot(fdx,fdy) > DESPAWN_DIST*CELL){ const c=ringCell(); e.px=c.x*CELL; e.py=c.y*CELL; }
+      // bite: any enemy segment touching your head steals one of your segments
+      if(hurtTimer<=0){
+        const rr=e.r+CELL*0.40;
+        for(const s of e.segs){ const dx=s.x-hx, dy=s.y-hy; if(dx*dx+dy*dy<rr*rr){ stealFromPlayer(e); break; } }
+        if(state!==State.PLAY) return;
+      }
+      // recycle far-off snakes so they re-approach from a fresh ring
+      if(Math.hypot(ehead.x-hx, ehead.y-hy) > DESPAWN_DIST*CELL){
+        const c=ringCell(), nx=c.x*CELL+CELL/2, ny=c.y*CELL+CELL/2;
+        for(let k=0;k<e.segs.length;k++){ e.segs[k].x=nx-k*ESEG_SPACING; e.segs[k].y=ny; }
+      }
     }
 
     // recycle distant foods so there's always food nearby
@@ -576,17 +593,23 @@
       ctx.beginPath(); ctx.arc(cx,cy,CELL*0.46,-Math.PI/2,-Math.PI/2+TAU*Math.max(0,remain)); ctx.stroke(); ctx.restore();
     }
 
-    // enemies
+    // enemy snakes
     for(const e of enemies){
-      ctx.save(); ctx.translate(e.px,e.py);
-      ctx.shadowBlur=16; ctx.shadowColor='rgba('+e.color+',0.9)';
-      ctx.fillStyle = e.flash>0 ? '#fff' : 'rgba('+e.color+',1)';
-      if(e.type==='hunter'){ // diamond
-        ctx.beginPath(); ctx.moveTo(0,-e.r); ctx.lineTo(e.r,0); ctx.lineTo(0,e.r); ctx.lineTo(-e.r,0); ctx.closePath(); ctx.fill();
-      } else if(e.type==='charger'){ // triangle
-        ctx.beginPath(); ctx.moveTo(0,-e.r); ctx.lineTo(e.r*0.9,e.r*0.8); ctx.lineTo(-e.r*0.9,e.r*0.8); ctx.closePath(); ctx.fill();
-      } else { // brute hexagon
-        ctx.beginPath(); for(let k=0;k<6;k++){ const a=k/6*TAU; const fn=k?'lineTo':'moveTo'; ctx[fn](Math.cos(a)*e.r,Math.sin(a)*e.r);} ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.shadowBlur=14; ctx.shadowColor='rgba('+e.color+',0.85)';
+      for(let k=e.segs.length-1;k>=0;k--){
+        const s=e.segs[k];
+        ctx.fillStyle = e.flash>0 ? '#fff' : 'rgba('+e.color+','+(k===0?1:0.82)+')';
+        ctx.beginPath(); ctx.arc(s.x, s.y, e.r*(k===0?1.15:1), 0, TAU); ctx.fill();
+      }
+      const eh=e.segs[0];
+      if(eh){
+        const ea=Math.atan2((camy+VH/2)-eh.y,(camx+VW/2)-eh.x);   // eyes look toward the player
+        const ax=Math.cos(ea), ay=Math.sin(ea), ox=-ay, oy=ax, off=e.r*0.5, es=e.r*0.34;
+        ctx.fillStyle='#160604';
+        ctx.beginPath();
+        ctx.arc(eh.x+ax*off+ox*off, eh.y+ay*off+oy*off, es,0,TAU);
+        ctx.arc(eh.x+ax*off-ox*off, eh.y+ay*off-oy*off, es,0,TAU);
+        ctx.fill();
       }
       ctx.restore();
     }
@@ -600,21 +623,19 @@
       const px=gx*CELL, py=gy*CELL, inset=CELL*0.12, head=i===0;
       const f=i/Math.max(1,n-1);
       const r=Math.round(lerp(170,30,f)), g=Math.round(lerp(255,200,f)), b=Math.round(lerp(210,170,f));
-      ctx.save(); ctx.globalAlpha=dieFade; ctx.shadowBlur=head?20:12; ctx.shadowColor='rgba(46,230,199,0.8)';
+      let segAlpha=dieFade;
+      if(head && hurtTimer>0 && Math.floor(hurtTimer*20)%2===0) segAlpha*=0.35;  // blink during i-frames
+      ctx.save(); ctx.globalAlpha=segAlpha; ctx.shadowBlur=head?20:12; ctx.shadowColor='rgba(46,230,199,0.8)';
       ctx.fillStyle=`rgb(${r},${g},${b})`;
       roundRect(px+inset,py+inset,CELL-inset*2,CELL-inset*2,CELL*0.28); ctx.fill(); ctx.restore();
       if(head){
-        // aim direction for eyes: toward mouse (desktop) or nearest foe (touch), fallback move dir
-        let ax=dir.x, ay=dir.y;
-        const hx=px+CELL/2, hy=py+CELL/2;
-        if(!isTouch){ ax=(camx+mouseX)-hx; ay=(camy+mouseY)-hy; }
-        else { const ne=nearestEnemy(); if(ne){ ax=ne.px-hx; ay=ne.py-hy; } }
-        const mag=Math.hypot(ax,ay)||1; ax/=mag; ay/=mag;
-        ctx.save(); ctx.globalAlpha=dieFade; ctx.fillStyle='#04110e';
+        const hcx=px+CELL/2, hcy=py+CELL/2;
+        const ax=dir.x, ay=dir.y;            // eyes look the way you travel — where your shots go
         const off=CELL*0.16, es=CELL*0.085, ox=-ay, oy=ax;
+        ctx.save(); ctx.globalAlpha=dieFade; ctx.fillStyle='#04110e';
         ctx.beginPath();
-        ctx.arc(hx+ax*off+ox*off, hy+ay*off+oy*off, es, 0, TAU);
-        ctx.arc(hx+ax*off-ox*off, hy+ay*off-oy*off, es, 0, TAU);
+        ctx.arc(hcx+ax*off+ox*off, hcy+ay*off+oy*off, es, 0, TAU);
+        ctx.arc(hcx+ax*off-ox*off, hcy+ay*off-oy*off, es, 0, TAU);
         ctx.fill(); ctx.restore();
       }
     }
@@ -650,7 +671,7 @@
   function drawEnemyIndicators(camx,camy){
     const m=46;
     for(const e of enemies){
-      const sx=e.px-camx, sy=e.py-camy;
+      const eh=e.segs[0]; const sx=eh.x-camx, sy=eh.y-camy;
       if(sx>=-20&&sx<=VW+20&&sy>=-20&&sy<=VH+20) continue; // on-screen, skip
       const cx=VW/2, cy=VH/2;
       let ang=Math.atan2(sy-cy,sx-cx);
