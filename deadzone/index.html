@@ -1242,9 +1242,93 @@ const BUILDINGS = {
 };
 const BUILDING_KEYS = Object.keys(BUILDINGS);
 
+// Prebuilt base templates — each part offset is grid-aligned (40px multiples).
+// tryPlaceBuilding looks for buildSelected starting with 'template:' and
+// dispatches to placeMultiPart(parts) with the parts list from the matching
+// entry. Total cost = sum of all parts; if any part can't be placed (out of
+// bounds, overlap, blocked by shop) the whole template is rejected and no
+// money is spent.
+const BASE_TEMPLATES = [
+  { id: 'boxfort', name: 'Box Fort', color: '#5a87c4', desc: '4-wall corner box',
+    parts: [
+      { type: 'wall', dx: -40, dy: -40 },
+      { type: 'wall', dx:  40, dy: -40 },
+      { type: 'wall', dx: -40, dy:  40 },
+      { type: 'wall', dx:  40, dy:  40 },
+    ] },
+  { id: 'turret-nest', name: 'Turret Nest', color: '#ff9d3a', desc: 'turret in a 4-wall box',
+    parts: [
+      { type: 'wall',   dx: -40, dy: -40 },
+      { type: 'wall',   dx:  40, dy: -40 },
+      { type: 'wall',   dx: -40, dy:  40 },
+      { type: 'wall',   dx:  40, dy:  40 },
+      { type: 'turret', dx:   0, dy:   0 },
+    ] },
+  { id: 'spike-lane', name: 'Spike Lane', color: '#bfc3cc', desc: '6 spikes in a horizontal line',
+    parts: [
+      { type: 'spike', dx: -120, dy: 0 },
+      { type: 'spike', dx:  -80, dy: 0 },
+      { type: 'spike', dx:  -40, dy: 0 },
+      { type: 'spike', dx:   40, dy: 0 },
+      { type: 'spike', dx:   80, dy: 0 },
+      { type: 'spike', dx:  120, dy: 0 },
+    ] },
+  { id: 'mortar-battery', name: 'Mortar Battery', color: '#5a3030', desc: 'mortar surrounded by walls',
+    parts: [
+      { type: 'mortar', dx:   0, dy:   0 },
+      { type: 'wall',   dx: -40, dy: -40 },
+      { type: 'wall',   dx:  40, dy: -40 },
+      { type: 'wall',   dx: -40, dy:  40 },
+      { type: 'wall',   dx:  40, dy:  40 },
+    ] },
+  { id: 'heal-bunker', name: 'Heal Bunker', color: '#5cd86b', desc: 'heal pylon with cardinal walls',
+    parts: [
+      { type: 'heal', dx:   0, dy:   0 },
+      { type: 'wall', dx: -40, dy:   0 },
+      { type: 'wall', dx:  40, dy:   0 },
+      { type: 'wall', dx:   0, dy: -40 },
+      { type: 'wall', dx:   0, dy:  40 },
+    ] },
+];
+
+// Saved-base persistence. The player can snapshot the CURRENT buildings[]
+// list to localStorage as one named slot. Parts are stored relative to an
+// anchor (the player's grid-snapped position at save time) so the layout
+// re-anchors wherever the cursor is on load.
+const SAVED_BASE_KEY = 'deadzone-saved-base';
+function saveCurrentBaseLayout() {
+  if (buildings.length === 0) return false;
+  const ax = Math.round(player.x / 40) * 40;
+  const ay = Math.round(player.y / 40) * 40;
+  const parts = buildings.map(b => ({
+    type: b.type,
+    dx: Math.round((b.x - ax) / 40) * 40,
+    dy: Math.round((b.y - ay) / 40) * 40,
+  }));
+  try {
+    localStorage.setItem(SAVED_BASE_KEY, JSON.stringify({ parts, savedAt: Date.now() }));
+    return true;
+  } catch (_) { return false; }
+}
+function loadSavedBaseLayout() {
+  try {
+    const raw = localStorage.getItem(SAVED_BASE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.parts) || data.parts.length === 0) return null;
+    return data.parts;
+  } catch (_) { return null; }
+}
+function hasSavedBase() {
+  try { return localStorage.getItem(SAVED_BASE_KEY) !== null; }
+  catch (_) { return false; }
+}
+
 // Build mode state — toggled by B. While true, the player ghosts a building
 // at the cursor and clicks to place if cost + space allow.
 let buildMode = false;
+// Either a key from BUILDINGS (e.g. 'wall'), 'template:<id>' for a prebuilt
+// layout, or 'saved' to drop the user-snapshotted base at the cursor.
 let buildSelected = 'wall';
 
 // Random pickup definitions. apply() runs when the player walks over one.
@@ -4000,13 +4084,13 @@ c.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   // build mode absorbs clicks for placement (toolbar handles its own clicks first)
   if (buildMode && !pendingCards) {
-    // toolbar slot click handled in drawBuildToolbar via buildToolbarRects;
-    // check those before falling through to placement
+    // Toolbar slot click — every rect carries its own `select` callback so
+    // the handler dispatches building-type / template / save / load picks
+    // uniformly without special-casing here.
     if (buildToolbarRects) {
-      for (let k = 0; k < BUILDING_KEYS.length; k++) {
-        if (pointInRect(mouse, buildToolbarRects[k])) {
-          buildSelected = BUILDING_KEYS[k];
-          SFX.uiClick();
+      for (const rect of buildToolbarRects) {
+        if (pointInRect(mouse, rect) && typeof rect.select === 'function') {
+          rect.select();
           return;
         }
       }
@@ -6648,19 +6732,46 @@ function canPlaceBuilding(x, y, def) {
 }
 
 function tryPlaceBuilding() {
+  // Template / saved-base placement is multi-part: collect the parts list
+  // here and delegate to placeMultiPart. Otherwise it's a single building.
+  if (buildSelected === 'saved') {
+    const parts = loadSavedBaseLayout();
+    if (!parts) {
+      floaters.push({ x: mouse.x, y: mouse.y - 20, text: 'No saved base', life: 1.4, color: '#d33' });
+      return;
+    }
+    placeMultiPart(parts, '#80ffe0');
+    return;
+  }
+  if (typeof buildSelected === 'string' && buildSelected.startsWith('template:')) {
+    const id = buildSelected.slice('template:'.length);
+    const tmpl = BASE_TEMPLATES.find(t => t.id === id);
+    if (!tmpl) return;
+    placeMultiPart(tmpl.parts, tmpl.color);
+    return;
+  }
   const def = BUILDINGS[buildSelected];
   if (!def) return;
   const { x, y } = snapBuildPos(mouse.x, mouse.y);
   if (!canPlaceBuilding(x, y, def)) return;
   if (player.money < def.cost) return;
   player.money -= def.cost;
-  // Sturdy Walls perk applies a multiplier when placing walls
-  const hpScale = (buildSelected === 'wall' && player.special.sturdyWalls)
+  spawnBuilding(buildSelected, x, y);
+  dropBurst(x, y, def.color, 14);
+  SFX.crate();
+}
+
+// Spawn one building into buildings[] using its BUILDINGS def. Extracted
+// so single + multi-part placement share the same instantiation logic.
+function spawnBuilding(type, x, y) {
+  const def = BUILDINGS[type];
+  if (!def) return;
+  const hpScale = (type === 'wall' && player.special.sturdyWalls)
     ? 1 + player.special.sturdyWalls
     : 1;
   const buildHp = Math.ceil(def.hp * hpScale);
   buildings.push({
-    type: buildSelected,
+    type,
     x, y,
     hp: buildHp, hpMax: buildHp,
     w: def.w, h: def.h,
@@ -6677,7 +6788,56 @@ function tryPlaceBuilding() {
     lastShot: 0,
     aimAng: 0,
   });
-  dropBurst(x, y, def.color, 14);
+}
+
+// Place a multi-part layout at the cursor. Each part's def must exist;
+// every part position is grid-snapped and validated against canvas bounds,
+// shop, other buildings (existing AND not-yet-placed parts of this same
+// template), and the player. Total cost is the sum of all part defs. If
+// ANY part fails or the player can't afford the total, the whole template
+// is rejected and no money is spent.
+function placeMultiPart(parts, accentColor) {
+  const baseX = Math.round(mouse.x / 40) * 40;
+  const baseY = Math.round(mouse.y / 40) * 40;
+  let totalCost = 0;
+  const resolved = [];
+  for (const p of parts) {
+    const def = BUILDINGS[p.type];
+    if (!def) { /* unknown part type — skip silently rather than abort */ continue; }
+    const px = baseX + p.dx;
+    const py = baseY + p.dy;
+    // Reject any part that lands inside an already-resolved-but-not-yet-
+    // spawned part of THIS template (otherwise canPlaceBuilding wouldn't
+    // catch overlapping parts since they aren't in buildings[] yet).
+    let selfOverlap = false;
+    for (const r of resolved) {
+      if (Math.abs(px - r.x) < (def.w + BUILDINGS[r.type].w) / 2 &&
+          Math.abs(py - r.y) < (def.h + BUILDINGS[r.type].h) / 2) {
+        selfOverlap = true; break;
+      }
+    }
+    if (selfOverlap) {
+      floaters.push({ x: mouse.x, y: mouse.y - 20, text: 'Template self-overlap', life: 1.4, color: '#d33' });
+      return;
+    }
+    if (!canPlaceBuilding(px, py, def)) {
+      floaters.push({ x: mouse.x, y: mouse.y - 20, text: 'No room here', life: 1.4, color: '#d33' });
+      return;
+    }
+    totalCost += def.cost;
+    resolved.push({ type: p.type, x: px, y: py });
+  }
+  if (resolved.length === 0) return;
+  if (player.money < totalCost) {
+    floaters.push({ x: mouse.x, y: mouse.y - 20, text: `Need $${totalCost}`, life: 1.4, color: '#d33' });
+    return;
+  }
+  player.money -= totalCost;
+  for (const r of resolved) {
+    spawnBuilding(r.type, r.x, r.y);
+    dropBurst(r.x, r.y, BUILDINGS[r.type].color, 6);
+  }
+  shake(4);
   SFX.crate();
 }
 
@@ -8268,6 +8428,12 @@ function hardReset() {
   shameFiredThisWave = false;
   shameFiredThisSession = false;
   wasInShopLastFrame = false;
+  // Cheats — lock back down on a fresh run. The Training menu option
+  // immediately re-unlocks them via cheatsUnlocked = true after this
+  // hardReset returns, so training still gets cheats; a regular "Play"
+  // run starts locked and requires the 1-2-3-4 code again.
+  cheatsUnlocked = false;
+  cheatsOpen = false;
   // restore upgrade costs
   const base = [25, 35, 45, 55, 90, 18, 28, 32, 70];
   upgrades.forEach((u, i) => u.cost = base[i]);
@@ -9745,83 +9911,238 @@ function drawBuilding(b) {
 
 function drawBuildMode() {
   if (!buildMode) return;
-  // ghost preview at snapped grid position
-  const def = BUILDINGS[buildSelected];
-  const { x, y } = snapBuildPos(mouse.x, mouse.y);
-  const ok = canPlaceBuilding(x, y, def) && player.money >= def.cost;
-  ctx.save();
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = ok ? def.color : '#d33';
-  ctx.fillRect(x - def.w/2, y - def.h/2, def.w, def.h);
-  ctx.strokeStyle = ok ? '#ffffff' : '#d33';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 4]);
-  ctx.strokeRect(x - def.w/2, y - def.h/2, def.w, def.h);
-  ctx.setLineDash([]);
-  // turret aim hint — show range circle
-  if (def.range) {
-    ctx.strokeStyle = ok ? '#ffffff' : '#d33';
-    ctx.globalAlpha = 0.18;
-    ctx.beginPath(); ctx.arc(x, y, def.range, 0, Math.PI*2); ctx.stroke();
+  // Resolve buildSelected to a parts-list. Single buildings: 1 part at (0,0).
+  // Templates: their parts array. Saved: the player's stored layout (or null
+  // if nothing's saved → render nothing).
+  let parts = null;
+  if (buildSelected === 'saved') {
+    parts = loadSavedBaseLayout();
+  } else if (typeof buildSelected === 'string' && buildSelected.startsWith('template:')) {
+    const t = BASE_TEMPLATES.find(t => t.id === buildSelected.slice('template:'.length));
+    if (t) parts = t.parts;
+  } else if (BUILDINGS[buildSelected]) {
+    parts = [{ type: buildSelected, dx: 0, dy: 0 }];
   }
+  if (!parts || parts.length === 0) return;
+
+  const baseX = Math.round(mouse.x / 40) * 40;
+  const baseY = Math.round(mouse.y / 40) * 40;
+  // Pre-validate ALL parts so the whole template glows red when blocked
+  // (instead of mixing green + red per piece — confusing on placement intent).
+  let totalCost = 0;
+  let allOk = true;
+  const partRects = [];
+  for (const p of parts) {
+    const def = BUILDINGS[p.type];
+    if (!def) continue;
+    const px = baseX + p.dx;
+    const py = baseY + p.dy;
+    let selfOverlap = false;
+    for (const r of partRects) {
+      if (Math.abs(px - r.x) < (def.w + BUILDINGS[r.type].w) / 2 &&
+          Math.abs(py - r.y) < (def.h + BUILDINGS[r.type].h) / 2) {
+        selfOverlap = true; break;
+      }
+    }
+    const placeable = !selfOverlap && canPlaceBuilding(px, py, def);
+    if (!placeable) allOk = false;
+    totalCost += def.cost;
+    partRects.push({ type: p.type, x: px, y: py, ok: placeable });
+  }
+  if (player.money < totalCost) allOk = false;
+
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 2;
+  for (const r of partRects) {
+    const def = BUILDINGS[r.type];
+    const okHere = allOk && r.ok;
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = okHere ? def.color : '#d33';
+    ctx.fillRect(r.x - def.w / 2, r.y - def.h / 2, def.w, def.h);
+    ctx.strokeStyle = okHere ? '#ffffff' : '#d33';
+    ctx.strokeRect(r.x - def.w / 2, r.y - def.h / 2, def.w, def.h);
+    // Turret / mortar range hint — but only if there's just one (multi-part
+    // templates would clutter the screen with overlapping range rings).
+    if (def.range && partRects.length === 1) {
+      ctx.globalAlpha = 0.18;
+      ctx.beginPath(); ctx.arc(r.x, r.y, def.range, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
 function drawBuildToolbar() {
   if (!buildMode) { buildToolbarRects = null; return; }
-  // small toolbar centered horizontally below the boss-bar zone
-  const slots = BUILDING_KEYS.length;
-  const sw = 130, sh = 64, gap = 10;
-  const totalW = slots * sw + (slots - 1) * gap;
-  const startX = (W - totalW) / 2;
-  const y = 44;
+  // Two-row toolbar: building types on top, prebuilt templates + Save +
+  // Load below. Each rect carries a `select` callback so the mousedown
+  // handler can dispatch without special-casing by kind.
+  const sw1 = 130, sh1 = 64, gap1 = 10;
+  const row1Total = BUILDING_KEYS.length * sw1 + (BUILDING_KEYS.length - 1) * gap1;
+  const sw2 = 110, sh2 = 60, gap2 = 8;
+  const row2Slots = BASE_TEMPLATES.length + 2; // templates + Save + Load
+  const row2Total = row2Slots * sw2 + (row2Slots - 1) * gap2;
+  const panelW = Math.max(row1Total, row2Total);
+  const startX = (W - panelW) / 2;
+  const y1 = 44;
+  const y2 = y1 + sh1 + 10;
+  const panelH = sh1 + 10 + sh2 + 28;
   buildToolbarRects = [];
-  // backdrop
-  ctx.fillStyle = 'rgba(10, 12, 18, 0.92)';
-  ctx.fillRect(startX - 14, y - 22, totalW + 28, sh + 36);
+  // Backdrop covers both rows
+  ctx.fillStyle = 'rgba(10, 12, 18, 0.94)';
+  ctx.fillRect(startX - 14, y1 - 22, panelW + 28, panelH);
   ctx.strokeStyle = '#5a87c4';
   ctx.lineWidth = 1;
-  ctx.strokeRect(startX - 14, y - 22, totalW + 28, sh + 36);
-  // title
+  ctx.strokeRect(startX - 14, y1 - 22, panelW + 28, panelH);
+  // Title spans the panel
   ctx.fillStyle = '#88aadd';
   ctx.font = 'bold 12px system-ui';
   ctx.textAlign = 'center';
-  ctx.fillText('BUILD  ·  [B] exit  ·  click to place', startX + totalW / 2, y - 8);
+  ctx.fillText('BUILD  ·  [B] exit  ·  click to place', startX + panelW / 2, y1 - 8);
 
-  for (let i = 0; i < slots; i++) {
+  // Row 1 — individual building types (hotkeys 1-5)
+  const row1Start = (W - row1Total) / 2;
+  for (let i = 0; i < BUILDING_KEYS.length; i++) {
     const key = BUILDING_KEYS[i];
     const def = BUILDINGS[key];
-    const x = startX + i * (sw + gap);
-    const rect = { x, y, w: sw, h: sh };
+    const x = row1Start + i * (sw1 + gap1);
+    const rect = { x, y: y1, w: sw1, h: sh1, select: () => { buildSelected = key; SFX.uiClick(); } };
     buildToolbarRects.push(rect);
     const selected = key === buildSelected;
     const canAfford = player.money >= def.cost;
     const hover = pointInRect(mouse, rect);
-    // body
     ctx.fillStyle = selected ? '#1a3a5a' : (hover ? '#1c2030' : '#13151c');
-    ctx.fillRect(x, y, sw, sh);
+    ctx.fillRect(x, y1, sw1, sh1);
     ctx.strokeStyle = selected ? def.color : (canAfford ? '#33363f' : '#5a3030');
     ctx.lineWidth = selected ? 3 : 1.5;
-    ctx.strokeRect(x, y, sw, sh);
-    // little visual swatch
+    ctx.strokeRect(x, y1, sw1, sh1);
     ctx.fillStyle = def.color;
-    ctx.fillRect(x + 10, y + 12, 32, 32);
+    ctx.fillRect(x + 10, y1 + 12, 32, 32);
     ctx.strokeStyle = '#15151a';
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 10, y + 12, 32, 32);
-    // name + cost
+    ctx.strokeRect(x + 10, y1 + 12, 32, 32);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 13px system-ui';
     ctx.textAlign = 'left';
-    ctx.fillText(def.name, x + 52, y + 26);
+    ctx.fillText(def.name, x + 52, y1 + 26);
     ctx.fillStyle = canAfford ? '#ffce44' : '#d33';
     ctx.font = 'bold 12px system-ui';
-    ctx.fillText(`$${def.cost}`, x + 52, y + 44);
-    // hotkey
+    ctx.fillText(`$${def.cost}`, x + 52, y1 + 44);
     ctx.fillStyle = '#5a5d66';
     ctx.font = '10px system-ui';
     ctx.textAlign = 'right';
-    ctx.fillText(`[${i + 1}]`, x + sw - 8, y + 14);
+    ctx.fillText(`[${i + 1}]`, x + sw1 - 8, y1 + 14);
+    ctx.textAlign = 'left';
+  }
+
+  // Row 2 — prebuilt templates + Save + Load
+  const row2Start = (W - row2Total) / 2;
+  for (let i = 0; i < BASE_TEMPLATES.length; i++) {
+    const tmpl = BASE_TEMPLATES[i];
+    const tmplKey = 'template:' + tmpl.id;
+    const x = row2Start + i * (sw2 + gap2);
+    const totalCost = tmpl.parts.reduce((s, p) => s + (BUILDINGS[p.type] ? BUILDINGS[p.type].cost : 0), 0);
+    const rect = { x, y: y2, w: sw2, h: sh2, select: () => { buildSelected = tmplKey; SFX.uiClick(); } };
+    buildToolbarRects.push(rect);
+    const selected = tmplKey === buildSelected;
+    const canAfford = player.money >= totalCost;
+    const hover = pointInRect(mouse, rect);
+    ctx.fillStyle = selected ? '#1a3a5a' : (hover ? '#1c2030' : '#13151c');
+    ctx.fillRect(x, y2, sw2, sh2);
+    ctx.strokeStyle = selected ? tmpl.color : (canAfford ? '#33363f' : '#5a3030');
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.strokeRect(x, y2, sw2, sh2);
+    // Mini template preview — a 3x3 grid where placed cells fill in
+    const previewSize = 30;
+    const cell = previewSize / 3;
+    const px0 = x + 10;
+    const py0 = y2 + 12;
+    ctx.fillStyle = '#0a0c12';
+    ctx.fillRect(px0, py0, previewSize, previewSize);
+    ctx.strokeStyle = '#22252e';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px0, py0, previewSize, previewSize);
+    ctx.fillStyle = tmpl.color;
+    for (const part of tmpl.parts) {
+      // dx/dy are in 40px grid units relative to center (origin = 1,1 cell)
+      const gx = Math.round(part.dx / 40) + 1;
+      const gy = Math.round(part.dy / 40) + 1;
+      if (gx >= 0 && gx < 3 && gy >= 0 && gy < 3) {
+        ctx.fillRect(px0 + gx * cell + 1, py0 + gy * cell + 1, cell - 2, cell - 2);
+      }
+    }
+    // Name + total cost
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px system-ui';
+    ctx.textAlign = 'left';
+    fitFont(tmpl.name, sw2 - 50, 'bold 11px system-ui', 9);
+    ctx.fillText(tmpl.name, x + 46, y2 + 24);
+    ctx.fillStyle = canAfford ? '#ffce44' : '#d33';
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText(`$${totalCost}`, x + 46, y2 + 40);
+    ctx.fillStyle = '#5a5d66';
+    ctx.font = '9px system-ui';
+    fitFont(tmpl.desc, sw2 - 14, '9px system-ui', 8);
+    ctx.fillText(tmpl.desc, x + 6, y2 + sh2 - 6);
+  }
+
+  // Save current layout — labelled with the current building count
+  {
+    const x = row2Start + BASE_TEMPLATES.length * (sw2 + gap2);
+    const enabled = buildings.length > 0;
+    const rect = { x, y: y2, w: sw2, h: sh2, select: () => {
+      if (saveCurrentBaseLayout()) {
+        floaters.push({ x: player.x, y: player.y - 26, text: 'Layout saved', life: 1.6, color: '#5cd86b' });
+        SFX.uiClick();
+      } else {
+        floaters.push({ x: player.x, y: player.y - 26, text: 'Nothing to save', life: 1.4, color: '#d33' });
+      }
+    } };
+    buildToolbarRects.push(rect);
+    const hover = pointInRect(mouse, rect);
+    ctx.fillStyle = hover && enabled ? '#1c3a1c' : '#13151c';
+    ctx.fillRect(x, y2, sw2, sh2);
+    ctx.strokeStyle = enabled ? '#5cd86b' : '#33363f';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y2, sw2, sh2);
+    ctx.fillStyle = enabled ? '#fff' : '#5a5d66';
+    ctx.font = 'bold 14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Save Layout', x + sw2 / 2, y2 + 24);
+    ctx.fillStyle = '#888c95';
+    ctx.font = '10px system-ui';
+    ctx.fillText(`${buildings.length} placed`, x + sw2 / 2, y2 + 42);
+    ctx.textAlign = 'left';
+  }
+
+  // Load saved layout — picks the buildSelected, clicking the world commits
+  {
+    const x = row2Start + (BASE_TEMPLATES.length + 1) * (sw2 + gap2);
+    const enabled = hasSavedBase();
+    const selected = buildSelected === 'saved';
+    const rect = { x, y: y2, w: sw2, h: sh2, select: () => {
+      if (!enabled) {
+        floaters.push({ x: player.x, y: player.y - 26, text: 'No saved base', life: 1.4, color: '#d33' });
+        return;
+      }
+      buildSelected = 'saved';
+      SFX.uiClick();
+    } };
+    buildToolbarRects.push(rect);
+    const hover = pointInRect(mouse, rect);
+    ctx.fillStyle = selected ? '#1a3a5a' : (hover && enabled ? '#1c2030' : '#13151c');
+    ctx.fillRect(x, y2, sw2, sh2);
+    ctx.strokeStyle = selected ? '#80ffe0' : (enabled ? '#80ffe0' : '#33363f');
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.strokeRect(x, y2, sw2, sh2);
+    ctx.fillStyle = enabled ? '#fff' : '#5a5d66';
+    ctx.font = 'bold 14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Load Layout', x + sw2 / 2, y2 + 24);
+    ctx.fillStyle = '#888c95';
+    ctx.font = '10px system-ui';
+    ctx.fillText(enabled ? 'click to place' : '(none saved)', x + sw2 / 2, y2 + 42);
     ctx.textAlign = 'left';
   }
 }
@@ -10585,6 +10906,19 @@ function drawSettingsMenu() {
   menuButtons.push(autoRect);
   by += bh + gap;
 
+  // Crash Report toggle — hides the in-game error overlay without losing the log
+  const crashRect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: 'toggleCrashReport' };
+  drawMenuButton(crashRect, `Crash Reports: ${crashReportEnabled ? 'ON' : 'OFF'}`, 'show the in-game error panel when a crash happens', '#d36');
+  menuButtons.push(crashRect);
+  by += bh + gap;
+
+  // Clear Crash Reports — shows count when non-empty so the user knows how many will be cleared
+  const clearCrashLabel = recentErrors.length > 0 ? `Clear Crash Reports (${recentErrors.length})` : 'Clear Crash Reports';
+  const clearCrashRect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: 'clearCrashReports' };
+  drawMenuButton(clearCrashRect, clearCrashLabel, 'wipe the in-game error log', '#88aadd');
+  menuButtons.push(clearCrashRect);
+  by += bh + gap;
+
   // Sprite Editor entry
   const spriteRect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: 'sprites' };
   drawMenuButton(spriteRect, 'Sprite Editor', 'draw your own player + zombies', '#c47eff');
@@ -11111,6 +11445,13 @@ function handleMenuAction(id) {
       break;
     case 'toggleAutoShoot':
       autoShoot = !autoShoot;
+      break;
+    case 'toggleCrashReport':
+      crashReportEnabled = !crashReportEnabled;
+      saveCrashReportPref();
+      break;
+    case 'clearCrashReports':
+      recentErrors.length = 0;
       break;
     case 'sprites':
       settingsView = 'sprites';
@@ -13293,6 +13634,18 @@ let lastT = performance.now();
 // right of the canvas. Keeps the most recent 5 errors so the user doesn't
 // need DevTools to diagnose blank-screen bugs.
 const recentErrors = []; // newest first
+// User-controllable toggle (Settings → "Crash Reports: ON/OFF"). When OFF
+// the overlay is hidden but errors still get logged into recentErrors so
+// "Clear" + "Copy" + a later "ON" toggle still work. Persisted to
+// localStorage so the preference survives a page reload.
+let crashReportEnabled = (() => {
+  try { return localStorage.getItem('deadzone-crash-report') !== 'off'; }
+  catch (_) { return true; }
+})();
+function saveCrashReportPref() {
+  try { localStorage.setItem('deadzone-crash-report', crashReportEnabled ? 'on' : 'off'); }
+  catch (_) {}
+}
 function logErrorInGame(tag, err) {
   const msg = (err && (err.stack || err.message)) || String(err);
   if (recentErrors[0] && recentErrors[0].msg === msg) {
@@ -13467,6 +13820,8 @@ function drawResetConfirm() {
 
 function drawErrorOverlay() {
   if (recentErrors.length === 0) return;
+  // User can hide the panel from Settings without losing the underlying log.
+  if (!crashReportEnabled) return;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
