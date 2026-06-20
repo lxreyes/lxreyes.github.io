@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>calm · ambient soundscapes</title>
+  <meta name="description" content="A tiny calm corner of the internet. Pick a sound — rain on metal, a fireplace, the ocean — and watch a matching pixel scene drift by." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="masthead">
+    <h1 class="logo">calm<span class="dot">.</span></h1>
+    <p class="tagline">pick a sound. breathe. stay a while.</p>
+  </header>
+
+  <main class="stage-wrap">
+    <div class="stage" id="stage">
+      <canvas id="scene" aria-label="Animated pixel scene for the current soundscape"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="now-playing" id="nowPlaying" hidden>
+        <span class="np-pulse" aria-hidden="true"></span>
+        <span class="np-icon" id="npIcon"></span>
+        <span class="np-name" id="npName"></span>
+      </div>
+      <button class="play-overlay" id="playOverlay" aria-label="Play">
+        <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+      </button>
+    </div>
+
+    <div class="controls">
+      <button class="ctl-btn" id="playToggle" aria-label="Play or pause" disabled>
+        <svg class="i-play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/></svg>
+      </button>
+      <div class="vol">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 9v6h4l5 5V4L9 9H5z" fill="currentColor"/></svg>
+        <input type="range" id="volume" min="0" max="100" value="70" aria-label="Volume" />
+      </div>
+    </div>
+  </main>
+
+  <section class="grid" id="grid" aria-label="Choose a soundscape"></section>
+
+  <footer class="footer">
+    <p>every sound is synthesized live in your browser — no audio files, no tracking. just noise.</p>
+  </footer>
+
+  <script src="js/visuals.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
