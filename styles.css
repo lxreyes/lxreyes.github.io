@@ -134,10 +134,52 @@ main {
     white-space: nowrap;
 }
 
+.tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 0 40px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tab {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 12px 14px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+}
+
+.tab:hover {
+    color: var(--text-muted);
+}
+
+.tab.is-active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+.tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
 .projects {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+[role="tabpanel"][hidden] {
+    display: none;
 }
 
 .project-card {

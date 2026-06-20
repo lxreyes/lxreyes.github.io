@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Lachlan Reyes &mdash; Portfolio</title>
-    <meta name="description" content="Portfolio of Lachlan Reyes &mdash; browser games and small playable things built with vanilla web tech.">
+    <meta name="description" content="Portfolio of Lachlan Reyes &mdash; browser games and small desktop apps built from scratch.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,10 +19,15 @@
     </header>
 
     <main>
-        <section class="projects" aria-labelledby="projects-heading">
-            <h1 id="projects-heading" class="section-heading">
+        <nav class="tabs" role="tablist" aria-label="Portfolio sections">
+            <button class="tab is-active" id="tab-games" role="tab" aria-controls="panel-games" aria-selected="true">Games</button>
+            <button class="tab" id="tab-apps" role="tab" aria-controls="panel-apps" aria-selected="false" tabindex="-1">Apps</button>
+        </nav>
+
+        <section class="projects" id="panel-games" role="tabpanel" aria-labelledby="tab-games">
+            <h1 class="section-heading">
                 <span class="section-heading__index">01</span>
-                Projects
+                Games
                 <span class="section-heading__hint" aria-hidden="true">drag&nbsp;to&nbsp;reorder</span>
             </h1>
 
@@ -206,6 +211,58 @@
                 <p class="project-card__desc teaser-desc">
                     More browser-playable experiments are in the works.
                     Check back soon &mdash; or follow along on
+                    <a class="teaser-link" href="https://github.com/lxreyes" rel="noopener">GitHub</a>.
+                </p>
+            </article>
+        </section>
+
+        <section class="projects" id="panel-apps" role="tabpanel" aria-labelledby="tab-apps" hidden>
+            <h1 class="section-heading">
+                <span class="section-heading__index">02</span>
+                Apps
+                <span class="section-heading__hint" aria-hidden="true">drag&nbsp;to&nbsp;reorder</span>
+            </h1>
+
+            <article class="project-card" data-key="autoclicker" style="--card-accent: #8aa2ff;">
+                <header class="project-card__head">
+                    <h2 class="project-card__title">AUTOCLICKER &amp; MACRO</h2>
+                    <span class="project-card__year">2026</span>
+                </header>
+
+                <p class="project-card__desc">
+                    A macOS desktop utility. The auto-clicker fires the mouse at a
+                    configurable interval &mdash; left&nbsp;/&nbsp;right&nbsp;/&nbsp;middle,
+                    single or double, forever or for a set count. The macro recorder
+                    captures real mouse&nbsp;and&nbsp;keyboard input with timing, then
+                    replays it at adjustable speed and loop count, and saves to JSON.
+                    Global hotkeys (F6&nbsp;/&nbsp;F7&nbsp;/&nbsp;F8) drive it even when
+                    the window is hidden. Built with Python&nbsp;+&nbsp;tkinter&nbsp;+&nbsp;pynput,
+                    with the clicking and macro engines kept separate from the UI.
+                </p>
+
+                <ul class="tag-list" aria-label="Tech stack">
+                    <li class="tag">Python</li>
+                    <li class="tag">tkinter</li>
+                    <li class="tag">pynput</li>
+                    <li class="tag">Desktop</li>
+                    <li class="tag">Automation</li>
+                </ul>
+
+                <a class="cta" href="apps/autoclicker/index.html">
+                    View AUTOCLICKER
+                    <span class="cta__arrow" aria-hidden="true">&rarr;</span>
+                </a>
+            </article>
+
+            <article class="project-card project-card--teaser" aria-label="More apps coming soon">
+                <div class="teaser-status">
+                    <span class="teaser-dot" aria-hidden="true"></span>
+                    In&nbsp;the&nbsp;workshop
+                </div>
+                <h2 class="project-card__title teaser-title">More tools coming</h2>
+                <p class="project-card__desc teaser-desc">
+                    Small desktop &amp; command-line utilities are in the works.
+                    Follow along on
                     <a class="teaser-link" href="https://github.com/lxreyes" rel="noopener">GitHub</a>.
                 </p>
             </article>

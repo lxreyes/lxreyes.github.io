@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AutoClicker &amp; Macro &mdash; Lachlan Reyes</title>
+    <meta name="description" content="A macOS desktop autoclicker and macro recorder built with Python, tkinter and pynput.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../../styles.css">
+    <style>
+        /* Page-specific styles for the app write-up. Reuses the shared
+           CSS variables from styles.css. */
+        :root { --card-accent: #8aa2ff; }
+
+        .back-link {
+            font-family: var(--font-display);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            transition: color var(--transition);
+        }
+        .back-link:hover { color: var(--text); }
+        .back-link__arrow { margin-right: 8px; }
+
+        .app-hero { margin: 0 0 40px; }
+        .app-title {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: clamp(30px, 5vw, 46px);
+            letter-spacing: 0.01em;
+            margin: 0 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .app-title::before {
+            content: "";
+            width: 14px; height: 14px;
+            border-radius: 3px;
+            background: var(--card-accent);
+            box-shadow: 0 0 18px color-mix(in srgb, var(--card-accent) 55%, transparent);
+            flex-shrink: 0;
+        }
+        .app-lede {
+            color: var(--text-muted);
+            font-size: 17px;
+            max-width: 66ch;
+            margin: 0 0 22px;
+        }
+
+        .app-section { margin: 0 0 36px; }
+        .app-section__title {
+            font-family: var(--font-display);
+            font-weight: 500;
+            font-size: 13px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin: 0 0 16px;
+        }
+        .app-section p { color: var(--text-muted); max-width: 66ch; }
+
+        kbd {
+            font-family: var(--font-display);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text);
+            background: var(--surface-strong);
+            border: 1px solid var(--border-strong);
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            padding: 2px 8px;
+            white-space: nowrap;
+        }
+
+        .hotkeys {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 520px;
+        }
+        .hotkeys td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 15px;
+        }
+        .hotkeys tr:last-child td { border-bottom: none; }
+        .hotkeys td:first-child { width: 110px; }
+
+        pre {
+            background: var(--surface-strong);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            overflow-x: auto;
+            margin: 0 0 14px;
+        }
+        pre code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: var(--text);
+        }
+        .hint {
+            font-size: 14px;
+            color: var(--text-dim);
+            max-width: 66ch;
+        }
+        .callout {
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+            background: var(--accent-soft);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            color: var(--text-muted);
+            max-width: 66ch;
+        }
+        .callout strong { color: var(--text); }
+
+        .app-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <a class="site-mark" href="../../index.html">LACHLAN&nbsp;REYES</a>
+        <a class="back-link" href="../../index.html#apps">
+            <span class="back-link__arrow" aria-hidden="true">&larr;</span>Back&nbsp;to&nbsp;Apps
+        </a>
+    </header>
+
+    <main>
+        <div class="app-hero">
+            <h1 class="app-title">AutoClicker &amp; Macro</h1>
+            <p class="app-lede">
+                A small macOS desktop tool that does two things: clicks the mouse on a
+                timer, and records&nbsp;/&nbsp;replays your mouse and keyboard as a macro.
+            </p>
+            <ul class="tag-list" aria-label="Tech stack">
+                <li class="tag">Python</li>
+                <li class="tag">tkinter</li>
+                <li class="tag">pynput</li>
+                <li class="tag">Desktop</li>
+                <li class="tag">Automation</li>
+            </ul>
+        </div>
+
+        <section class="app-section">
+            <h2 class="app-section__title">What it does</h2>
+            <p>
+                The <strong>auto-clicker</strong> fires the mouse at a configurable
+                interval &mdash; left, right or middle button, single or double click,
+                running forever or stopping after a set number of clicks. The
+                <strong>macro recorder</strong> captures real mouse clicks, scrolls and
+                key presses with their timing, then replays them at an adjustable speed
+                and loop count. Macros save to JSON so you can reload them later. The
+                clicking and macro engines are kept separate from the GUI, so the
+                automation logic stays reusable and testable on its own.
+            </p>
+        </section>
+
+        <section class="app-section">
+            <h2 class="app-section__title">Hotkeys</h2>
+            <table class="hotkeys">
+                <tbody>
+                    <tr><td><kbd>F6</kbd></td><td>Start&nbsp;/&nbsp;stop the auto clicker</td></tr>
+                    <tr><td><kbd>F7</kbd></td><td>Start&nbsp;/&nbsp;stop recording a macro</td></tr>
+                    <tr><td><kbd>F8</kbd></td><td>Play&nbsp;/&nbsp;stop the recorded macro</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="app-section">
+            <h2 class="app-section__title">Run it locally</h2>
+            <pre><code>git clone https://github.com/lxreyes/auto.git
+cd auto
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py</code></pre>
+            <p class="hint">Requires Python&nbsp;3 on macOS. This is a desktop app, so it runs on your machine rather than in the browser.</p>
+        </section>
+
+        <section class="app-section">
+            <h2 class="app-section__title">macOS permissions</h2>
+            <p class="callout">
+                macOS blocks input control until you allow it. Grant the app that launches
+                Python (your <strong>Terminal</strong> or <strong>VS&nbsp;Code</strong>)
+                <strong>both</strong> <em>Accessibility</em> and <em>Input Monitoring</em>
+                under <strong>System Settings &rarr; Privacy &amp; Security</strong>, then
+                quit and reopen it. If clicks don&rsquo;t register or recordings stay empty,
+                that&rsquo;s almost always the reason.
+            </p>
+        </section>
+
+        <section class="app-section">
+            <h2 class="app-section__title">Source</h2>
+            <div class="app-actions">
+                <a class="cta" href="https://github.com/lxreyes/auto" rel="noopener">
+                    View source on GitHub
+                    <span class="cta__arrow" aria-hidden="true">&rarr;</span>
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <span>&copy; Lachlan Reyes</span>
+        <a href="https://github.com/lxreyes" rel="noopener">GitHub</a>
+    </footer>
+</body>
+</html>
