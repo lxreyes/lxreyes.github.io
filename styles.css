@@ -194,6 +194,7 @@ main {
 
 .project-card {
     --card-accent: var(--accent);
+    --logo: none;
     position: relative;
     aspect-ratio: 1 / 1.05;
     border-radius: var(--radius);
@@ -206,6 +207,7 @@ main {
     color: var(--text);
     border: 1px solid color-mix(in srgb, var(--card-accent) 22%, var(--border));
     background:
+        var(--logo) center 38% / 48% auto no-repeat,
         radial-gradient(
             circle at 110% -10%,
             color-mix(in srgb, var(--card-accent) 55%, transparent),
@@ -397,6 +399,8 @@ main {
     grid-row: span 2;
     aspect-ratio: auto;
     padding: 26px;
+    background-size: 24% auto, auto, auto, auto;
+    background-position: right 28px top 26px, 110% -10%, -10% 110%, 0 0;
 }
 
 .project-card--featured[data-genre]::after {

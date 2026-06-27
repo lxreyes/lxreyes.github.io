@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BUBBLE POP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(65, 214, 255, 0.16), transparent 60%),
+      radial-gradient(circle at 50% 110%, rgba(65, 214, 255, 0.10), transparent 55%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+  canvas { display: block; background: transparent; cursor: crosshair; }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #41d6ff;
+    text-shadow: 0 0 28px rgba(65, 214, 255, 0.5);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.7);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 32ch;
+    line-height: 1.5;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #41d6ff;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(65, 214, 255, 0.45);
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(65, 214, 255, 0.7); }
+  .hud {
+    position: absolute;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .score {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  }
+  .lives {
+    position: absolute;
+    top: 28px;
+    right: 22px;
+    display: flex;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .heart {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #41d6ff;
+    box-shadow: 0 0 12px rgba(65, 214, 255, 0.7);
+    transition: opacity 200ms, transform 200ms;
+  }
+  .heart.is-spent { opacity: 0.18; transform: scale(0.75); box-shadow: none; }
+  .back {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.35);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="score" id="score">0</div>
+</div>
+<div class="lives" id="lives">
+  <span class="heart"></span><span class="heart"></span><span class="heart"></span>
+</div>
+<div class="overlay" id="start">
+  <h1>BUBBLE POP</h1>
+  <p>Bubbles drift up. Pop them before they escape the top. Three escapes and you&rsquo;re out &mdash; smaller bubbles score more.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint">click / tap anywhere</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1>Popped</h1>
+  <p id="over-score">Score: 0 &middot; Best: 0</p>
+  <button id="retry-btn">Retry</button>
+</div>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const startOverlay = document.getElementById('start');
+  const overOverlay = document.getElementById('over');
+  const overScoreEl = document.getElementById('over-score');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+  const hearts = Array.from(document.querySelectorAll('.heart'));
+
+  const ACCENT = '#41d6ff';
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+  let bubbles = [];
+  let particles = [];
+  let ripples = [];
+  let state = 'idle';
+  let score = 0;
+  let best = 0;
+  let lives = 3;
+  let spawnTimer = 0;
+  let spawnInterval = 60;
+  let elapsed = 0;
+  let shakeT = 0;
+
+  try { best = parseInt(localStorage.getItem('bubble-pop-best') || '0', 10) || 0; } catch (_) {}
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  let audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function pop(freq) {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.4, t + 0.12);
+    o.type = 'sine';
+    g.gain.setValueAtTime(0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + 0.15);
+  }
+  function lose() {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(60, t + 0.3);
+    o.type = 'sawtooth';
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + 0.34);
+  }
+
+  function reset() {
+    bubbles = [];
+    particles = [];
+    ripples = [];
+    score = 0;
+    lives = 3;
+    spawnTimer = 0;
+    spawnInterval = 60;
+    elapsed = 0;
+    shakeT = 0;
+    scoreEl.textContent = '0';
+    updateHearts();
+  }
+
+  function updateHearts() {
+    hearts.forEach((h, i) => h.classList.toggle('is-spent', i >= lives));
+  }
+
+  function start() {
+    ensureAudio();
+    reset();
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  function gameOver() {
+    state = 'over';
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('bubble-pop-best', String(best)); } catch (_) {}
+    }
+    overScoreEl.textContent = 'Score: ' + score + ' · Best: ' + best;
+    overOverlay.classList.remove('is-hidden');
+  }
+
+  function spawn() {
+    const baseR = 28 + Math.random() * 40;
+    const r = Math.max(14, baseR - elapsed * 0.012);
+    const x = r + 10 + Math.random() * (W - 2 * r - 20);
+    const drift = (Math.random() - 0.5) * 0.6;
+    const baseSpeed = 0.7 + elapsed * 0.0006 + Math.random() * 0.5;
+    bubbles.push({
+      x, y: H + r,
+      vx: drift, vy: -baseSpeed - (40 / r) * 0.6,
+      r,
+      hue: 180 + Math.random() * 50,
+      wobble: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function tap(x, y) {
+    if (state !== 'play') return;
+    ripples.push({ x, y, r: 8, life: 14 });
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      const dx = x - b.x, dy = y - b.y;
+      if (dx * dx + dy * dy <= (b.r + 4) * (b.r + 4)) {
+        burst(b);
+        // smaller bubbles score more
+        const gained = Math.max(1, Math.round(80 / b.r));
+        score += gained;
+        scoreEl.textContent = score;
+        pop(420 + (60 - b.r) * 12);
+        bubbles.splice(i, 1);
+        return;
+      }
+    }
+  }
+
+  function burst(b) {
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 1 + Math.random() * 3.5;
+      particles.push({
+        x: b.x, y: b.y,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 24 + Math.random() * 18,
+        r: 2 + Math.random() * 2.5,
+        hue: b.hue,
+      });
+    }
+  }
+
+  function loseLife() {
+    lives--;
+    shakeT = 12;
+    lose();
+    updateHearts();
+    if (lives <= 0) gameOver();
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  canvas.addEventListener('pointerdown', (e) => {
+    const r = canvas.getBoundingClientRect();
+    tap(e.clientX - r.left, e.clientY - r.top);
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'over') start();
+    }
+  });
+
+  function update() {
+    if (state === 'play') {
+      elapsed++;
+      spawnTimer++;
+      spawnInterval = Math.max(18, 60 - elapsed * 0.02);
+      if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        spawn();
+        if (Math.random() < Math.min(0.6, elapsed * 0.0005)) spawn();
+      }
+
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i];
+        b.wobble += 0.08;
+        b.x += b.vx + Math.sin(b.wobble) * 0.4;
+        b.y += b.vy;
+        if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx); }
+        if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx); }
+        if (b.y + b.r < 0) {
+          bubbles.splice(i, 1);
+          loseLife();
+        }
+      }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.1;
+      p.vx *= 0.97;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      r.r += 4;
+      r.life--;
+      if (r.life <= 0) ripples.splice(i, 1);
+    }
+
+    if (shakeT > 0) shakeT--;
+  }
+
+  function render() {
+    ctx.save();
+    if (shakeT > 0) {
+      ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
+    }
+    ctx.clearRect(-20, -20, W + 40, H + 40);
+
+    // bubbles
+    for (const b of bubbles) {
+      const grad = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 0, b.x, b.y, b.r);
+      grad.addColorStop(0, `hsla(${b.hue}, 95%, 80%, 0.55)`);
+      grad.addColorStop(0.7, `hsla(${b.hue}, 85%, 60%, 0.20)`);
+      grad.addColorStop(1, `hsla(${b.hue}, 90%, 70%, 0.0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+      // outline
+      ctx.strokeStyle = `hsla(${b.hue}, 95%, 75%, 0.85)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(b.x - b.r * 0.35, b.y - b.r * 0.42, b.r * 0.22, b.r * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // particles
+    for (const p of particles) {
+      const a = Math.min(1, p.life / 30);
+      ctx.fillStyle = `hsla(${p.hue}, 95%, 75%, ${a})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ripples
+    for (const r of ripples) {
+      const a = r.life / 14;
+      ctx.strokeStyle = `rgba(65, 214, 255, ${a * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
