@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NINJA RUN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(157, 77, 255, 0.20), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+  canvas { display: block; background: transparent; cursor: pointer; }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #9d4dff;
+    text-shadow: 0 0 28px rgba(157, 77, 255, 0.55);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 34ch;
+    line-height: 1.55;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #9d4dff;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(157, 77, 255, 0.45);
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(157, 77, 255, 0.7); }
+  .hud {
+    position: absolute;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .score {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .hud .best {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+  .back {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.4);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+  .hint b { color: rgba(232, 230, 227, 0.7); font-weight: 700; }
+  .controls {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .key {
+    pointer-events: auto;
+    flex: 1;
+    max-width: 180px;
+    padding: 14px 0;
+    text-align: center;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.8);
+    background: rgba(157, 77, 255, 0.10);
+    border: 1px solid rgba(157, 77, 255, 0.35);
+    border-radius: 14px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 100ms, transform 100ms;
+  }
+  .key:active { background: rgba(157, 77, 255, 0.28); transform: translateY(2px); }
+  @media (hover: hover) and (pointer: fine) {
+    .controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="score" id="score">0</div>
+  <div class="best" id="best">best 0</div>
+</div>
+<div class="controls" aria-hidden="true">
+  <div class="key" id="key-jump">Jump</div>
+  <div class="key" id="key-duck">Slide</div>
+</div>
+<div class="overlay" id="start">
+  <h1>NINJA RUN</h1>
+  <p>Run forever. Jump over crates, slide under hanging blades. Speed ramps with distance &mdash; how far can you make it?</p>
+  <button id="start-btn">Start</button>
+  <div class="hint"><b>Space / &uarr;</b> jump &middot; <b>&darr;</b> slide</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1>Down</h1>
+  <p id="over-score">Distance: 0m &middot; Best: 0m</p>
+  <button id="retry-btn">Retry</button>
+</div>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const startOverlay = document.getElementById('start');
+  const overOverlay = document.getElementById('over');
+  const overScoreEl = document.getElementById('over-score');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+  const keyJump = document.getElementById('key-jump');
+  const keyDuck = document.getElementById('key-duck');
+
+  const ACCENT = '#9d4dff';
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  let W = 0, H = 0;
+  let groundY = 0;
+  let state = 'idle';
+  let distance = 0;
+  let best = 0;
+  let speed = 6;
+  let scrollX = 0;
+  let spawnX = 0;
+  let obstacles = [];
+  let stars = [];
+  let dust = [];
+  let shakeT = 0;
+  let runFrame = 0;
+
+  // ninja
+  const NINJA_X = 0; // will be computed in resize
+  const ninja = {
+    x: 0, y: 0,
+    w: 36, h: 60,
+    vy: 0,
+    duck: false,
+    onGround: true,
+  };
+
+  try { best = parseInt(localStorage.getItem('ninja-run-best') || '0', 10) || 0; } catch (_) {}
+  bestEl.textContent = 'best ' + best + 'm';
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    groundY = Math.min(H - 110, H * 0.78);
+    ninja.x = Math.max(80, W * 0.18);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // stars background — initialized once and parallax-scrolled
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 60; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * groundY * 0.85,
+        r: Math.random() < 0.85 ? 1 : 2,
+        depth: 0.2 + Math.random() * 0.5,
+        twinkle: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+  initStars();
+  window.addEventListener('resize', initStars);
+
+  let audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function sound(freq, dur, type, vol) {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol) {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const bufSize = Math.floor(audio.sampleRate * dur);
+    const buf = audio.createBuffer(1, bufSize, audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+    const src = audio.createBufferSource();
+    src.buffer = buf;
+    const g = audio.createGain();
+    g.gain.setValueAtTime(vol || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(g).connect(audio.destination);
+    src.start(t);
+    src.stop(t + dur);
+  }
+
+  function reset() {
+    obstacles = [];
+    dust = [];
+    distance = 0;
+    speed = 6;
+    scrollX = 0;
+    spawnX = W + 200;
+    shakeT = 0;
+    runFrame = 0;
+    ninja.y = groundY - ninja.h;
+    ninja.vy = 0;
+    ninja.duck = false;
+    ninja.onGround = true;
+    scoreEl.textContent = '0';
+  }
+
+  function start() {
+    ensureAudio();
+    reset();
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  function gameOver() {
+    state = 'over';
+    const d = Math.floor(distance);
+    if (d > best) {
+      best = d;
+      try { localStorage.setItem('ninja-run-best', String(best)); } catch (_) {}
+      bestEl.textContent = 'best ' + best + 'm';
+    }
+    overScoreEl.textContent = 'Distance: ' + d + 'm · Best: ' + best + 'm';
+    overOverlay.classList.remove('is-hidden');
+    sound(160, 0.18, 'square', 0.22);
+    sound(110, 0.4, 'sawtooth', 0.22);
+    shakeT = 14;
+  }
+
+  function jump() {
+    if (state !== 'play') return;
+    if (ninja.onGround) {
+      ninja.vy = -16;
+      ninja.onGround = false;
+      ninja.duck = false;
+      sound(620, 0.1, 'sine', 0.22);
+    }
+  }
+  function setDuck(on) {
+    if (state !== 'play') return;
+    ninja.duck = !!on;
+    if (on && ninja.onGround) {
+      // small whoosh when starting slide
+    }
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state === 'idle' || state === 'over') return;
+    // upper half = jump, lower half = duck
+    if (e.clientY < H / 2) jump();
+    else setDuck(true);
+  });
+  canvas.addEventListener('pointerup', () => setDuck(false));
+  canvas.addEventListener('pointercancel', () => setDuck(false));
+
+  keyJump.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
+  keyDuck.addEventListener('pointerdown', (e) => { e.preventDefault(); setDuck(true); });
+  keyDuck.addEventListener('pointerup', () => setDuck(false));
+  keyDuck.addEventListener('pointercancel', () => setDuck(false));
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'over') start();
+      else jump();
+    } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+      e.preventDefault();
+      setDuck(true);
+    } else if (e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'over') start();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') setDuck(false);
+  });
+
+  function spawnObstacle() {
+    // Pick a type. As speed grows we mix in more variety.
+    const types = ['low', 'low', 'tall', 'overhang'];
+    if (speed > 9) types.push('double');
+    const t = types[Math.floor(Math.random() * types.length)];
+    if (t === 'low') {
+      obstacles.push({ type: 'box', x: spawnX, w: 32 + Math.random() * 18, h: 32 });
+    } else if (t === 'tall') {
+      obstacles.push({ type: 'box', x: spawnX, w: 28, h: 48 });
+    } else if (t === 'double') {
+      obstacles.push({ type: 'box', x: spawnX, w: 32, h: 32 });
+      obstacles.push({ type: 'box', x: spawnX + 70, w: 32, h: 32 });
+    } else if (t === 'overhang') {
+      const h = 36;
+      obstacles.push({ type: 'overhang', x: spawnX, w: 70, h, gap: 40 });
+    }
+  }
+
+  function update() {
+    if (state === 'play') {
+      // distance + difficulty
+      distance += speed * 0.06;
+      scoreEl.textContent = Math.floor(distance);
+      speed = 6 + Math.min(distance * 0.012, 8);
+      scrollX += speed;
+
+      // ninja physics
+      const gravity = 0.95;
+      ninja.vy += gravity;
+      ninja.y += ninja.vy;
+      const effH = ninja.duck && ninja.onGround ? ninja.h * 0.55 : ninja.h;
+      const targetY = groundY - effH;
+      if (ninja.y >= targetY) {
+        ninja.y = targetY;
+        ninja.vy = 0;
+        ninja.onGround = true;
+      }
+      runFrame += speed * 0.5;
+
+      // spawn obstacles with a gap based on speed
+      const minGap = 220 + Math.max(0, 380 - speed * 18);
+      const maxGap = minGap + 180;
+      // The most recently spawned obstacle determines next spawn distance
+      const last = obstacles.length ? obstacles[obstacles.length - 1] : null;
+      const lastX = last ? last.x + (last.w || 0) : -Infinity;
+      if (lastX < W - 10 - minGap) {
+        const gap = minGap + Math.random() * (maxGap - minGap);
+        spawnX = W + 40 + gap * 0.5;
+        spawnObstacle();
+      }
+
+      // move obstacles
+      for (const o of obstacles) o.x -= speed;
+      obstacles = obstacles.filter(o => o.x + (o.w || 0) > -40);
+
+      // dust
+      if (ninja.onGround && state === 'play' && Math.random() < 0.5) {
+        dust.push({
+          x: ninja.x - 6, y: groundY - 2,
+          vx: -speed * 0.7 - Math.random() * 1.5,
+          vy: -Math.random() * 1.2,
+          life: 14 + Math.random() * 10,
+          r: 1 + Math.random() * 1.6,
+        });
+      }
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        d.x += d.vx; d.y += d.vy;
+        d.vy += 0.05;
+        d.life--;
+        if (d.life <= 0) dust.splice(i, 1);
+      }
+
+      // collision
+      const nb = ninjaBox();
+      for (const o of obstacles) {
+        const boxes = obstacleBoxes(o);
+        for (const b of boxes) {
+          if (nb.x < b.x + b.w && nb.x + nb.w > b.x &&
+              nb.y < b.y + b.h && nb.y + nb.h > b.y) {
+            gameOver();
+            noise(0.25, 0.28);
+            return;
+          }
+        }
+      }
+    }
+
+    if (shakeT > 0) shakeT--;
+
+    for (const s of stars) {
+      s.twinkle += 0.04;
+    }
+  }
+
+  function ninjaBox() {
+    const ducking = ninja.duck && ninja.onGround;
+    const h = ducking ? ninja.h * 0.55 : ninja.h;
+    const y = groundY - h;
+    return { x: ninja.x - 4, y: y + 6, w: ninja.w + 8, h: h - 10 };
+  }
+  function obstacleBoxes(o) {
+    if (o.type === 'box') {
+      return [{ x: o.x, y: groundY - o.h, w: o.w, h: o.h }];
+    } else if (o.type === 'overhang') {
+      return [{ x: o.x, y: groundY - o.gap - o.h, w: o.w, h: o.h }];
+    }
+    return [];
+  }
+
+  function render() {
+    ctx.save();
+    if (shakeT > 0) {
+      ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
+    }
+    ctx.clearRect(-20, -20, W + 40, H + 40);
+
+    // stars (parallax)
+    for (const s of stars) {
+      const x = ((s.x - scrollX * s.depth * 0.18) % W + W) % W;
+      const a = 0.4 + Math.sin(s.twinkle) * 0.25;
+      ctx.fillStyle = `rgba(180, 160, 255, ${a})`;
+      ctx.fillRect(x, s.y, s.r, s.r);
+    }
+
+    // distant mountains (silhouette)
+    drawMountains(0.35, 'rgba(40, 28, 70, 0.85)', 0.18, 80);
+    drawMountains(0.6, 'rgba(60, 36, 100, 0.85)', 0.22, 110);
+
+    // ground
+    ctx.fillStyle = 'rgba(157, 77, 255, 0.16)';
+    ctx.fillRect(0, groundY, W, 2);
+    ctx.fillStyle = 'rgba(8, 8, 14, 0.85)';
+    ctx.fillRect(0, groundY + 2, W, H - groundY - 2);
+    // ground accent dashes scrolling
+    ctx.fillStyle = 'rgba(157, 77, 255, 0.4)';
+    for (let i = -1; i < Math.ceil(W / 90) + 1; i++) {
+      const x = ((i * 90 - (scrollX * 0.8) % 90));
+      ctx.fillRect(x, groundY + 12, 30, 2);
+    }
+
+    // dust
+    for (const d of dust) {
+      ctx.fillStyle = `rgba(180, 160, 255, ${Math.min(1, d.life / 20)})`;
+      ctx.fillRect(d.x, d.y, d.r, d.r);
+    }
+
+    // obstacles
+    for (const o of obstacles) {
+      if (o.type === 'box') {
+        drawCrate(o.x, groundY - o.h, o.w, o.h);
+      } else if (o.type === 'overhang') {
+        drawOverhang(o.x, groundY - o.gap - o.h, o.w, o.h, o.gap);
+      }
+    }
+
+    // ninja
+    drawNinja();
+
+    ctx.restore();
+  }
+
+  function drawMountains(depth, color, height, peak) {
+    const speed2 = scrollX * depth * 0.08;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    const step = 80;
+    for (let i = -1; i < Math.ceil(W / step) + 2; i++) {
+      const x = i * step - (speed2 % step);
+      const h = peak * (0.6 + 0.4 * Math.sin(i * 1.7 + depth * 7));
+      ctx.lineTo(x + step / 2, groundY - h);
+    }
+    ctx.lineTo(W + step, groundY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawCrate(x, y, w, h) {
+    ctx.fillStyle = '#2a1f44';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(x, y, w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(x, y + h - 3, w, 3);
+    ctx.strokeStyle = 'rgba(157, 77, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  }
+  function drawOverhang(x, y, w, h, gap) {
+    // hanging beam
+    ctx.fillStyle = '#2a1f44';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(x, y + h - 4, w, 2);
+    // blade silhouettes
+    ctx.fillStyle = 'rgba(220, 200, 255, 0.85)';
+    for (let i = 0; i < 3; i++) {
+      const bx = x + 12 + i * (w - 24) / 2;
+      ctx.beginPath();
+      ctx.moveTo(bx, y + h);
+      ctx.lineTo(bx - 6, y + h + 12);
+      ctx.lineTo(bx + 6, y + h + 12);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawNinja() {
+    const ducking = ninja.duck && ninja.onGround;
+    const h = ducking ? ninja.h * 0.55 : ninja.h;
+    const y = groundY - h;
+    const x = ninja.x;
+    const w = ninja.w;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    const shadowScale = Math.max(0.4, 1 - (groundY - (y + h)) * 0.005);
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, groundY + 2, w * 0.55 * shadowScale, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // body
+    ctx.fillStyle = ACCENT;
+    if (ducking) {
+      // sliding pose: rounded rectangle, leaning forward
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + h);
+      ctx.lineTo(x + w + 6, y + h);
+      ctx.quadraticCurveTo(x + w + 12, y + h * 0.5, x + w - 2, y + 2);
+      ctx.lineTo(x + 6, y + 6);
+      ctx.quadraticCurveTo(x - 8, y + h * 0.6, x + 4, y + h);
+      ctx.closePath();
+      ctx.fill();
+      // headband sash trailing
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + w - 10, y + 8);
+      ctx.lineTo(x - 12, y + 12);
+      ctx.stroke();
+    } else {
+      // head
+      ctx.beginPath();
+      ctx.arc(x + w / 2, y + 13, 12, 0, Math.PI * 2);
+      ctx.fill();
+      // body
+      ctx.fillRect(x + 6, y + 22, w - 12, h - 38);
+      // running legs alternate
+      const leg = Math.floor(runFrame * 0.08) % 4;
+      ctx.fillStyle = ACCENT;
+      if (ninja.onGround) {
+        const legPhase = (runFrame * 0.18) % (Math.PI * 2);
+        const offA = Math.sin(legPhase) * 8;
+        const offB = Math.sin(legPhase + Math.PI) * 8;
+        // left leg
+        ctx.fillRect(x + 9, y + h - 18, 7, 18 + offA);
+        // right leg
+        ctx.fillRect(x + w - 16, y + h - 18, 7, 18 + offB);
+        // arms swing
+        ctx.fillRect(x - 2, y + 26 + Math.sin(legPhase) * 6, 7, 18);
+        ctx.fillRect(x + w - 5, y + 26 + Math.sin(legPhase + Math.PI) * 6, 7, 18);
+      } else {
+        // tucked in air
+        ctx.fillRect(x + 8, y + h - 18, 8, 18);
+        ctx.fillRect(x + w - 16, y + h - 22, 8, 14);
+        ctx.fillRect(x - 4, y + 24, 8, 16);
+        ctx.fillRect(x + w - 4, y + 28, 8, 16);
+      }
+      // headband
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + 4, y + 12, w - 8, 4);
+      // trailing band
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + 14);
+      ctx.lineTo(x - 14, y + 18 + (ninja.onGround ? Math.sin(runFrame * 0.18) * 3 : 0));
+      ctx.stroke();
+      // mask eye band
+      ctx.fillStyle = '#06060a';
+      ctx.fillRect(x + 6, y + 17, w - 12, 3);
+    }
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
