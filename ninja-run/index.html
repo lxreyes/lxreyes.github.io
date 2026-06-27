@@ -474,7 +474,7 @@
   function ninjaBox() {
     const ducking = ninja.duck && ninja.onGround;
     const h = ducking ? ninja.h * 0.55 : ninja.h;
-    const y = groundY - h;
+    const y = ninja.y;
     return { x: ninja.x - 4, y: y + 6, w: ninja.w + 8, h: h - 10 };
   }
   function obstacleBoxes(o) {
