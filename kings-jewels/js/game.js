@@ -741,8 +741,9 @@
   }
 
   function computeStars() {
-    if (movesLeft >= 12) return 3;
-    if (movesLeft >= 6) return 2;
+    const ratio = levelMoves > 0 ? movesLeft / levelMoves : 0;
+    if (ratio >= 0.45) return 3;
+    if (ratio >= 0.2) return 2;
     return 1;
   }
 
@@ -831,7 +832,7 @@
 
   function renderMap() {
     el.mapPath.innerHTML = "";
-    const maxShown = Math.max(8, progress.unlocked + 2);
+    const maxShown = Math.max(LEVELS.length, progress.unlocked + 1);
     for (let L = 1; L <= maxShown; L++) {
       const node = document.createElement("button");
       const done = L < progress.unlocked;
@@ -889,23 +890,145 @@
   }
 
   // ============================================================
+  //  Levels — hand-designed campaign (data, not formulas)
+  // ------------------------------------------------------------
+  //  Each level fixes its objectives, move count, and an 8x8 board
+  //  layout. The layout only places OBSTACLES; jewel colours still
+  //  shuffle in fresh each play. Layout legend:
+  //    .  normal cell        #  crate (1 hit)      =  crate (2 hits)
+  //    *  ice                x  chained jewel
+  //  Difficulty curve: teach one mechanic at a time, then combine.
+  // ============================================================
+  const G = { RED: 0, YEL: 1, GRN: 2, BLU: 3 };
+  const LEVELS = [
+    { // 1 — first taste: just match
+      moves: 18, gems: [{ type: G.RED, need: 15 }],
+      layout: ["........", "........", "........", "........",
+               "........", "........", "........", "........"],
+    },
+    { // 2 — two colours at once
+      moves: 20, gems: [{ type: G.RED, need: 18 }, { type: G.BLU, need: 18 }],
+      layout: ["........", "........", "........", "........",
+               "........", "........", "........", "........"],
+    },
+    { // 3 — meet the crate
+      moves: 20, gems: [{ type: G.YEL, need: 14 }],
+      layout: ["........", "........", "..####..", "..####..",
+               "........", "........", "........", "........"],
+    },
+    { // 4 — crate diamond
+      moves: 22, gems: [{ type: G.GRN, need: 12 }],
+      layout: ["...##...", "..#..#..", ".#....#.", "#......#",
+               "#......#", ".#....#.", "..#..#..", "...##..."],
+    },
+    { // 5 — meet the ice (match ON it)
+      moves: 18, gems: [{ type: G.BLU, need: 10 }],
+      layout: ["........", "........", "........", "...*....",
+               "..***...", "...*....", "........", "........"],
+    },
+    { // 6 — ice core, crate walls
+      moves: 24, gems: [],
+      layout: ["#......#", "#......#", "#..**..#", "#..**..#",
+               "#..**..#", "#..**..#", "#......#", "#......#"],
+    },
+    { // 7 — meet the chains (free the locked jewels)
+      moves: 22, gems: [{ type: G.YEL, need: 10 }],
+      layout: ["........", "........", "........", "..x..x..",
+               "........", "..x..x..", "........", "........"],
+    },
+    { // 8 — the vault: chains behind a crate ring
+      moves: 26, gems: [],
+      layout: ["........", ".######.", ".#....#.", ".#.xx.#.",
+               ".#.xx.#.", ".#....#.", ".######.", "........"],
+    },
+    { // 9 — ice diamond, two colours
+      moves: 24, gems: [{ type: G.RED, need: 12 }, { type: G.GRN, need: 12 }],
+      layout: ["........", "...*....", "..*.*...", ".*...*..",
+               "..*.*...", "...*....", "........", "........"],
+    },
+    { // 10 — the fortress: everything at once
+      moves: 28, gems: [],
+      layout: ["=......=", ".######.", ".#*..*#.", ".#.xx.#.",
+               ".#.xx.#.", ".#*..*#.", ".######.", "=......="],
+    },
+    { // 11 — crate checkerboard
+      moves: 26, gems: [],
+      layout: ["#.#.#.#.", ".#.#.#.#", "#.#.#.#.", ".#.#.#.#",
+               "#.#.#.#.", ".#.#.#.#", "#.#.#.#.", ".#.#.#.#"],
+    },
+    { // 12 — the crown: chains, ice, double crates, colours
+      moves: 32, gems: [{ type: G.RED, need: 10 }, { type: G.BLU, need: 10 }],
+      layout: ["x......x", ".=*..*=.", ".*####*.", "..#xx#..",
+               "..#xx#..", ".*####*.", ".=*..*=.", "x......x"],
+    },
+  ];
+
+  // ============================================================
   //  Level setup
   // ============================================================
+  let levelMoves = BASE_MOVES;
+  const zeros = () => Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+
+  // Beyond the designed campaign, scatter obstacles for endless play.
+  function makeProceduralDef(lvl) {
+    const g = Array.from({ length: ROWS }, () => new Array(COLS).fill("."));
+    const rand = (n) => Math.floor(Math.random() * n);
+    const scatter = (n, ch) => {
+      let p = 0, guard = 0;
+      while (p < n && guard++ < 300) {
+        const r = rand(ROWS), c = rand(COLS);
+        if (g[r][c] === ".") { g[r][c] = ch; p++; }
+      }
+    };
+    scatter(8 + (lvl % 7), "#");
+    scatter(2 + (lvl % 5), "=");
+    scatter(4 + (lvl % 6), "*");
+    scatter(Math.min(2 + Math.floor(lvl / 4), 8), "x");
+    const palette = [G.RED, G.YEL, G.GRN, G.BLU];
+    return {
+      moves: 28,
+      gems: [{ type: palette[rand(4)], need: 14 }, { type: palette[rand(4)], need: 14 }],
+      layout: g.map((row) => row.join("")),
+    };
+  }
+
+  function loadLevel(def) {
+    objectives = (def.gems || []).map((g) => ({ kind: "gem", type: g.type, need: g.need, got: 0 }));
+
+    cover = zeros();
+    ice = zeros();
+    const chainCells = [];
+    let crateLayers = 0, iceLayers = 0;
+    for (let r = 0; r < ROWS; r++) {
+      const row = def.layout[r] || "";
+      for (let c = 0; c < COLS; c++) {
+        switch (row[c]) {
+          case "#": cover[r][c] = 1; crateLayers += 1; break;
+          case "=": cover[r][c] = 2; crateLayers += 2; break;
+          case "*": ice[r][c] = 1; iceLayers += 1; break;
+          case "x": chainCells.push({ r, c }); break;
+        }
+      }
+    }
+
+    // build a board with a legal move, then lock the chained cells
+    let guard = 0;
+    do {
+      buildBoard();
+      for (const { r, c } of chainCells) grid[r][c].chain = true;
+    } while (!hasAnyMove() && guard++ < 40);
+
+    if (crateLayers) objectives.push({ kind: "crate", need: crateLayers, got: 0 });
+    if (iceLayers) objectives.push({ kind: "ice", need: iceLayers, got: 0 });
+    if (chainCells.length) objectives.push({ kind: "chain", need: chainCells.length, got: 0 });
+
+    levelMoves = def.moves;
+    movesLeft = def.moves;
+  }
+
   function startLevel() {
     el.overlay.classList.add("hidden");
-
-    // objectives: collect a few colours (lighter as obstacles take over)
-    const numColors = Math.min(1 + Math.floor(level / 3), 3);
-    const perColor = 12 + (level - 1) * 3;
-    const palette = [...Array(NUM_TYPES).keys()];
-    for (let i = palette.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [palette[i], palette[j]] = [palette[j], palette[i]];
-    }
-    objectives = palette.slice(0, numColors).map((type) => ({ kind: "gem", type, need: perColor, got: 0 }));
-
     score = 0;
-    movesLeft = BASE_MOVES;
     gameOver = false;
     selected = null;
     dragStart = null;
@@ -913,52 +1036,8 @@
     popups.length = 0;
     beams.length = 0;
 
-    buildBoard();
-
-    // obstacles ramp up with the level; each sits on its own cell.
-    cover = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-    ice = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-    const used = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
-    const freeCell = () => {
-      for (let tries = 0; tries < 80; tries++) {
-        const r = Math.floor(Math.random() * ROWS);
-        const c = Math.floor(Math.random() * COLS);
-        if (!used[r][c]) { used[r][c] = true; return { r, c }; }
-      }
-      return null;
-    };
-
-    if (level >= 2) {                               // 📦 crates — break ON or BESIDE
-      const count = Math.min(3 + (level - 1) * 2, 14);
-      const tough = level >= 4;
-      let layers = 0;
-      for (let i = 0; i < count; i++) {
-        const cell = freeCell(); if (!cell) break;
-        const hp = tough && Math.random() < 0.4 ? 2 : 1;
-        cover[cell.r][cell.c] = hp; layers += hp;
-      }
-      if (layers) objectives.push({ kind: "crate", need: layers, got: 0 });
-    }
-
-    if (level >= 3) {                               // ❄️ ice — break only ON the cell
-      const count = Math.min(2 + (level - 2) * 2, 12);
-      let layers = 0;
-      for (let i = 0; i < count; i++) {
-        const cell = freeCell(); if (!cell) break;
-        ice[cell.r][cell.c] = 1; layers++;
-      }
-      if (layers) objectives.push({ kind: "ice", need: layers, got: 0 });
-    }
-
-    if (level >= 5) {                               // ⛓️ chains — lock the jewel in place
-      const count = Math.min(2 + (level - 5), 6);
-      let n = 0;
-      for (let i = 0; i < count; i++) {
-        const cell = freeCell(); if (!cell) break;
-        grid[cell.r][cell.c].chain = true; n++;
-      }
-      if (n) objectives.push({ kind: "chain", need: n, got: 0 });
-    }
+    const def = level <= LEVELS.length ? LEVELS[level - 1] : makeProceduralDef(level);
+    loadLevel(def);
 
     renderObjectives(false);
     renderHearts();
