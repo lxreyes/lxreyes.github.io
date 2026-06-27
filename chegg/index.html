@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHEGG — Chess + Egg</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>CHEGG <span class="sub">chess + egg</span></h1>
+    <p class="credit">A fan-made browser version of the strategy game by
+      <a href="https://www.youtube.com/@_gerg" target="_blank" rel="noopener">gerg</a>.
+      Pass-and-play for two players.</p>
+  </header>
+
+  <main id="app"><!-- screens get rendered here by ui.js --></main>
+
+  <footer>
+    <small>Local 2-player. Not affiliated with gerg or Mojang. Built for learning.</small>
+  </footer>
+
+  <!-- Plain (non-module) scripts so the game also runs by just opening the file. Order matters. -->
+  <script src="js/minions.js"></script>
+  <script src="js/boards.js"></script>
+  <script src="js/boss.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
