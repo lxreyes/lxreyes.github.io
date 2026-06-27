@@ -45,7 +45,9 @@
     // ----------------------------------------------------- Drag to reorder
     function initReorder(section) {
         const storageKey = "portfolio-card-order:" + (section.id || "default");
-        const realCards = Array.from(section.querySelectorAll(".project-card:not(.project-card--teaser)"));
+        const realCardSelector = ".project-card:not(.project-card--teaser):not(.project-card--placeholder)";
+        const realCards = Array.from(section.querySelectorAll(realCardSelector));
+        const placeholders = Array.from(section.querySelectorAll(".project-card--placeholder"));
         const teaser = section.querySelector(".project-card--teaser");
         let dragged = null;
 
@@ -77,8 +79,10 @@
             if (!dragged || dragged === this) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
+            // Grid layout: insertion side is decided by horizontal position
+            // within the hovered tile.
             const rect = this.getBoundingClientRect();
-            const after = e.clientY > rect.top + rect.height / 2;
+            const after = e.clientX > rect.left + rect.width / 2;
             if (after) {
                 if (this.nextSibling !== dragged) this.parentNode.insertBefore(dragged, this.nextSibling);
             } else if (this !== dragged.nextSibling) {
@@ -90,9 +94,16 @@
             if (dragged) e.preventDefault();
         }
 
-        function persistOrder() {
+        // Placeholders and the teaser are pinned below the real cards. After
+        // any reorder we re-anchor them so they stay out of the way.
+        function pinTail() {
+            for (const ph of placeholders) section.appendChild(ph);
             if (teaser && teaser.parentNode === section) section.appendChild(teaser);
-            const keys = Array.from(section.querySelectorAll(".project-card:not(.project-card--teaser)"))
+        }
+
+        function persistOrder() {
+            pinTail();
+            const keys = Array.from(section.querySelectorAll(realCardSelector))
                 .map(c => c.dataset.key)
                 .filter(Boolean);
             try { localStorage.setItem(storageKey, JSON.stringify(keys)); } catch (_) { /* ignore */ }
@@ -101,7 +112,7 @@
         function restoreOrder() {
             let saved;
             try { saved = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch (_) { saved = null; }
-            if (!Array.isArray(saved) || !saved.length) return;
+            if (!Array.isArray(saved) || !saved.length) { pinTail(); return; }
 
             const byKey = new Map(realCards.map(c => [c.dataset.key, c]));
             const seen = new Set();
@@ -112,7 +123,7 @@
             for (const card of realCards) {
                 if (!seen.has(card.dataset.key)) section.appendChild(card);
             }
-            if (teaser) section.appendChild(teaser);
+            pinTail();
         }
     }
 })();
