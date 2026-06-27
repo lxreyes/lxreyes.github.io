@@ -22,16 +22,21 @@
   }
   body {
     background:
-      radial-gradient(circle at 50% -10%, rgba(91, 141, 239, 0.20), transparent 60%),
+      radial-gradient(circle at 50% -10%, rgba(91, 141, 239, 0.18), transparent 60%),
       radial-gradient(ellipse at center, #14141a, #06060a 75%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     touch-action: manipulation;
   }
-  canvas { display: block; background: transparent; position: absolute; top: 0; left: 0; }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
   .overlay {
-    position: absolute;
+    position: fixed;
     inset: 0;
     display: flex;
     flex-direction: column;
@@ -39,7 +44,7 @@
     justify-content: center;
     text-align: center;
     padding: 20px;
-    background: rgba(6, 6, 10, 0.65);
+    background: rgba(6, 6, 10, 0.7);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     z-index: 20;
@@ -74,11 +79,10 @@
     padding: 13px 26px;
     cursor: pointer;
     box-shadow: 0 8px 22px rgba(91, 141, 239, 0.45);
-    transition: transform 200ms, box-shadow 200ms;
   }
-  button:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(91, 141, 239, 0.7); }
+  button:hover { background: #7aa2f4; }
   .hud {
-    position: absolute;
+    position: fixed;
     top: 18px;
     left: 0; right: 0;
     text-align: center;
@@ -102,7 +106,7 @@
     margin-top: 4px;
   }
   .back {
-    position: absolute;
+    position: fixed;
     top: 16px;
     left: 16px;
     font-family: "Space Grotesk", system-ui, sans-serif;
@@ -124,7 +128,7 @@
   }
   .hint b { color: rgba(232, 230, 227, 0.72); font-weight: 700; }
   .controls {
-    position: absolute;
+    position: fixed;
     bottom: 14px;
     left: 14px;
     right: 14px;
@@ -147,12 +151,10 @@
     background: rgba(91, 141, 239, 0.10);
     border: 1px solid rgba(91, 141, 239, 0.35);
     border-radius: 12px;
-    cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
-    transition: background 80ms, transform 80ms;
   }
-  .key:active { background: rgba(91, 141, 239, 0.28); transform: translateY(2px); }
+  .key:active { background: rgba(91, 141, 239, 0.28); }
   @media (hover: hover) and (pointer: fine) {
     .controls { display: none; }
   }
@@ -173,7 +175,7 @@
 </div>
 <div class="overlay" id="start">
   <h1>BLOCK DROP</h1>
-  <p>Stack falling tetrominoes. Complete rows to clear them. Speed climbs with every line. Tower over the top and it&rsquo;s done.</p>
+  <p>Stack falling tetrominoes. Complete rows to clear them. Speed climbs with every line.</p>
   <button id="start-btn">Start</button>
   <div class="hint">
     <b>&larr; &rarr;</b> move &middot; <b>&uarr;</b> rotate<br>
@@ -187,132 +189,108 @@
 </div>
 <script>
 (function () {
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d');
-  const scoreEl = document.getElementById('score');
-  const metaEl = document.getElementById('meta');
-  const startOverlay = document.getElementById('start');
-  const overOverlay = document.getElementById('over');
-  const overScoreEl = document.getElementById('over-score');
-  const startBtn = document.getElementById('start-btn');
-  const retryBtn = document.getElementById('retry-btn');
-  const keyLeft = document.getElementById('key-left');
-  const keyRight = document.getElementById('key-right');
-  const keyRot = document.getElementById('key-rot');
-  const keyDown = document.getElementById('key-down');
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var scoreEl = document.getElementById('score');
+  var metaEl = document.getElementById('meta');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var keyLeft = document.getElementById('key-left');
+  var keyRight = document.getElementById('key-right');
+  var keyRot = document.getElementById('key-rot');
+  var keyDown = document.getElementById('key-down');
 
-  const ACCENT = '#5b8def';
-  const COLS = 10, ROWS = 20;
-  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var COLS = 10, ROWS = 20;
+  var W = 0, H = 0, cell = 28;
+  var boardX = 0, boardY = 0, boardW = 0, boardH = 0;
 
-  let W = 0, H = 0;
-  let cell = 28;
-  let board = null;
-  let grid = null;
-  let piece = null;
-  let nextPiece = null;
-  let state = 'idle';
-  let score = 0;
-  let lines = 0;
-  let best = 0;
-  let dropTimer = 0;
-  let dropInterval = 48;
-  let softDrop = false;
-  let flashRows = [];
-  let flashT = 0;
-  let particles = [];
-  let shakeT = 0;
+  var grid = null;
+  var piece = null;
+  var nextPiece = null;
+  var state = 'idle';
+  var score = 0, lines = 0, best = 0;
+  var dropTimer = 0, dropInterval = 48;
+  var softDrop = false;
+  var flashRows = [], flashT = 0;
 
-  const PIECES = [
-    { shape: [[1,1,1,1]],            color: '#41d6ff' }, // I
-    { shape: [[1,1],[1,1]],          color: '#ffd95e' }, // O
-    { shape: [[0,1,0],[1,1,1]],      color: '#b86fff' }, // T
-    { shape: [[1,0,0],[1,1,1]],      color: '#5b8def' }, // J
-    { shape: [[0,0,1],[1,1,1]],      color: '#ff9a40' }, // L
-    { shape: [[0,1,1],[1,1,0]],      color: '#54e08a' }, // S
-    { shape: [[1,1,0],[0,1,1]],      color: '#ff5566' }, // Z
+  var PIECES = [
+    { shape: [[1,1,1,1]],            color: '#41d6ff' }, // I cyan
+    { shape: [[1,1],[1,1]],          color: '#ffd95e' }, // O yellow
+    { shape: [[0,1,0],[1,1,1]],      color: '#b86fff' }, // T purple
+    { shape: [[1,0,0],[1,1,1]],      color: '#5b8def' }, // J blue
+    { shape: [[0,0,1],[1,1,1]],      color: '#ff9a40' }, // L orange
+    { shape: [[0,1,1],[1,1,0]],      color: '#54e08a' }, // S green
+    { shape: [[1,1,0],[0,1,1]],      color: '#ff5566' }  // Z red
   ];
 
   try { best = parseInt(localStorage.getItem('block-drop-best') || '0', 10) || 0; } catch (_) {}
-  updateMeta();
-
-  function updateMeta() {
-    metaEl.textContent = 'lines ' + lines + ' · best ' + best;
-  }
+  metaEl.textContent = 'lines ' + lines + ' · best ' + best;
 
   function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    // Reserve space for HUD (~90px) and mobile controls (~90px) + margin
-    const HUD_RESERVED = 90;
-    const FOOT_RESERVED = 90;
-    const maxBoardH = H - HUD_RESERVED - FOOT_RESERVED;
-    const maxBoardW = W - 32;
-    const cellH = Math.floor(maxBoardH / ROWS);
-    const cellW = Math.floor(maxBoardW / COLS);
-    cell = Math.max(14, Math.min(40, Math.min(cellH, cellW)));
-    const boardW = cell * COLS;
-    const boardH = cell * ROWS;
-    board = {
-      x: Math.floor((W - boardW) / 2),
-      y: Math.max(HUD_RESERVED, Math.floor((H - boardH) / 2)),
-      w: boardW,
-      h: boardH,
-    };
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    var HUD_RES = 90, FOOT_RES = 90;
+    var maxBH = H - HUD_RES - FOOT_RES;
+    var maxBW = W - 32;
+    var ch = Math.floor(maxBH / ROWS);
+    var cw = Math.floor(maxBW / COLS);
+    cell = Math.max(14, Math.min(40, Math.min(ch, cw)));
+    boardW = cell * COLS;
+    boardH = cell * ROWS;
+    boardX = Math.floor((W - boardW) / 2);
+    boardY = Math.max(HUD_RES, Math.floor((H - boardH) / 2));
   }
   window.addEventListener('resize', resize);
   resize();
 
-  let audio = null;
+  var audio = null;
   function ensureAudio() {
     if (!audio) {
       try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
     }
   }
-  function sound(freq, dur, type, vol) {
+  function tone(freq, dur, type, vol) {
     if (!audio) return;
-    const t = audio.currentTime;
-    const o = audio.createOscillator();
-    const g = audio.createGain();
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
     o.frequency.value = freq;
     o.type = type || 'sine';
-    g.gain.setValueAtTime(vol || 0.22, t);
+    g.gain.setValueAtTime(vol || 0.2, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g).connect(audio.destination);
     o.start(t);
     o.stop(t + dur + 0.02);
   }
-  function chord(freqs, dur, vol) {
-    for (const f of freqs) sound(f, dur, 'triangle', vol || 0.18);
-  }
 
   function randomPiece() {
-    const p = PIECES[Math.floor(Math.random() * PIECES.length)];
-    return { shape: p.shape.map(r => r.slice()), color: p.color, x: 0, y: 0 };
+    var p = PIECES[Math.floor(Math.random() * PIECES.length)];
+    var shape = [];
+    for (var r = 0; r < p.shape.length; r++) shape.push(p.shape[r].slice());
+    return { shape: shape, color: p.color, x: 0, y: 0 };
   }
 
-  function rotateShape(shape) {
-    const rows = shape.length;
-    const cols = shape[0].length;
-    const out = Array.from({ length: cols }, () => Array(rows).fill(0));
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        out[c][rows - 1 - r] = shape[r][c];
-      }
+  function rotateShape(s) {
+    var R = s.length, C = s[0].length;
+    var out = [];
+    for (var c = 0; c < C; c++) {
+      var row = [];
+      for (var r = 0; r < R; r++) row.push(s[R - 1 - r][c]);
+      out.push(row);
     }
     return out;
   }
 
   function collision(p) {
-    for (let r = 0; r < p.shape.length; r++) {
-      for (let c = 0; c < p.shape[r].length; c++) {
+    for (var r = 0; r < p.shape.length; r++) {
+      for (var c = 0; c < p.shape[r].length; c++) {
         if (!p.shape[r][c]) continue;
-        const x = p.x + c, y = p.y + r;
+        var x = p.x + c, y = p.y + r;
         if (x < 0 || x >= COLS || y >= ROWS) return true;
         if (y >= 0 && grid[y][x]) return true;
       }
@@ -326,100 +304,96 @@
     piece.x = Math.floor(COLS / 2 - piece.shape[0].length / 2);
     piece.y = 0;
     nextPiece = randomPiece();
-    if (collision(piece)) {
-      gameOver();
-    }
+    if (collision(piece)) gameOver();
   }
 
   function lockPiece() {
-    for (let r = 0; r < piece.shape.length; r++) {
-      for (let c = 0; c < piece.shape[r].length; c++) {
+    for (var r = 0; r < piece.shape.length; r++) {
+      for (var c = 0; c < piece.shape[r].length; c++) {
         if (piece.shape[r][c]) {
-          const gy = piece.y + r;
-          const gx = piece.x + c;
+          var gy = piece.y + r;
+          var gx = piece.x + c;
           if (gy >= 0) grid[gy][gx] = piece.color;
         }
       }
     }
-    sound(180, 0.07, 'square', 0.18);
-    const cleared = clearLines();
+    tone(180, 0.07, 'square', 0.16);
+    var cleared = checkClear();
     if (!cleared) spawn();
   }
 
-  function clearLines() {
+  function checkClear() {
     flashRows = [];
-    for (let r = 0; r < ROWS; r++) {
-      if (grid[r].every(c => c)) flashRows.push(r);
+    for (var r = 0; r < ROWS; r++) {
+      var full = true;
+      for (var c = 0; c < COLS; c++) if (!grid[r][c]) { full = false; break; }
+      if (full) flashRows.push(r);
     }
     if (!flashRows.length) return 0;
-    flashT = 14;
     state = 'clearing';
-    // Particle burst from each cleared row
-    for (const r of flashRows) {
-      for (let c = 0; c < COLS; c++) {
-        const colour = grid[r][c];
-        const cx = board.x + c * cell + cell / 2;
-        const cy = board.y + r * cell + cell / 2;
-        for (let i = 0; i < 3; i++) {
-          particles.push({
-            x: cx, y: cy,
-            vx: (Math.random() - 0.5) * 4,
-            vy: (Math.random() - 0.8) * 4,
-            life: 22 + Math.random() * 14,
-            r: 2 + Math.random() * 2,
-            colour,
-          });
-        }
-      }
-    }
-    const n = flashRows.length;
-    chord([440, 660, 880, 1100].slice(0, n), 0.18, 0.16);
-    if (n === 4) shakeT = 12;
-    return n;
+    flashT = 14;
+    var freqs = [440, 660, 880, 1100];
+    for (var i = 0; i < flashRows.length; i++) tone(freqs[i], 0.18, 'triangle', 0.14);
+    return flashRows.length;
   }
 
-  function finalizeClear() {
-    for (const r of flashRows.slice().sort((a, b) => a - b)) {
-      grid.splice(r, 1);
-      grid.unshift(Array(COLS).fill(0));
+  function finishClear() {
+    flashRows.sort(function (a, b) { return a - b; });
+    for (var i = 0; i < flashRows.length; i++) {
+      grid.splice(flashRows[i], 1);
+      grid.unshift(makeRow());
     }
-    const n = flashRows.length;
+    var n = flashRows.length;
     score += [0, 100, 300, 500, 800][n] || 0;
     lines += n;
     dropInterval = Math.max(8, 48 - Math.floor(lines / 8) * 4);
     scoreEl.textContent = score;
-    updateMeta();
+    metaEl.textContent = 'lines ' + lines + ' · best ' + best;
     flashRows = [];
     state = 'play';
     spawn();
+  }
+
+  function makeRow() {
+    var row = [];
+    for (var c = 0; c < COLS; c++) row.push(0);
+    return row;
   }
 
   function move(dx) {
     if (state !== 'play' || !piece) return;
     piece.x += dx;
     if (collision(piece)) piece.x -= dx;
-    else sound(360 + dx * 10, 0.04, 'sine', 0.08);
+    else tone(360 + dx * 10, 0.04, 'sine', 0.08);
   }
 
   function rotate() {
     if (state !== 'play' || !piece) return;
-    const old = piece.shape;
+    var old = piece.shape;
     piece.shape = rotateShape(old);
-    // wall-kick: try shifting +/-1
-    if (collision(piece)) { piece.x -= 1; if (collision(piece)) { piece.x += 2; if (collision(piece)) { piece.x -= 1; piece.shape = old; return; } } }
-    sound(520, 0.05, 'sine', 0.12);
+    if (collision(piece)) {
+      piece.x -= 1;
+      if (collision(piece)) {
+        piece.x += 2;
+        if (collision(piece)) {
+          piece.x -= 1;
+          piece.shape = old;
+          return;
+        }
+      }
+    }
+    tone(520, 0.05, 'sine', 0.1);
   }
 
   function hardDrop() {
     if (state !== 'play' || !piece) return;
     while (!collision(piece)) piece.y++;
     piece.y--;
-    sound(120, 0.08, 'square', 0.2);
-    shakeT = Math.max(shakeT, 4);
+    tone(120, 0.08, 'square', 0.18);
     lockPiece();
   }
 
-  function softDropStep() {
+  function softStep() {
     if (state !== 'play' || !piece) return;
     piece.y++;
     if (collision(piece)) {
@@ -429,7 +403,8 @@
   }
 
   function reset() {
-    grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    grid = [];
+    for (var r = 0; r < ROWS; r++) grid.push(makeRow());
     piece = null;
     nextPiece = randomPiece();
     score = 0;
@@ -438,11 +413,9 @@
     dropInterval = 48;
     flashRows = [];
     flashT = 0;
-    particles = [];
-    shakeT = 0;
     softDrop = false;
     scoreEl.textContent = '0';
-    updateMeta();
+    metaEl.textContent = 'lines 0 · best ' + best;
   }
 
   function start() {
@@ -459,47 +432,40 @@
     if (score > best) {
       best = score;
       try { localStorage.setItem('block-drop-best', String(best)); } catch (_) {}
-      updateMeta();
+      metaEl.textContent = 'lines ' + lines + ' · best ' + best;
     }
     overScoreEl.textContent = 'Score: ' + score + ' · Lines: ' + lines;
     overOverlay.classList.remove('is-hidden');
-    sound(180, 0.18, 'sawtooth', 0.22);
-    sound(120, 0.4, 'sawtooth', 0.2);
-    shakeT = 16;
+    tone(180, 0.2, 'sawtooth', 0.2);
+    tone(110, 0.4, 'sawtooth', 0.18);
   }
 
-  // Input
   startBtn.addEventListener('click', start);
   retryBtn.addEventListener('click', start);
 
-  // Touch buttons (autorepeat for left/right/down)
-  function bindHold(el, fn, repeatRate) {
-    let interval = null;
-    let timeout = null;
+  function bindHold(el, fn, rate) {
+    var ivl = null, to = null;
     function press(e) {
       if (e) e.preventDefault();
       fn();
-      timeout = setTimeout(() => {
-        interval = setInterval(fn, repeatRate || 90);
-      }, 180);
+      to = setTimeout(function () { ivl = setInterval(fn, rate || 90); }, 180);
     }
     function release() {
-      if (timeout) clearTimeout(timeout);
-      if (interval) clearInterval(interval);
-      timeout = null;
-      interval = null;
+      if (to) clearTimeout(to);
+      if (ivl) clearInterval(ivl);
+      to = null; ivl = null;
     }
     el.addEventListener('pointerdown', press);
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
     el.addEventListener('pointerleave', release);
   }
-  bindHold(keyLeft, () => move(-1), 90);
-  bindHold(keyRight, () => move(1), 90);
-  bindHold(keyDown, () => softDropStep(), 50);
-  keyRot.addEventListener('pointerdown', (e) => { e.preventDefault(); rotate(); });
+  bindHold(keyLeft, function () { move(-1); }, 90);
+  bindHold(keyRight, function () { move(1); }, 90);
+  bindHold(keyDown, function () { softStep(); }, 50);
+  keyRot.addEventListener('pointerdown', function (e) { e.preventDefault(); rotate(); });
 
-  window.addEventListener('keydown', (e) => {
+  window.addEventListener('keydown', function (e) {
     if (e.code === 'Enter') {
       e.preventDefault();
       if (state === 'idle' || state === 'over') start();
@@ -512,15 +478,15 @@
     else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); softDrop = true; }
     else if (e.code === 'Space') { e.preventDefault(); hardDrop(); }
   });
-  window.addEventListener('keyup', (e) => {
+  window.addEventListener('keyup', function (e) {
     if (e.code === 'ArrowDown' || e.code === 'KeyS') softDrop = false;
   });
 
   function update() {
     if (state === 'play' && piece) {
       dropTimer++;
-      const interval = softDrop ? Math.min(6, dropInterval) : dropInterval;
-      if (dropTimer >= interval) {
+      var ivl = softDrop ? Math.min(6, dropInterval) : dropInterval;
+      if (dropTimer >= ivl) {
         dropTimer = 0;
         piece.y++;
         if (collision(piece)) {
@@ -531,148 +497,115 @@
     }
     if (state === 'clearing') {
       flashT--;
-      if (flashT <= 0) finalizeClear();
+      if (flashT <= 0) finishClear();
     }
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.x += p.vx; p.y += p.vy;
-      p.vy += 0.22;
-      p.life--;
-      if (p.life <= 0) particles.splice(i, 1);
-    }
-    if (shakeT > 0) shakeT--;
   }
 
-  function drawCell(x, y, colour, alpha) {
-    const a = alpha == null ? 1 : alpha;
-    ctx.globalAlpha = a;
+  function drawCell(x, y, colour) {
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, cell, cell);
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
-    ctx.globalAlpha = 1;
-  }
-
-  function mixColor(a, b, t) {
-    const ah = parseInt(a.slice(1), 16);
-    const bh = parseInt(b.slice(1), 16);
-    const ar = (ah >> 16) & 255, ag = (ah >> 8) & 255, ab = ah & 255;
-    const br = (bh >> 16) & 255, bg = (bh >> 8) & 255, bb = bh & 255;
-    const r = Math.round(ar + (br - ar) * t);
-    const g = Math.round(ag + (bg - ag) * t);
-    const bch = Math.round(ab + (bb - ab) * t);
-    return 'rgb(' + r + ',' + g + ',' + bch + ')';
   }
 
   function render() {
-    ctx.save();
-    if (shakeT > 0) {
-      ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
-    }
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    // Clear
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(0, 0, W, H);
 
-    // board frame
-    ctx.fillStyle = '#0a0a18';
-    ctx.fillRect(board.x, board.y, board.w, board.h);
+    // Board background
+    ctx.fillStyle = '#15182a';
+    ctx.fillRect(boardX, boardY, boardW, boardH);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(91, 141, 239, 0.18)';
+    ctx.lineWidth = 1;
+    for (var c = 1; c < COLS; c++) {
+      var gx = boardX + c * cell + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(gx, boardY);
+      ctx.lineTo(gx, boardY + boardH);
+      ctx.stroke();
+    }
+    for (var r = 1; r < ROWS; r++) {
+      var gy = boardY + r * cell + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(boardX, gy);
+      ctx.lineTo(boardX + boardW, gy);
+      ctx.stroke();
+    }
+
+    // Border
     ctx.strokeStyle = '#5b8def';
     ctx.lineWidth = 2;
-    ctx.strokeRect(board.x + 1, board.y + 1, board.w - 2, board.h - 2);
+    ctx.strokeRect(boardX + 1, boardY + 1, boardW - 2, boardH - 2);
 
-    // grid lines
-    ctx.strokeStyle = 'rgba(91, 141, 239, 0.14)';
-    ctx.lineWidth = 1;
-    for (let c = 1; c < COLS; c++) {
-      const x = board.x + c * cell + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(x, board.y);
-      ctx.lineTo(x, board.y + board.h);
-      ctx.stroke();
-    }
-    for (let r = 1; r < ROWS; r++) {
-      const y = board.y + r * cell + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(board.x, y);
-      ctx.lineTo(board.x + board.w, y);
-      ctx.stroke();
-    }
-
-    // locked cells
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (grid[r][c]) {
-          let alpha = 1;
-          if (state === 'clearing' && flashRows.includes(r)) {
-            alpha = (flashT % 4 < 2) ? 1 : 0.35;
+    // Locked cells
+    if (grid) {
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var colour = grid[r][c];
+          if (!colour) continue;
+          if (state === 'clearing' && flashRows.indexOf(r) !== -1) {
+            if (flashT % 4 >= 2) continue; // blink off
           }
-          drawCell(board.x + c * cell, board.y + r * cell, grid[r][c], alpha);
+          drawCell(boardX + c * cell, boardY + r * cell, colour);
         }
       }
     }
 
-    // ghost piece preview
+    // Ghost piece
     if (state === 'play' && piece) {
-      const ghost = { shape: piece.shape, color: piece.color, x: piece.x, y: piece.y };
+      var ghost = { shape: piece.shape, color: piece.color, x: piece.x, y: piece.y };
       while (!collision(ghost)) ghost.y++;
       ghost.y--;
-      for (let r = 0; r < ghost.shape.length; r++) {
-        for (let c = 0; c < ghost.shape[r].length; c++) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1.5;
+      for (var r = 0; r < ghost.shape.length; r++) {
+        for (var c = 0; c < ghost.shape[r].length; c++) {
           if (!ghost.shape[r][c]) continue;
-          const x = board.x + (ghost.x + c) * cell;
-          const y = board.y + (ghost.y + r) * cell;
-          if (y < board.y) continue;
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(x + 2, y + 2, cell - 4, cell - 4);
+          var x = boardX + (ghost.x + c) * cell;
+          var y = boardY + (ghost.y + r) * cell;
+          if (y >= boardY) ctx.strokeRect(x + 2.5, y + 2.5, cell - 5, cell - 5);
         }
       }
     }
 
-    // active piece
+    // Active piece
     if (state === 'play' && piece) {
-      for (let r = 0; r < piece.shape.length; r++) {
-        for (let c = 0; c < piece.shape[r].length; c++) {
+      for (var r = 0; r < piece.shape.length; r++) {
+        for (var c = 0; c < piece.shape[r].length; c++) {
           if (!piece.shape[r][c]) continue;
-          const x = board.x + (piece.x + c) * cell;
-          const y = board.y + (piece.y + r) * cell;
-          if (y >= board.y - cell) drawCell(x, y, piece.color);
+          var x = boardX + (piece.x + c) * cell;
+          var y = boardY + (piece.y + r) * cell;
+          drawCell(x, y, piece.color);
         }
       }
     }
 
-    // particles
-    for (const p of particles) {
-      const a = Math.min(1, p.life / 30);
-      ctx.fillStyle = p.colour || ACCENT;
-      ctx.globalAlpha = a;
-      ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
-      ctx.globalAlpha = 1;
-    }
-
-    // next piece preview top-right
+    // Next-piece preview
     if (nextPiece) {
-      const previewSize = Math.min(cell, 22);
-      const pad = 18;
-      const w = nextPiece.shape[0].length;
-      const h = nextPiece.shape.length;
-      const px = W - pad - w * previewSize;
-      const py = 18;
-      ctx.fillStyle = 'rgba(232, 230, 227, 0.4)';
+      var psize = Math.min(cell, 22);
+      var pw = nextPiece.shape[0].length;
+      var ph = nextPiece.shape.length;
+      var pad = 18;
+      var px = W - pad - pw * psize;
+      var py = 18;
+      ctx.fillStyle = 'rgba(232,230,227,0.4)';
       ctx.font = '700 10px "Space Grotesk", system-ui, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText('NEXT', W - pad, py - 4);
-      for (let r = 0; r < h; r++) {
-        for (let c = 0; c < w; c++) {
+      for (var r = 0; r < ph; r++) {
+        for (var c = 0; c < pw; c++) {
           if (!nextPiece.shape[r][c]) continue;
-          const x = px + c * previewSize;
-          const y = py + r * previewSize;
+          var nx = px + c * psize;
+          var ny = py + r * psize;
           ctx.fillStyle = nextPiece.color;
-          ctx.fillRect(x + 1, y + 1, previewSize - 2, previewSize - 2);
+          ctx.fillRect(nx + 1, ny + 1, psize - 2, psize - 2);
         }
       }
     }
-
-    ctx.restore();
   }
 
   function loop() {
