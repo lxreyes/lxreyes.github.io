@@ -235,8 +235,8 @@ main {
     pointer-events: none;
 }
 
-.project-card:not(.project-card--teaser):not(.project-card--placeholder):hover,
-.project-card:not(.project-card--teaser):not(.project-card--placeholder):focus-within {
+.project-card:not(.project-card--teaser):hover,
+.project-card:not(.project-card--teaser):focus-within {
     border-color: color-mix(in srgb, var(--card-accent) 75%, transparent);
     box-shadow:
         0 18px 36px -16px rgba(0, 0, 0, 0.6),
@@ -349,8 +349,8 @@ main {
     transition: transform var(--transition);
 }
 
-.project-card:not(.project-card--teaser):not(.project-card--placeholder):hover .cta,
-.project-card:not(.project-card--teaser):not(.project-card--placeholder):focus-within .cta {
+.project-card:not(.project-card--teaser):hover .cta,
+.project-card:not(.project-card--teaser):focus-within .cta {
     opacity: 1;
     transform: translateY(0);
 }
@@ -474,53 +474,9 @@ main {
     border-style: dashed;
 }
 
-/* ---------- Placeholder ("coming soon") tile ---------- */
-
-.project-card--placeholder {
-    background:
-        repeating-linear-gradient(
-            45deg,
-            transparent 0 8px,
-            rgba(255, 255, 255, 0.02) 8px 16px
-        ),
-        linear-gradient(
-            160deg,
-            color-mix(in srgb, var(--card-accent) 9%, var(--bg-1)),
-            color-mix(in srgb, var(--card-accent) 4%, var(--bg-0))
-        );
-    border-style: dashed;
-    border-color: color-mix(in srgb, var(--card-accent) 22%, var(--border));
-    opacity: 0.7;
-    pointer-events: none;
-}
-
-.project-card--placeholder::before {
-    display: none;
-}
-
-.project-card--placeholder .placeholder-badge {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    z-index: 2;
-    font-family: var(--font-display);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.6);
-    padding: 4px 8px;
-    border: 1px dashed color-mix(in srgb, var(--card-accent) 40%, var(--border));
-    border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
-
-.project-card--placeholder .project-card__title {
-    color: rgba(255, 255, 255, 0.6);
-    text-shadow: none;
-}
+/* ---------- Placeholder tile ----------
+   Visually identical to a real card. Inert by virtue of having no CTA
+   inside, and excluded from drag-to-reorder in script.js. */
 
 /* ---------- Teaser tile ---------- */
 
@@ -657,13 +613,12 @@ main {
     }
 
     .project-card[data-genre]::after,
-    .project-card__year,
-    .project-card--placeholder .placeholder-badge {
+    .project-card__year {
         font-size: 9px;
         padding: 3px 7px;
     }
 
-    .project-card > .project-card__title {
+    .project-card .project-card__title {
         font-size: 15px;
     }
 }
@@ -685,8 +640,8 @@ main {
         animation: fade-up 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
     }
 
-    .project-card:not(.project-card--teaser):not(.project-card--placeholder):hover,
-    .project-card:not(.project-card--teaser):not(.project-card--placeholder):focus-within {
+    .project-card:not(.project-card--teaser):hover,
+    .project-card:not(.project-card--teaser):focus-within {
         transform: translateY(-3px) scale(1.015);
     }
 
