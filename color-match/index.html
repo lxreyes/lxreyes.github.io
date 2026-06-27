@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COLOR MATCH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(84, 224, 138, 0.18), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex;
+    flex-direction: column;
+    touch-action: manipulation;
+  }
+  .back {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+
+  .hud {
+    position: absolute;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .score {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .hud .best {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+
+  .arena {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 24px 36px;
+    gap: 56px;
+    text-align: center;
+  }
+
+  .prompt {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+    margin: 0;
+  }
+
+  .word {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(60px, 14vw, 130px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: #fff;
+    text-shadow: 0 0 36px currentColor;
+    transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .word.pop { transform: scale(1.12); }
+  .word.shake { animation: shake 280ms ease-in-out; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+
+  .timer {
+    width: min(420px, 92%);
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%;
+    background: #54e08a;
+    width: 100%;
+    transform-origin: left;
+    transition: background 200ms;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: min(420px, 100%);
+  }
+  .option {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid var(--col);
+    background: color-mix(in srgb, var(--col) 14%, transparent);
+    color: var(--col);
+    border-radius: 14px;
+    padding: 18px 14px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 120ms, background 120ms, box-shadow 120ms;
+    text-shadow: 0 0 14px currentColor;
+  }
+  .option:hover { background: color-mix(in srgb, var(--col) 28%, transparent); }
+  .option:active { transform: translateY(2px); }
+  .option.correct {
+    background: var(--col);
+    color: #06060a;
+    text-shadow: none;
+    box-shadow: 0 0 28px var(--col);
+  }
+  .option.wrong {
+    opacity: 0.4;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 20;
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #54e08a;
+    text-shadow: 0 0 28px rgba(84, 224, 138, 0.5);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 34ch;
+    line-height: 1.55;
+  }
+  button.cta {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #54e08a;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(84, 224, 138, 0.45);
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  button.cta:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(84, 224, 138, 0.7); }
+  .hint {
+    color: rgba(232, 230, 227, 0.45);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<div class="hud">
+  <div class="score" id="score">0</div>
+  <div class="best" id="best">best 0</div>
+</div>
+
+<div class="arena">
+  <p class="prompt">Tap the colour the word is <b>written in</b></p>
+  <div class="word" id="word">READY?</div>
+  <div class="timer"><div class="timer-fill" id="timer-fill"></div></div>
+  <div class="options" id="options"></div>
+</div>
+
+<div class="overlay" id="start">
+  <h1>COLOR MATCH</h1>
+  <p>The word lies. Tap the colour the word is <b>written in</b>, not what it says. Three seconds per round, shrinking. Trip up once and it&rsquo;s over.</p>
+  <button class="cta" id="start-btn">Start</button>
+  <div class="hint">a Stroop test, basically</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Wrong</h1>
+  <p id="over-score">Streak: 0 &middot; Best: 0</p>
+  <button class="cta" id="retry-btn">Retry</button>
+</div>
+
+<script>
+(function () {
+  const COLORS = [
+    { name: 'RED',    hex: '#ff5566' },
+    { name: 'BLUE',   hex: '#5b8def' },
+    { name: 'GREEN',  hex: '#54e08a' },
+    { name: 'YELLOW', hex: '#ffd95e' },
+    { name: 'PINK',   hex: '#ff6bc1' },
+    { name: 'CYAN',   hex: '#41d6ff' },
+  ];
+
+  const wordEl = document.getElementById('word');
+  const optsEl = document.getElementById('options');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const timerFill = document.getElementById('timer-fill');
+  const startOverlay = document.getElementById('start');
+  const overOverlay = document.getElementById('over');
+  const overTitleEl = document.getElementById('over-title');
+  const overScoreEl = document.getElementById('over-score');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+
+  let score = 0;
+  let best = 0;
+  let state = 'idle';
+  let round = null;
+  let roundDuration = 3000;
+  let roundStart = 0;
+  let rafId = 0;
+  let lockTaps = false;
+
+  try { best = parseInt(localStorage.getItem('color-match-best') || '0', 10) || 0; } catch (_) {}
+  bestEl.textContent = 'best ' + best;
+
+  let audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function sound(freq, dur, type, vol) {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function randInt(n) { return Math.floor(Math.random() * n); }
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function newRound() {
+    // Word color (ink) is distinct from word text most of the time
+    const wordIdx = randInt(COLORS.length);
+    let inkIdx;
+    do { inkIdx = randInt(COLORS.length); } while (inkIdx === wordIdx && Math.random() < 0.85);
+
+    const word = COLORS[wordIdx];
+    const ink = COLORS[inkIdx];
+
+    // Pick 4 options that include ink, excluding too many distractors
+    const others = [];
+    while (others.length < 3) {
+      const i = randInt(COLORS.length);
+      if (i !== inkIdx && !others.includes(i)) others.push(i);
+    }
+    const optionIndices = shuffle([inkIdx, ...others]);
+
+    round = { word, ink, options: optionIndices.map(i => COLORS[i]) };
+
+    // Render word
+    wordEl.textContent = word.name;
+    wordEl.style.color = ink.hex;
+    wordEl.classList.remove('pop', 'shake');
+    void wordEl.offsetWidth; // restart animation
+    wordEl.classList.add('pop');
+    setTimeout(() => wordEl.classList.remove('pop'), 200);
+
+    // Render options
+    optsEl.innerHTML = '';
+    for (const c of round.options) {
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.style.setProperty('--col', c.hex);
+      btn.textContent = c.name;
+      btn.dataset.hex = c.hex;
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (lockTaps) return;
+        choose(c);
+      }, { passive: false });
+      optsEl.appendChild(btn);
+    }
+
+    roundDuration = Math.max(900, 3000 - score * 70);
+    roundStart = performance.now();
+    lockTaps = false;
+    timerFill.style.background = '#54e08a';
+  }
+
+  function choose(c) {
+    if (state !== 'play' || lockTaps) return;
+    lockTaps = true;
+    // Mark all buttons
+    for (const btn of optsEl.querySelectorAll('.option')) {
+      if (btn.dataset.hex === round.ink.hex) btn.classList.add('correct');
+      else if (btn.dataset.hex === c.hex) btn.classList.add('wrong');
+    }
+    if (c.hex === round.ink.hex) {
+      score++;
+      scoreEl.textContent = score;
+      sound(420 + score * 12, 0.1, 'triangle', 0.22);
+      setTimeout(newRound, 260);
+    } else {
+      wordEl.classList.add('shake');
+      sound(200, 0.18, 'square', 0.22);
+      sound(120, 0.35, 'sawtooth', 0.2);
+      gameOver('Wrong');
+    }
+  }
+
+  function gameOver(title) {
+    state = 'over';
+    cancelAnimationFrame(rafId);
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('color-match-best', String(best)); } catch (_) {}
+      bestEl.textContent = 'best ' + best;
+    }
+    overTitleEl.textContent = title;
+    overScoreEl.textContent = 'Streak: ' + score + ' · Best: ' + best;
+    setTimeout(() => overOverlay.classList.remove('is-hidden'), 600);
+  }
+
+  function start() {
+    ensureAudio();
+    score = 0;
+    scoreEl.textContent = '0';
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+    newRound();
+    tick(performance.now());
+  }
+
+  function tick(now) {
+    if (state !== 'play') return;
+    const elapsed = now - roundStart;
+    const ratio = Math.max(0, 1 - elapsed / roundDuration);
+    timerFill.style.width = (ratio * 100) + '%';
+    if (ratio < 0.4) timerFill.style.background = '#ff5566';
+    else if (ratio < 0.7) timerFill.style.background = '#ffd95e';
+    if (elapsed >= roundDuration && !lockTaps) {
+      // Time out — mark correct, count as miss
+      lockTaps = true;
+      for (const btn of optsEl.querySelectorAll('.option')) {
+        if (btn.dataset.hex === round.ink.hex) btn.classList.add('correct');
+      }
+      sound(160, 0.32, 'sawtooth', 0.2);
+      gameOver('Too slow');
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'over') start();
+    }
+    if (state !== 'play' || lockTaps) return;
+    const idx = ['Digit1','Digit2','Digit3','Digit4'].indexOf(e.code);
+    if (idx >= 0 && round && round.options[idx]) choose(round.options[idx]);
+  });
+})();
+</script>
+</body>
+</html>

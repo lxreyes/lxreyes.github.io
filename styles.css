@@ -399,15 +399,13 @@ main {
     grid-row: span 2;
     aspect-ratio: auto;
     padding: 26px;
-    background-size: 24% auto, auto, auto, auto;
-    background-position: right 28px top 26px, 110% -10%, -10% 110%, 0 0;
+    background-size: 30% auto, auto, auto, auto;
+    background-position: left 28px top 30px, 110% -10%, -10% 110%, 0 0;
 }
 
+/* Hide the genre chip on the featured tile — the logo + title carry it. */
 .project-card--featured[data-genre]::after {
-    top: 22px;
-    left: 22px;
-    font-size: 11px;
-    padding: 5px 10px;
+    display: none;
 }
 
 .project-card--featured .project-card__year {
