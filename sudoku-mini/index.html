@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SUDOKU MINI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(161, 193, 255, 0.18), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    touch-action: manipulation;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 20;
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #a1c1ff;
+    text-shadow: 0 0 28px rgba(161, 193, 255, 0.5);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 36ch;
+    line-height: 1.55;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #a1c1ff;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(161, 193, 255, 0.45);
+  }
+  button:hover { background: #b9d0ff; }
+  .hud {
+    position: fixed;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .time {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .hud .meta {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+  .back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.45);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+  .pad {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    z-index: 5;
+    width: min(420px, calc(100% - 24px));
+  }
+  .pad button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    color: rgba(232, 230, 227, 0.92);
+    background: rgba(161, 193, 255, 0.08);
+    border: 1px solid rgba(161, 193, 255, 0.32);
+    border-radius: 12px;
+    padding: 14px 0;
+    cursor: pointer;
+    box-shadow: none;
+    text-transform: none;
+  }
+  .pad button:hover { background: rgba(161, 193, 255, 0.18); }
+  .pad button:active { transform: translateY(2px); }
+  .pad button.is-erase {
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.6);
+  }
+  .panel {
+    position: fixed;
+    top: 70px;
+    right: 18px;
+    display: flex;
+    gap: 8px;
+    z-index: 6;
+  }
+  .panel button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.7);
+    background: transparent;
+    border: 1px solid rgba(161, 193, 255, 0.3);
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    box-shadow: none;
+  }
+  .panel button:hover { background: rgba(161, 193, 255, 0.12); color: rgba(232, 230, 227, 0.95); }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="time" id="time">0:00</div>
+  <div class="meta" id="meta">mini sudoku &middot; best &mdash;</div>
+</div>
+<div class="panel" aria-hidden="false">
+  <button id="btn-new">New</button>
+  <button id="btn-undo">Undo</button>
+</div>
+<div class="pad" aria-hidden="false" id="pad"></div>
+<div class="overlay" id="start">
+  <h1>SUDOKU MINI</h1>
+  <p>Six rows, six columns, six 2&times;3 blocks &mdash; each contains 1 to 6 exactly once. Tap a cell, tap a number. Easier than a full nine-by-nine, still satisfying when it clicks.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint">tap a cell &middot; type 1&ndash;6 or use the pad</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Solved</h1>
+  <p id="over-score">Time: 0:00 &middot; Best: &mdash;</p>
+  <button id="retry-btn">New puzzle</button>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var timeEl = document.getElementById('time');
+  var metaEl = document.getElementById('meta');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overTitleEl = document.getElementById('over-title');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var btnNew = document.getElementById('btn-new');
+  var btnUndo = document.getElementById('btn-undo');
+  var pad = document.getElementById('pad');
+
+  var ACCENT = '#a1c1ff';
+  var N = 6;     // grid size (6x6)
+  var BR = 2;    // block rows
+  var BC = 3;    // block cols
+
+  var W = 0, H = 0;
+  var cell = 50;
+  var gridX = 0, gridY = 0, gridSize = 0;
+  var puzzle = null;     // initial clues (6x6, 0 = empty)
+  var given = null;      // boolean, true if clue (locked)
+  var solution = null;   // full solution
+  var board = null;      // current state
+  var selected = { r: -1, c: -1 };
+  var history = [];
+  var state = 'idle';
+  var startTime = 0;
+  var elapsed = 0;
+  var best = null;
+
+  try {
+    var b = localStorage.getItem('sudoku-mini-best');
+    if (b) best = parseInt(b, 10);
+  } catch (_) {}
+  if (best != null) metaEl.textContent = 'mini sudoku · best ' + fmtTime(best);
+
+  function fmtTime(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    // Reserve 100px top (HUD) and 110px bottom (pad)
+    var maxW = W - 32;
+    var maxH = H - 100 - 110 - 20;
+    gridSize = Math.min(maxW, maxH);
+    cell = Math.floor(gridSize / N);
+    gridSize = cell * N;
+    gridX = Math.floor((W - gridSize) / 2);
+    gridY = 100;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  var audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function tone(freq, dur, type, vol) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function chord(freqs, dur, vol) {
+    for (var i = 0; i < freqs.length; i++) tone(freqs[i], dur, 'triangle', vol || 0.14);
+  }
+
+  // -------- Puzzle generation (6x6 with 2x3 blocks) --------
+  function newSolution() {
+    var s = [];
+    for (var r = 0; r < N; r++) s.push([0, 0, 0, 0, 0, 0]);
+    fill(s, 0);
+    return s;
+  }
+  function fill(s, idx) {
+    if (idx >= N * N) return true;
+    var r = Math.floor(idx / N), c = idx % N;
+    var nums = [1, 2, 3, 4, 5, 6];
+    shuffle(nums);
+    for (var i = 0; i < nums.length; i++) {
+      var n = nums[i];
+      if (validPlace(s, r, c, n)) {
+        s[r][c] = n;
+        if (fill(s, idx + 1)) return true;
+        s[r][c] = 0;
+      }
+    }
+    return false;
+  }
+  function validPlace(s, r, c, n) {
+    for (var i = 0; i < N; i++) {
+      if (s[r][i] === n) return false;
+      if (s[i][c] === n) return false;
+    }
+    var br = Math.floor(r / BR) * BR;
+    var bc = Math.floor(c / BC) * BC;
+    for (var rr = br; rr < br + BR; rr++) {
+      for (var cc = bc; cc < bc + BC; cc++) {
+        if (s[rr][cc] === n) return false;
+      }
+    }
+    return true;
+  }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+  function makePuzzle() {
+    solution = newSolution();
+    var p = [];
+    for (var r = 0; r < N; r++) p.push(solution[r].slice());
+    // Remove ~18 cells (out of 36) to leave a moderate puzzle
+    var cells = [];
+    for (var i = 0; i < N * N; i++) cells.push(i);
+    shuffle(cells);
+    var removed = 0;
+    var target = 18;
+    for (var i = 0; i < cells.length && removed < target; i++) {
+      var idx = cells[i];
+      var r = Math.floor(idx / N), c = idx % N;
+      p[r][c] = 0;
+      removed++;
+    }
+    puzzle = p;
+    given = [];
+    for (var r = 0; r < N; r++) {
+      var row = [];
+      for (var c = 0; c < N; c++) row.push(puzzle[r][c] !== 0);
+      given.push(row);
+    }
+    board = [];
+    for (var r = 0; r < N; r++) board.push(puzzle[r].slice());
+    history = [];
+  }
+
+  // -------- Game flow --------
+  function start() {
+    ensureAudio();
+    makePuzzle();
+    selected.r = -1; selected.c = -1;
+    startTime = Date.now();
+    elapsed = 0;
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  function gameWon() {
+    state = 'won';
+    var t = elapsed;
+    var newBest = false;
+    if (best == null || t < best) {
+      best = t;
+      try { localStorage.setItem('sudoku-mini-best', String(best)); } catch (_) {}
+      newBest = true;
+    }
+    overTitleEl.textContent = newBest ? 'New Best!' : 'Solved';
+    overScoreEl.textContent = 'Time: ' + fmtTime(t) + ' · Best: ' + (best != null ? fmtTime(best) : '—');
+    metaEl.textContent = 'mini sudoku · best ' + (best != null ? fmtTime(best) : '—');
+    overOverlay.classList.remove('is-hidden');
+    chord([523, 659, 784], 0.16, 0.16);
+  }
+
+  function checkComplete() {
+    if (!board) return false;
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        if (board[r][c] === 0) return false;
+        if (board[r][c] !== solution[r][c]) return false;
+      }
+    }
+    return true;
+  }
+
+  function setCell(r, c, n) {
+    if (r < 0 || c < 0 || r >= N || c >= N) return;
+    if (given[r][c]) return;
+    if (board[r][c] === n) return;
+    history.push({ r: r, c: c, prev: board[r][c] });
+    board[r][c] = n;
+    if (n === 0) tone(180, 0.05, 'sine', 0.1);
+    else if (n === solution[r][c]) tone(520, 0.05, 'sine', 0.12);
+    else tone(280, 0.06, 'square', 0.12);
+    if (checkComplete()) gameWon();
+  }
+
+  function undo() {
+    if (!history.length) return;
+    var h = history.pop();
+    board[h.r][h.c] = h.prev;
+    tone(360, 0.04, 'sine', 0.1);
+  }
+
+  // -------- Input --------
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  btnNew.addEventListener('click', function () { start(); });
+  btnUndo.addEventListener('click', undo);
+
+  // Build numpad
+  for (var n = 1; n <= 6; n++) {
+    (function (num) {
+      var b = document.createElement('button');
+      b.textContent = String(num);
+      b.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, num);
+      });
+      pad.appendChild(b);
+    })(n);
+  }
+  var erase = document.createElement('button');
+  erase.textContent = 'Erase';
+  erase.className = 'is-erase';
+  erase.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, 0);
+  });
+  pad.appendChild(erase);
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (state !== 'play') return;
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    if (x < gridX || x >= gridX + gridSize || y < gridY || y >= gridY + gridSize) {
+      selected.r = -1; selected.c = -1;
+      return;
+    }
+    var c = Math.floor((x - gridX) / cell);
+    var r = Math.floor((y - gridY) / cell);
+    if (r >= 0 && r < N && c >= 0 && c < N) {
+      selected.r = r; selected.c = c;
+      tone(420, 0.03, 'sine', 0.08);
+    }
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (state === 'idle' || state === 'won') {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        start();
+      }
+      return;
+    }
+    if (state !== 'play') return;
+    if (e.key >= '1' && e.key <= '6' && selected.r >= 0) {
+      e.preventDefault();
+      setCell(selected.r, selected.c, parseInt(e.key, 10));
+    } else if (e.code === 'Backspace' || e.code === 'Delete' || e.code === 'Digit0') {
+      e.preventDefault();
+      if (selected.r >= 0) setCell(selected.r, selected.c, 0);
+    } else if (e.code === 'ArrowUp') {
+      e.preventDefault();
+      if (selected.r > 0) selected.r--;
+      else if (selected.r === -1) { selected.r = 0; selected.c = 0; }
+    } else if (e.code === 'ArrowDown') {
+      e.preventDefault();
+      if (selected.r < N - 1) selected.r++;
+      else if (selected.r === -1) { selected.r = 0; selected.c = 0; }
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      if (selected.c > 0) selected.c--;
+      else if (selected.c === -1) { selected.r = 0; selected.c = 0; }
+    } else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      if (selected.c < N - 1) selected.c++;
+      else if (selected.c === -1) { selected.r = 0; selected.c = 0; }
+    } else if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      undo();
+    }
+  });
+
+  // -------- Loop --------
+  function update() {
+    if (state === 'play') {
+      elapsed = Math.floor((Date.now() - startTime) / 1000);
+      timeEl.textContent = fmtTime(elapsed);
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = '#06060a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(18, 22, 36, 0.55)';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!board) return;
+
+    // grid background
+    ctx.fillStyle = '#0e1226';
+    ctx.fillRect(gridX, gridY, gridSize, gridSize);
+
+    // highlight: row + col + block of selected
+    if (selected.r >= 0 && state === 'play') {
+      var sr = selected.r, sc = selected.c;
+      ctx.fillStyle = 'rgba(161, 193, 255, 0.06)';
+      ctx.fillRect(gridX, gridY + sr * cell, gridSize, cell);
+      ctx.fillRect(gridX + sc * cell, gridY, cell, gridSize);
+      var br = Math.floor(sr / BR) * BR;
+      var bc = Math.floor(sc / BC) * BC;
+      ctx.fillRect(gridX + bc * cell, gridY + br * cell, cell * BC, cell * BR);
+      // selected cell stronger
+      ctx.fillStyle = 'rgba(161, 193, 255, 0.18)';
+      ctx.fillRect(gridX + sc * cell, gridY + sr * cell, cell, cell);
+
+      // same-number highlight
+      var sv = board[sr][sc];
+      if (sv) {
+        ctx.fillStyle = 'rgba(161, 193, 255, 0.12)';
+        for (var r = 0; r < N; r++) {
+          for (var c = 0; c < N; c++) {
+            if (board[r][c] === sv && !(r === sr && c === sc)) {
+              ctx.fillRect(gridX + c * cell, gridY + r * cell, cell, cell);
+            }
+          }
+        }
+      }
+    }
+
+    // grid lines
+    ctx.strokeStyle = 'rgba(161, 193, 255, 0.18)';
+    ctx.lineWidth = 1;
+    for (var i = 1; i < N; i++) {
+      ctx.beginPath();
+      ctx.moveTo(gridX + i * cell + 0.5, gridY);
+      ctx.lineTo(gridX + i * cell + 0.5, gridY + gridSize);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(gridX, gridY + i * cell + 0.5);
+      ctx.lineTo(gridX + gridSize, gridY + i * cell + 0.5);
+      ctx.stroke();
+    }
+    // block lines
+    ctx.strokeStyle = 'rgba(161, 193, 255, 0.55)';
+    ctx.lineWidth = 2;
+    for (var i = 0; i <= N / BC; i++) {
+      var x = gridX + i * BC * cell + (i === N / BC ? -1 : 1);
+      ctx.beginPath();
+      ctx.moveTo(x, gridY);
+      ctx.lineTo(x, gridY + gridSize);
+      ctx.stroke();
+    }
+    for (var i = 0; i <= N / BR; i++) {
+      var y = gridY + i * BR * cell + (i === N / BR ? -1 : 1);
+      ctx.beginPath();
+      ctx.moveTo(gridX, y);
+      ctx.lineTo(gridX + gridSize, y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#a1c1ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(gridX + 1, gridY + 1, gridSize - 2, gridSize - 2);
+
+    // numbers
+    ctx.font = '700 ' + Math.floor(cell * 0.55) + 'px "Space Grotesk", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        var v = board[r][c];
+        if (!v) continue;
+        var cx = gridX + c * cell + cell / 2;
+        var cy = gridY + r * cell + cell / 2 + 2;
+        var conflict = !given[r][c] && v !== solution[r][c];
+        if (given[r][c]) ctx.fillStyle = '#e8e6e3';
+        else if (conflict) ctx.fillStyle = '#ff7a8a';
+        else ctx.fillStyle = '#a1c1ff';
+        ctx.fillText(String(v), cx, cy);
+      }
+    }
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
