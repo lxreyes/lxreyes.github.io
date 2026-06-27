@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>King's Jewels</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ============ MAP / LEVEL SELECT ============ -->
+  <div id="map-screen" class="screen">
+    <header class="topbar">
+      <div class="title">
+        <span class="crown">👑</span>
+        <h1>King's Jewels</h1>
+      </div>
+      <div class="hearts" id="hearts-map"></div>
+    </header>
+    <p class="map-sub">Choose a level</p>
+    <div class="map-path" id="map-path"></div>
+    <footer class="bottombar">
+      <button id="refill-btn" class="btn btn-ghost">❤️ Refill Lives</button>
+      <button id="reset-btn" class="btn btn-ghost">↺ Reset Progress</button>
+    </footer>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div id="game-screen" class="screen hidden">
+    <div class="game-wrap">
+      <header class="topbar">
+        <button id="back-btn" class="btn btn-ghost">‹ Map</button>
+        <div class="level-pill">Level <span id="level">1</span></div>
+        <div class="hearts small" id="hearts-game"></div>
+      </header>
+
+      <section class="hud">
+        <div class="objectives" id="objectives"></div>
+        <div class="moves-box">
+          <span class="moves-label">Moves</span>
+          <span class="moves-num" id="moves">25</span>
+        </div>
+      </section>
+
+      <div class="board-frame">
+        <canvas id="board" width="512" height="512"></canvas>
+        <div class="overlay hidden" id="overlay">
+          <div class="overlay-card">
+            <div class="overlay-emoji" id="overlay-emoji">🏆</div>
+            <h2 id="overlay-title">You Win!</h2>
+            <div class="overlay-stars" id="overlay-stars"></div>
+            <p id="overlay-text">You reached the goal!</p>
+            <button id="overlay-btn" class="btn">Continue</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="score-row">
+        <span class="score-label">⭐ Score</span>
+        <span class="score-val" id="score">0</span>
+      </div>
+
+      <footer class="bottombar">
+        <button id="shuffle-btn" class="btn btn-ghost">🔀 Shuffle</button>
+        <button id="mute-btn" class="btn btn-ghost">🔊 Sound</button>
+        <button id="restart-btn" class="btn btn-ghost">↻ Restart</button>
+      </footer>
+
+      <p class="hint">Match <b>4 in a line</b> → 🚀 rocket · <b>2×2 square</b> → 🚁 propeller · <b>L/T</b> → 💣 bomb · <b>5 in a line</b> → 🌈 color bomb. Match beside 📦 crates to smash them!</p>
+    </div>
+  </div>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
