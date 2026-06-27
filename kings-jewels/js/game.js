@@ -7,8 +7,11 @@
      • 2x2 square   -> Propeller (flies to a target and blasts it)
      • L / T shape  -> Bomb      (5x5 blast)
      • 5 in a line  -> Color Bomb (clears every jewel of one colour)
-   Swap two specials to combine them. Smash 📦 crates by matching
-   beside them. Collect the level's objectives before moves run out.
+   Swap two specials to combine them. Obstacles ramp up by level:
+     • 📦 crates — break by matching ON or BESIDE them
+     • ❄️ ice    — breaks only when you match ON the cell
+     • ⛓️ chains  — lock a jewel in place until a match frees it
+   Collect the level's objectives before moves run out.
    Progress, lives, and stars are saved between sessions.
    ============================================================ */
 
@@ -67,7 +70,8 @@
 
   // ---- State ---------------------------------------------------------------
   let grid = [];           // grid[r][c] = tile | null
-  let cover = [];          // cover[r][c] = crate layers at that position (0 = none)
+  let cover = [];          // cover[r][c] = crate layers (break by matching ON or BESIDE)
+  let ice = [];            // ice[r][c]   = frost layers (break only by matching ON the cell)
   let level = 1;
   let score = 0;
   let movesLeft = BASE_MOVES;
@@ -96,8 +100,10 @@
   }
 
   // special: null | 'rocketH' | 'rocketV' | 'bomb' | 'light' | 'propeller'
+  // chain: when true the jewel is locked in place (can't be swapped) until a
+  // match frees it — the chain travels with the tile, so gravity is unaffected.
   function makeTile(type, r, c) {
-    return { type, special: null, x: c * TILE, y: r * TILE, scale: 1, alpha: 1 };
+    return { type, special: null, chain: false, x: c * TILE, y: r * TILE, scale: 1, alpha: 1 };
   }
 
   const keyOf = (r, c) => r + "," + c;
@@ -295,6 +301,7 @@
         for (const [dr, dc] of [[0, 1], [1, 0]]) {
           const nr = r + dr, nc = c + dc;
           if (nr >= ROWS || nc >= COLS) continue;
+          if (grid[r][c].chain || grid[nr][nc].chain) continue; // locked jewels can't be moved
           swap(r, c, nr, nc);
           const found = anyMatchExists();
           swap(r, c, nr, nc);
@@ -302,6 +309,11 @@
         }
     return false;
   }
+
+  const isChained = (r, c) => {
+    const t = grid[r] && grid[r][c];
+    return !!(t && t.chain);
+  };
 
   // ============================================================
   //  Deciding & placing special jewels
@@ -318,6 +330,15 @@
   }
 
   function choosePlace(g, swapCells) {
+    const pick = pickPlaceCell(g, swapCells);
+    // never turn a locked jewel into a special — fall back to a free group cell
+    if (isChained(pick.r, pick.c)) {
+      const free = g.cells.find((c) => !isChained(c.r, c.c));
+      if (free) return free;
+    }
+    return pick;
+  }
+  function pickPlaceCell(g, swapCells) {
     const cellSet = new Set(g.cells.map((c) => keyOf(c.r, c.c)));
     if (swapCells)
       for (const sc of swapCells) if (cellSet.has(keyOf(sc.r, sc.c))) return sc;
@@ -368,7 +389,7 @@
     return best;
   }
 
-  // Where a propeller flies: nearest crate, else nearest needed-colour jewel, else centre.
+  // Where a propeller flies: nearest obstacle, else nearest needed-colour jewel, else centre.
   function propellerTarget(sr, sc) {
     let best = null, bestD = Infinity;
     const consider = (r, c) => {
@@ -377,7 +398,7 @@
     };
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
-        if (cover[r][c] > 0) consider(r, c);
+        if (cover[r][c] > 0 || ice[r][c] > 0 || isChained(r, c)) consider(r, c);
     if (best) return best;
 
     const need = objectives.filter((o) => o.kind === "gem" && o.got < o.need).map((o) => o.type);
@@ -448,6 +469,7 @@
   // ============================================================
   async function trySwap(a, b) {
     if (busy || gameOver) return;
+    if (isChained(a.r, a.c) || isChained(b.r, b.c)) return; // locked jewels can't move
     busy = true;
     selected = null;
 
@@ -502,13 +524,36 @@
     expandActivations(clearSet);
     for (const cs of createSpecials) clearSet.delete(keyOf(cs.r, cs.c)); // protect new specials
 
+    // A clear on a chained jewel breaks the chain but spares the jewel that turn.
+    let chainsBroken = 0;
+    for (const k of [...clearSet]) {
+      const { r, c } = parseKey(k);
+      const t = grid[r][c];
+      if (t && t.chain) {
+        t.chain = false;
+        clearSet.delete(k);
+        chainsBroken++;
+        spawnChainParticles(r, c);
+      }
+    }
+    if (chainsBroken) {
+      const o = objectives.find((ob) => ob.kind === "chain");
+      if (o) o.got = Math.min(o.need, o.got + chainsBroken);
+      sound.crate();
+    }
+
     const changed = trackObjectives(clearSet);
     const peeled = peelCovers(clearSet);
     if (peeled) {
       const co = objectives.find((o) => o.kind === "crate");
       if (co) co.got = Math.min(co.need, co.got + peeled);
     }
-    if (changed || peeled) renderObjectives(true);
+    const iced = peelIce(clearSet);
+    if (iced) {
+      const io = objectives.find((o) => o.kind === "ice");
+      if (io) io.got = Math.min(io.need, io.got + iced);
+    }
+    if (changed || peeled || iced || chainsBroken) renderObjectives(true);
 
     const pts = clearSet.size * 10 * combo;
     score += pts;
@@ -634,7 +679,7 @@
   }
 
   // ============================================================
-  //  Crates / covers
+  //  Obstacles: crates (break ON or BESIDE) and ice (break only ON)
   // ============================================================
   function peelCovers(clearSet) {
     const affected = new Set();
@@ -654,6 +699,20 @@
       spawnCrateParticles(r, c);
     }
     if (removed) sound.crate();
+    return removed;
+  }
+
+  function peelIce(clearSet) {
+    let removed = 0;
+    for (const k of clearSet) {
+      const { r, c } = parseKey(k);
+      if (ice[r][c] > 0) {
+        ice[r][c]--;
+        removed++;
+        spawnIceParticles(r, c);
+      }
+    }
+    if (removed) sound.ice();
     return removed;
   }
 
@@ -728,7 +787,16 @@
   }
 
   const gemIconCache = {};
-  let crateIconCache = null;
+  const obstacleIconCache = {};
+  const obstacleIcon = (kind) => {
+    if (!obstacleIconCache[kind]) {
+      obstacleIconCache[kind] =
+        kind === "crate" ? makeCrateIcon() :
+        kind === "ice" ? makeIceIcon() :
+        makeChainIcon();
+    }
+    return obstacleIconCache[kind];
+  };
   function renderObjectives(bump) {
     el.objectives.innerHTML = "";
     for (const o of objectives) {
@@ -736,9 +804,9 @@
       chip.className = "obj-chip" + (o.got >= o.need ? " done" : "");
       const img = document.createElement("img");
       img.className = "obj-icon";
-      img.src = o.kind === "crate"
-        ? (crateIconCache || (crateIconCache = makeCrateIcon()))
-        : (gemIconCache[o.type] || (gemIconCache[o.type] = makeGemIcon(o.type)));
+      img.src = o.kind === "gem"
+        ? (gemIconCache[o.type] || (gemIconCache[o.type] = makeGemIcon(o.type)))
+        : obstacleIcon(o.kind);
       const cnt = document.createElement("span");
       cnt.textContent = o.got >= o.need ? "✓" : o.need - o.got;
       chip.appendChild(img);
@@ -826,9 +894,9 @@
   function startLevel() {
     el.overlay.classList.add("hidden");
 
-    // objectives: collect a few colours
-    const numColors = Math.min(1 + Math.ceil(level / 2), 4);
-    const perColor = 14 + (level - 1) * 4;
+    // objectives: collect a few colours (lighter as obstacles take over)
+    const numColors = Math.min(1 + Math.floor(level / 3), 3);
+    const perColor = 12 + (level - 1) * 3;
     const palette = [...Array(NUM_TYPES).keys()];
     for (let i = palette.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -847,24 +915,49 @@
 
     buildBoard();
 
-    // crates: appear from level 2, more (and tougher) as you climb
+    // obstacles ramp up with the level; each sits on its own cell.
     cover = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-    if (level >= 2) {
-      const crateCount = Math.min(3 + (level - 1) * 2, 16);
-      const tough = level >= 4;
-      let placed = 0, layers = 0;
-      let guard = 0;
-      while (placed < crateCount && guard++ < 500) {
+    ice = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+    const used = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const freeCell = () => {
+      for (let tries = 0; tries < 80; tries++) {
         const r = Math.floor(Math.random() * ROWS);
         const c = Math.floor(Math.random() * COLS);
-        if (cover[r][c] === 0) {
-          const hp = tough && Math.random() < 0.4 ? 2 : 1;
-          cover[r][c] = hp;
-          layers += hp;
-          placed++;
-        }
+        if (!used[r][c]) { used[r][c] = true; return { r, c }; }
       }
-      objectives.push({ kind: "crate", need: layers, got: 0 });
+      return null;
+    };
+
+    if (level >= 2) {                               // 📦 crates — break ON or BESIDE
+      const count = Math.min(3 + (level - 1) * 2, 14);
+      const tough = level >= 4;
+      let layers = 0;
+      for (let i = 0; i < count; i++) {
+        const cell = freeCell(); if (!cell) break;
+        const hp = tough && Math.random() < 0.4 ? 2 : 1;
+        cover[cell.r][cell.c] = hp; layers += hp;
+      }
+      if (layers) objectives.push({ kind: "crate", need: layers, got: 0 });
+    }
+
+    if (level >= 3) {                               // ❄️ ice — break only ON the cell
+      const count = Math.min(2 + (level - 2) * 2, 12);
+      let layers = 0;
+      for (let i = 0; i < count; i++) {
+        const cell = freeCell(); if (!cell) break;
+        ice[cell.r][cell.c] = 1; layers++;
+      }
+      if (layers) objectives.push({ kind: "ice", need: layers, got: 0 });
+    }
+
+    if (level >= 5) {                               // ⛓️ chains — lock the jewel in place
+      const count = Math.min(2 + (level - 5), 6);
+      let n = 0;
+      for (let i = 0; i < count; i++) {
+        const cell = freeCell(); if (!cell) break;
+        grid[cell.r][cell.c].chain = true; n++;
+      }
+      if (n) objectives.push({ kind: "chain", need: n, got: 0 });
     }
 
     renderObjectives(false);
@@ -897,17 +990,20 @@
     }
   }
 
-  function spawnCrateParticles(r, c) {
+  function spawnDebris(r, c, colA, colB) {
     const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
     for (let i = 0; i < 6; i++) {
       const ang = Math.random() * Math.PI * 2;
       const sp = 50 + Math.random() * 120;
       particles.push({
         x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 40,
-        life: 0.5, max: 0.5, color: i % 2 ? "#b07a3c" : "#8a5a28", size: 3 + Math.random() * 3,
+        life: 0.5, max: 0.5, color: i % 2 ? colA : colB, size: 3 + Math.random() * 3,
       });
     }
   }
+  const spawnCrateParticles = (r, c) => spawnDebris(r, c, "#b07a3c", "#8a5a28");
+  const spawnIceParticles = (r, c) => spawnDebris(r, c, "#d7f0ff", "#9bd4f5");
+  const spawnChainParticles = (r, c) => spawnDebris(r, c, "#cfd4dc", "#878d99");
 
   function spawnPopup(clearSet, pts, combo) {
     if (pts <= 0) return;
@@ -996,10 +1092,12 @@
         if (tile) drawGem(ctx, tile);
       }
 
-    // crates over the jewels
+    // positional obstacles drawn over the jewels (chains travel with their tile)
     for (let r = 0; r < ROWS; r++)
-      for (let c = 0; c < COLS; c++)
+      for (let c = 0; c < COLS; c++) {
+        if (ice[r] && ice[r][c] > 0) drawIce(ctx, r, c, ice[r][c]);
         if (cover[r] && cover[r][c] > 0) drawCrate(ctx, r, c, cover[r][c]);
+      }
 
     drawBeams();
     drawParticles();
@@ -1034,6 +1132,39 @@
     g.globalAlpha = tile.alpha;
 
     if (tile.special) drawSpecial(g, tile.special, cx, cy, radius);
+    if (tile.chain) drawChain(g, cx, cy, radius);
+    g.restore();
+  }
+
+  function drawChain(g, cx, cy, r) {
+    g.save();
+    // two crossed metal bars with link highlights, plus a small padlock
+    g.lineCap = "round";
+    for (const ang of [Math.PI / 4, -Math.PI / 4]) {
+      g.save();
+      g.translate(cx, cy);
+      g.rotate(ang);
+      g.strokeStyle = "rgba(60,66,78,.95)";
+      g.lineWidth = r * 0.34;
+      g.beginPath(); g.moveTo(-r * 1.05, 0); g.lineTo(r * 1.05, 0); g.stroke();
+      g.strokeStyle = "rgba(190,198,210,.9)";
+      g.lineWidth = r * 0.12;
+      g.beginPath(); g.moveTo(-r * 1.05, -r * 0.06); g.lineTo(r * 1.05, -r * 0.06); g.stroke();
+      g.restore();
+    }
+    // padlock
+    g.strokeStyle = "rgba(40,46,58,.95)";
+    g.lineWidth = r * 0.14;
+    g.beginPath();
+    g.arc(cx, cy - r * 0.12, r * 0.22, Math.PI, 0);
+    g.stroke();
+    g.fillStyle = "rgba(214,220,230,.95)";
+    pathRoundRect(g, cx - r * 0.3, cy - r * 0.12, r * 0.6, r * 0.46, r * 0.1);
+    g.fill();
+    g.fillStyle = "rgba(40,46,58,.9)";
+    g.beginPath();
+    g.arc(cx, cy + r * 0.08, r * 0.07, 0, Math.PI * 2);
+    g.fill();
     g.restore();
   }
 
@@ -1132,6 +1263,27 @@
       g.lineTo(x + s * 0.6, y + s * 0.7);
       g.stroke();
     }
+    g.restore();
+  }
+
+  function drawIce(g, r, c, hp) {
+    const x = c * TILE + 3, y = r * TILE + 3, s = TILE - 6;
+    g.save();
+    g.globalAlpha = 0.62;
+    const grad = g.createLinearGradient(x, y, x + s, y + s);
+    grad.addColorStop(0, "rgba(220,244,255,.95)");
+    grad.addColorStop(1, "rgba(150,205,240,.85)");
+    g.fillStyle = grad;
+    pathRoundRect(g, x, y, s, s, 9);
+    g.fill();
+    // frosty sheen + cracks
+    g.strokeStyle = "rgba(255,255,255,.85)";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x + s * 0.2, y + s * 0.15); g.lineTo(x + s * 0.5, y + s * 0.5);
+    g.lineTo(x + s * 0.32, y + s * 0.8);
+    g.moveTo(x + s * 0.5, y + s * 0.5); g.lineTo(x + s * 0.82, y + s * 0.36);
+    g.stroke();
     g.restore();
   }
 
@@ -1285,6 +1437,45 @@
     g.stroke();
     return cnv.toDataURL();
   }
+  function makeIceIcon() {
+    const size = 44;
+    const cnv = document.createElement("canvas");
+    cnv.width = cnv.height = size;
+    const g = cnv.getContext("2d");
+    const grad = g.createLinearGradient(6, 6, size - 6, size - 6);
+    grad.addColorStop(0, "#dcf4ff");
+    grad.addColorStop(1, "#96cdf0");
+    g.fillStyle = grad;
+    pathRoundRect(g, 6, 6, size - 12, size - 12, 7);
+    g.fill();
+    g.strokeStyle = "rgba(255,255,255,.85)";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(14, 12); g.lineTo(22, 22); g.lineTo(16, 32);
+    g.moveTo(22, 22); g.lineTo(32, 18);
+    g.stroke();
+    return cnv.toDataURL();
+  }
+  function makeChainIcon() {
+    const size = 44;
+    const cnv = document.createElement("canvas");
+    cnv.width = cnv.height = size;
+    const g = cnv.getContext("2d");
+    const cx = size / 2, cy = size / 2;
+    g.lineCap = "round";
+    for (const ang of [Math.PI / 4, -Math.PI / 4]) {
+      g.save(); g.translate(cx, cy); g.rotate(ang);
+      g.strokeStyle = "#3c424e"; g.lineWidth = 7;
+      g.beginPath(); g.moveTo(-18, 0); g.lineTo(18, 0); g.stroke();
+      g.strokeStyle = "#bec6d2"; g.lineWidth = 2.5;
+      g.beginPath(); g.moveTo(-18, -1.5); g.lineTo(18, -1.5); g.stroke();
+      g.restore();
+    }
+    g.fillStyle = "#d6dce6";
+    pathRoundRect(g, cx - 7, cy - 3, 14, 11, 2);
+    g.fill();
+    return cnv.toDataURL();
+  }
 
   // ============================================================
   //  Sound (Web Audio — generated)
@@ -1339,6 +1530,7 @@
       create() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.12, "triangle", 0.12, i * 0.05)); },
       special() { [392, 523, 659, 880].forEach((f, i) => tone(f, 0.14, "square", 0.08, i * 0.04)); },
       crate() { noise(0.18, 0.12, 700); tone(160, 0.12, "square", 0.06); },
+      ice() { noise(0.14, 0.1, 5000); tone(1200, 0.1, "sine", 0.05); },
       boom(kind) {
         if (kind === "bomb" || kind === "light") noise(0.4, 0.18, 900);
         else if (kind === "propeller") { noise(0.25, 0.1, 1800); tone(700, 0.18, "sawtooth", 0.05); }
@@ -1368,6 +1560,7 @@
     evt.preventDefault();
     const cell = pointerToCell(evt);
     if (!cell) return;
+    if (isChained(cell.r, cell.c)) { sound.fail(); return; } // locked jewels can't be grabbed
     dragStart = cell;
     if (selected && adjacent(selected, cell)) trySwap(selected, cell);
     else if (selected && selected.r === cell.r && selected.c === cell.c) selected = null;
@@ -1377,6 +1570,7 @@
     if (busy || gameOver || !dragStart) return;
     const cell = pointerToCell(evt);
     if (!cell) return;
+    if (isChained(cell.r, cell.c)) return; // can't swap into a locked jewel
     if (adjacent(dragStart, cell)) {
       const from = dragStart;
       dragStart = null;
@@ -1398,7 +1592,7 @@
     const cells = [];
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
-        if (grid[r][c].special === null) cells.push(grid[r][c]);
+        if (grid[r][c].special === null && !grid[r][c].chain) cells.push(grid[r][c]);
     let guard = 0;
     do {
       const types = cells.map((t) => t.type);
