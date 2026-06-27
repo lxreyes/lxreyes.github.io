@@ -365,6 +365,99 @@ main {
     transform: translateX(3px);
 }
 
+/* ---------- Real screenshot thumbnails ----------
+   When JS detects img/thumbs/<data-key>.jpg, it sets --thumb on the card.
+   The thumbnail sits beneath a dark scrim so the title stays readable. */
+
+.project-card.has-thumb {
+    background:
+        linear-gradient(
+            to top,
+            rgba(0, 0, 0, 0.85) 0%,
+            rgba(0, 0, 0, 0.45) 35%,
+            rgba(0, 0, 0, 0.05) 70%,
+            transparent 100%
+        ),
+        var(--thumb) center / cover no-repeat,
+        linear-gradient(
+            160deg,
+            color-mix(in srgb, var(--card-accent) 14%, var(--bg-1)),
+            color-mix(in srgb, var(--card-accent) 6%, var(--bg-0))
+        );
+}
+
+.project-card.has-thumb::before {
+    display: none;
+}
+
+/* ---------- Featured tile (2x2 spotlight) ---------- */
+
+.project-card--featured {
+    grid-column: span 2;
+    grid-row: span 2;
+    aspect-ratio: auto;
+    padding: 26px;
+}
+
+.project-card--featured[data-genre]::after {
+    top: 22px;
+    left: 22px;
+    font-size: 11px;
+    padding: 5px 10px;
+}
+
+.project-card--featured .project-card__year {
+    top: 22px;
+    right: 22px;
+    font-size: 11px;
+    padding: 5px 10px;
+}
+
+.project-card--featured::before {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.62) 0%, transparent 70%);
+}
+
+.project-card--featured .project-card__title {
+    font-size: clamp(28px, 3.4vw, 44px);
+    line-height: 1.0;
+    margin-bottom: 12px;
+    max-width: 18ch;
+}
+
+/* Show description on the featured tile (clamp to 3 lines). */
+.project-card--featured .project-card__desc {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 18px;
+    padding: 0;
+    clip: auto;
+    white-space: normal;
+    overflow: hidden;
+    border: 0;
+
+    z-index: 2;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 46ch;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+/* CTA is always visible on the featured tile, positioned inline. */
+.project-card--featured .cta {
+    position: static;
+    opacity: 1;
+    transform: none;
+    align-self: flex-start;
+    padding: 12px 18px;
+    font-size: 13px;
+}
+
 /* ---------- Drag states ---------- */
 
 .project-card[draggable="true"] {

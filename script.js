@@ -1,7 +1,32 @@
 (function () {
     initTabs();
+    initThumbnails();
     // Enhance every panel independently so each tab remembers its own order.
     document.querySelectorAll(".projects").forEach(initReorder);
+
+    // ------------------------------------------------------- Thumbnails
+    // If img/thumbs/<data-key>.jpg (or .png) exists, set --thumb on the
+    // card and add .has-thumb. Otherwise the accent-gradient fallback
+    // stays. Image preload swallows 404s with no console error.
+    function initThumbnails() {
+        const cards = document.querySelectorAll(".project-card[data-key]");
+        for (const card of cards) {
+            const key = card.dataset.key;
+            tryExt(card, key, ["jpg", "png"], 0);
+        }
+    }
+
+    function tryExt(card, key, exts, i) {
+        if (i >= exts.length) return;
+        const url = "img/thumbs/" + key + "." + exts[i];
+        const img = new Image();
+        img.onload = function () {
+            card.style.setProperty("--thumb", 'url("' + url + '")');
+            card.classList.add("has-thumb");
+        };
+        img.onerror = function () { tryExt(card, key, exts, i + 1); };
+        img.src = url;
+    }
 
     // ---------------------------------------------------------------- Tabs
     function initTabs() {
