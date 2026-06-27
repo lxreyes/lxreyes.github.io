@@ -587,7 +587,7 @@
   function drawNinja() {
     const ducking = ninja.duck && ninja.onGround;
     const h = ducking ? ninja.h * 0.55 : ninja.h;
-    const y = groundY - h;
+    const y = ninja.y;
     const x = ninja.x;
     const w = ninja.w;
 
