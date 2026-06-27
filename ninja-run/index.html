@@ -350,12 +350,9 @@
   retryBtn.addEventListener('click', start);
   canvas.addEventListener('pointerdown', (e) => {
     if (state === 'idle' || state === 'over') return;
-    // upper half = jump, lower half = duck
-    if (e.clientY < H / 2) jump();
-    else setDuck(true);
+    e.preventDefault();
+    jump();
   });
-  canvas.addEventListener('pointerup', () => setDuck(false));
-  canvas.addEventListener('pointercancel', () => setDuck(false));
 
   keyJump.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   keyDuck.addEventListener('pointerdown', (e) => { e.preventDefault(); setDuck(true); });
