@@ -248,9 +248,11 @@
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    // pick cell size to fit
-    const maxBoardH = H - 240;
-    const maxBoardW = W - 40;
+    // Reserve space for HUD (~90px) and mobile controls (~90px) + margin
+    const HUD_RESERVED = 90;
+    const FOOT_RESERVED = 90;
+    const maxBoardH = H - HUD_RESERVED - FOOT_RESERVED;
+    const maxBoardW = W - 32;
     const cellH = Math.floor(maxBoardH / ROWS);
     const cellW = Math.floor(maxBoardW / COLS);
     cell = Math.max(14, Math.min(40, Math.min(cellH, cellW)));
@@ -258,7 +260,7 @@
     const boardH = cell * ROWS;
     board = {
       x: Math.floor((W - boardW) / 2),
-      y: Math.floor((H - boardH) / 2) + 10,
+      y: Math.max(HUD_RESERVED, Math.floor((H - boardH) / 2)),
       w: boardW,
       h: boardH,
     };
@@ -543,18 +545,13 @@
 
   function drawCell(x, y, colour, alpha) {
     const a = alpha == null ? 1 : alpha;
-    const grad = ctx.createLinearGradient(x, y, x, y + cell);
-    grad.addColorStop(0, colour);
-    grad.addColorStop(1, mixColor(colour, '#000000', 0.5));
-    ctx.fillStyle = grad;
     ctx.globalAlpha = a;
+    ctx.fillStyle = colour;
     ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
-    // top highlight
-    ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.22 * a) + ')';
-    ctx.fillRect(x + 1, y + 1, cell - 2, 3);
-    // bottom shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.3 * a) + ')';
-    ctx.fillRect(x + 1, y + cell - 4, cell - 2, 3);
+    ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.28 * a) + ')';
+    ctx.fillRect(x + 1, y + 1, cell - 2, 4);
+    ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.35 * a) + ')';
+    ctx.fillRect(x + 1, y + cell - 5, cell - 2, 4);
     ctx.globalAlpha = 1;
   }
 
