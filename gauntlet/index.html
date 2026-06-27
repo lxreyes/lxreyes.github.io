@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE GAUNTLET — a choose-your-adventure game show</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Gloria+Hallelujah&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Persistent sound control, top-right on every screen -->
+    <div id="top-controls" class="top-controls">
+      <button id="btn-mute" class="icon-btn" title="Mute / unmute sound" aria-label="Mute or unmute sound">🔊</button>
+    </div>
+
+    <!-- ===================== TITLE SCREEN ===================== -->
+    <section id="screen-title" class="screen active">
+      <div class="title-card">
+        <p class="eyebrow">🎤 a choose-your-own-doom game show</p>
+        <h1 class="game-title">THE<br />GAUNTLET</h1>
+        <p class="subtitle">One cruel Host. A pile of terrible choices. Pick a door, dodge a trap, spin the Wheel of Fate — and try to be the last contestant standing.</p>
+        <div class="title-buttons">
+          <button id="btn-new-game" class="btn btn-primary">Start a Show</button>
+          <button id="btn-continue" class="btn">Continue</button>
+        </div>
+        <p class="footnote">Choose. Suffer. Survive the show.</p>
+      </div>
+    </section>
+
+    <!-- ===================== CHARACTER CREATION ===================== -->
+    <section id="screen-create" class="screen">
+      <div class="panel">
+        <h2 class="panel-title">Enter the Gauntlet</h2>
+
+        <label class="field">
+          <span class="field-label">Your contestant name</span>
+          <input id="input-name" type="text" maxlength="20" placeholder="Enter a name..." />
+        </label>
+
+        <p class="field-label">Pick your avatar</p>
+        <div id="avatar-choices" class="avatar-grid"><!-- avatars injected by ui.js --></div>
+
+        <div class="create-actions">
+          <button id="btn-back-title" class="btn btn-ghost">Back</button>
+          <button id="btn-begin" class="btn btn-primary" disabled>Start the Show</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== GAME SHOW SCREEN ===================== -->
+    <section id="screen-game" class="screen">
+      <header id="hud" class="hud"><!-- player HUD injected by ui.js --></header>
+
+      <div class="game-layout">
+        <!-- The Host's "slide" -->
+        <main class="story-area slide">
+          <div id="slide-num" class="slide-num"></div>
+          <div id="slide-image" class="slide-image" aria-hidden="true"></div>
+          <div id="scene-text" class="scene-text"></div>
+          <div id="choices" class="choices"></div>
+        </main>
+
+        <aside class="sidebar">
+          <section class="panel-card">
+            <h3 class="card-title">Standings 🏁</h3>
+            <div id="standings" class="standings"></div>
+          </section>
+          <section class="panel-card">
+            <h3 class="card-title">Show Log</h3>
+            <div id="log" class="log" aria-live="polite"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== WHEEL OF FATE OVERLAY ===================== -->
+    <div id="wheel-overlay" class="wheel-overlay hidden">
+      <div class="wheel-wrap">
+        <div class="wheel-ptr">▼</div>
+        <svg id="wheel-svg" class="wheel-svg" viewBox="-110 -110 220 220" aria-hidden="true"></svg>
+      </div>
+      <p id="wheel-caption" class="wheel-caption"></p>
+    </div>
+  </div>
+
+  <!-- Load order matters: data -> engine -> audio -> ui. -->
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
