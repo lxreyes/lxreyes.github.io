@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TOWER STACK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 168, 77, 0.18), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    cursor: pointer;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #ffa84d;
+    text-shadow: 0 0 28px rgba(255, 168, 77, 0.45);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.7);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 32ch;
+    line-height: 1.5;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #ffa84d;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(255, 168, 77, 0.4);
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(255, 168, 77, 0.6); }
+  .score {
+    position: absolute;
+    top: 20px;
+    left: 0; right: 0;
+    text-align: center;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    pointer-events: none;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  }
+  .back {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.35);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="score" id="score">0</div>
+<div class="overlay" id="start">
+  <h1>TOWER STACK</h1>
+  <p>Tap when the block lines up. Overhang gets sliced off &mdash; the smaller it gets, the harder it stacks.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint">tap / click / space</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Crash</h1>
+  <p id="over-score">Tower height: 0</p>
+  <button id="retry-btn">Retry</button>
+</div>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const startOverlay = document.getElementById('start');
+  const overOverlay = document.getElementById('over');
+  const overScoreEl = document.getElementById('over-score');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+
+  let W = 0, H = 0;
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let blocks = [];
+  let moving = null;
+  let falling = [];
+  let cameraY = 0;
+  let cameraTarget = 0;
+  let state = 'idle';
+  let score = 0;
+  let flashT = 0;
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function reset() {
+    blocks = [];
+    falling = [];
+    const initialW = Math.min(W * 0.5, 220);
+    const blockH = 28;
+    const baseY = H - 80;
+    blocks.push({ x: (W - initialW) / 2, w: initialW, y: baseY, h: blockH, hue: 30 });
+    moving = makeMoving();
+    cameraY = 0;
+    cameraTarget = 0;
+    score = 0;
+    flashT = 0;
+    scoreEl.textContent = '0';
+  }
+
+  function makeMoving() {
+    const prev = blocks[blocks.length - 1];
+    const speed = 2.6 + Math.min(score * 0.08, 3.4);
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const startX = dir > 0 ? -prev.w - 20 : W + 20;
+    return {
+      x: startX,
+      w: prev.w,
+      y: prev.y - prev.h,
+      h: prev.h,
+      dir,
+      speed,
+      hue: (30 + (score + 1) * 9) % 360,
+    };
+  }
+
+  let audio = null;
+  function sound(freq, dur, type) {
+    if (!audio) return;
+    const t = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { audio = null; }
+    }
+  }
+
+  function drop() {
+    if (state !== 'play') return;
+    const prev = blocks[blocks.length - 1];
+    const left = Math.max(moving.x, prev.x);
+    const right = Math.min(moving.x + moving.w, prev.x + prev.w);
+    const overlap = right - left;
+    if (overlap <= 2) { sound(80, 0.5, 'sawtooth'); gameOver(); return; }
+    blocks.push({ x: left, w: overlap, y: moving.y, h: moving.h, hue: moving.hue });
+    if (moving.x < left) {
+      falling.push({ x: moving.x, y: moving.y, w: left - moving.x, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+    }
+    if (moving.x + moving.w > right) {
+      falling.push({ x: right, y: moving.y, w: (moving.x + moving.w) - right, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+    }
+    score++;
+    scoreEl.textContent = score;
+    sound(280 + score * 12, 0.12, 'triangle');
+    flashT = 12;
+    const topY = blocks[blocks.length - 1].y;
+    const screenY = topY - cameraY;
+    if (screenY < H * 0.45) cameraTarget = cameraY - (H * 0.45 - screenY);
+    moving = makeMoving();
+  }
+
+  function gameOver() {
+    state = 'over';
+    overScoreEl.textContent = 'Tower height: ' + score;
+    overOverlay.classList.remove('is-hidden');
+  }
+
+  function start() {
+    ensureAudio();
+    reset();
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state === 'play') { e.preventDefault(); drop(); }
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'over') start();
+      else drop();
+    }
+  });
+
+  function update() {
+    cameraY += (cameraTarget - cameraY) * 0.09;
+    if (flashT > 0) flashT--;
+
+    if (state === 'play' && moving) {
+      moving.x += moving.dir * moving.speed;
+      if (moving.dir > 0 && moving.x + moving.w > W - 18) moving.dir = -1;
+      if (moving.dir < 0 && moving.x < 18) moving.dir = 1;
+    }
+
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const f = falling[i];
+      f.vy += 0.65;
+      f.y += f.vy;
+      f.rot = (f.rot || 0) + f.vr;
+      if (f.y - cameraY > H + 100) falling.splice(i, 1);
+    }
+  }
+
+  function drawBlock(b, rotated) {
+    const y = b.y - cameraY;
+    if (y > H + 60 || y + b.h < -60) return;
+    if (rotated && b.rot) {
+      ctx.save();
+      ctx.translate(b.x + b.w / 2, y + b.h / 2);
+      ctx.rotate(b.rot);
+      ctx.translate(-(b.x + b.w / 2), -(y + b.h / 2));
+    }
+    const grad = ctx.createLinearGradient(0, y, 0, y + b.h);
+    grad.addColorStop(0, `hsl(${b.hue}, 82%, 60%)`);
+    grad.addColorStop(1, `hsl(${b.hue}, 65%, 42%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(b.x, y, b.w, b.h);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.fillRect(b.x, y, b.w, 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(b.x, y + b.h - 2, b.w, 2);
+    if (rotated && b.rot) ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    // ground hint line
+    const groundY = (H - 80) - cameraY + 28;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.fillRect(0, groundY, W, 2);
+
+    for (const b of blocks) drawBlock(b, false);
+    for (const f of falling) drawBlock(f, true);
+    if (moving && state === 'play') {
+      drawBlock(moving, false);
+      // shadow on top of last placed block
+      const prev = blocks[blocks.length - 1];
+      const left = Math.max(moving.x, prev.x);
+      const right = Math.min(moving.x + moving.w, prev.x + prev.w);
+      if (right > left) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fillRect(left, prev.y - cameraY, right - left, 3);
+      }
+    }
+    if (flashT > 0) {
+      ctx.fillStyle = `rgba(255, 168, 77, ${flashT / 24})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
