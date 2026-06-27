@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WORD RUSH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(77, 212, 184, 0.18), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    touch-action: manipulation;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 20;
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #4dd4b8;
+    text-shadow: 0 0 28px rgba(77, 212, 184, 0.5);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 36ch;
+    line-height: 1.55;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #4dd4b8;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(77, 212, 184, 0.45);
+  }
+  button:hover { background: #6ee2c8; }
+  .hud {
+    position: fixed;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .score {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .hud .meta {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+  .lives {
+    position: fixed;
+    top: 26px;
+    right: 22px;
+    display: flex;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .heart {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #4dd4b8;
+    box-shadow: 0 0 10px rgba(77, 212, 184, 0.7);
+  }
+  .heart.is-spent { opacity: 0.18; box-shadow: none; }
+  .back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.45);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+  /* Hidden input that captures keystrokes (and pops mobile keyboard on play). */
+  .typer {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    z-index: 1;
+    font-size: 16px; /* prevents iOS zoom */
+    caret-color: transparent;
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<input id="typer" class="typer" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Type words">
+<div class="hud">
+  <div class="score" id="score">0</div>
+  <div class="meta" id="meta">wpm 0 &middot; best 0</div>
+</div>
+<div class="lives" id="lives">
+  <span class="heart"></span><span class="heart"></span><span class="heart"></span>
+</div>
+<div class="overlay" id="start">
+  <h1>WORD RUSH</h1>
+  <p>Words fall from the top. Type each one before it hits the floor &mdash; the first letter locks onto a word, the rest shoots it down. Three drops and you&rsquo;re done.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint">use your keyboard</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1>Down</h1>
+  <p id="over-score">Score: 0 &middot; Best: 0</p>
+  <button id="retry-btn">Retry</button>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var typer = document.getElementById('typer');
+  var scoreEl = document.getElementById('score');
+  var metaEl = document.getElementById('meta');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var hearts = [].slice.call(document.querySelectorAll('.heart'));
+
+  var ACCENT = '#4dd4b8';
+  var WORDS = (
+    'apple,table,river,light,music,paint,cloud,space,green,frost,glass,smile,grace,bread,horse,dream,storm,brave,pearl,quiet,' +
+    'fancy,plant,brick,charm,oven,wave,fire,moon,star,rain,leaf,wind,seed,boot,salt,nest,road,clip,form,note,' +
+    'engine,planet,silver,castle,danger,oxygen,window,turtle,jungle,island,bridge,winter,summer,spring,flight,knight,coffee,orchid,pencil,rocket,' +
+    'forest,branch,clever,rapid,sword,marble,jacket,hunter,energy,signal,whisper,laptop,canvas,marker,tunnel,oracle,quartz,vortex,zigzag,bubble,' +
+    'shadow,thunder,paddle,crystal,horizon,gallery,journal,octopus,monarch,paragon,wisdom,phoenix,quantum,gravity,liberty,society,virtual,dynamic,bizarre,journey'
+  ).split(',');
+
+  var W = 0, H = 0;
+  var words = [];   // {text, x, y, vy, typed, lockedColor}
+  var target = null;
+  var state = 'idle';
+  var score = 0;
+  var best = 0;
+  var lives = 3;
+  var spawnTimer = 0;
+  var elapsed = 0;
+  var correctChars = 0;
+  var totalWords = 0;
+  var wpm = 0;
+  var shakeT = 0;
+  var particles = [];
+  var stars = [];
+
+  try { best = parseInt(localStorage.getItem('word-rush-best') || '0', 10) || 0; } catch (_) {}
+  updateMeta();
+
+  function updateMeta() { metaEl.textContent = 'wpm ' + wpm + ' · best ' + best; }
+  function updateHearts() {
+    for (var i = 0; i < hearts.length; i++) {
+      hearts[i].classList.toggle('is-spent', i >= lives);
+    }
+  }
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function initStars() {
+    stars = [];
+    for (var i = 0; i < 60; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        speed: 0.15 + Math.random() * 0.5,
+        r: Math.random() < 0.85 ? 1 : 2
+      });
+    }
+  }
+  initStars();
+  window.addEventListener('resize', initStars);
+
+  var audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function tone(freq, dur, type, vol) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var bufSize = Math.floor(audio.sampleRate * dur);
+    var buf = audio.createBuffer(1, bufSize, audio.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+    var src = audio.createBufferSource();
+    src.buffer = buf;
+    var g = audio.createGain();
+    g.gain.setValueAtTime(vol || 0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(g).connect(audio.destination);
+    src.start(t);
+    src.stop(t + dur);
+  }
+
+  function spawn() {
+    var w = WORDS[Math.floor(Math.random() * WORDS.length)].toUpperCase();
+    var pad = 40;
+    var x = pad + Math.random() * Math.max(60, W - pad * 2);
+    var vy = 0.45 + elapsed * 0.0009 + Math.random() * 0.25;
+    words.push({ text: w, x: x, y: -20, vy: vy, typed: 0 });
+  }
+
+  function reset() {
+    words = [];
+    target = null;
+    particles = [];
+    score = 0;
+    lives = 3;
+    spawnTimer = 0;
+    elapsed = 0;
+    correctChars = 0;
+    totalWords = 0;
+    wpm = 0;
+    shakeT = 0;
+    scoreEl.textContent = '0';
+    updateMeta();
+    updateHearts();
+    typer.value = '';
+  }
+
+  function start() {
+    ensureAudio();
+    reset();
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+    typer.focus();
+  }
+
+  function gameOver() {
+    state = 'over';
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('word-rush-best', String(best)); } catch (_) {}
+    }
+    overScoreEl.textContent = 'Score: ' + score + ' · Best: ' + best;
+    overOverlay.classList.remove('is-hidden');
+    shakeT = 14;
+    tone(160, 0.18, 'square', 0.2);
+    tone(110, 0.4, 'sawtooth', 0.18);
+    typer.blur();
+  }
+
+  function loseLife() {
+    lives--;
+    updateHearts();
+    if (target) { target.typed = 0; target = null; }
+    shakeT = 10;
+    noise(0.15, 0.18);
+    if (lives <= 0) gameOver();
+  }
+
+  function handleKey(key) {
+    if (state !== 'play') return;
+    key = key.toUpperCase();
+    if (key < 'A' || key > 'Z') return;
+
+    if (!target) {
+      // find best candidate starting with this letter — pick the lowest one
+      var best = null;
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        if (w.text[0] === key) {
+          if (!best || w.y > best.y) best = w;
+        }
+      }
+      if (best) {
+        target = best;
+        target.typed = 1;
+        correctChars++;
+        tone(620, 0.04, 'triangle', 0.12);
+        burst(target.x, target.y, ACCENT, 4);
+      } else {
+        tone(180, 0.06, 'square', 0.08);
+      }
+      return;
+    }
+
+    if (target.text[target.typed] === key) {
+      target.typed++;
+      correctChars++;
+      tone(660 + target.typed * 16, 0.04, 'triangle', 0.12);
+      burst(target.x, target.y, ACCENT, 3);
+      if (target.typed >= target.text.length) {
+        score += target.text.length * 10;
+        scoreEl.textContent = score;
+        burst(target.x, target.y, ACCENT, 18);
+        tone(880, 0.08, 'sine', 0.16);
+        var idx = words.indexOf(target);
+        if (idx !== -1) words.splice(idx, 1);
+        target = null;
+        totalWords++;
+      }
+    } else {
+      target.typed = 0;
+      target = null;
+      tone(220, 0.08, 'square', 0.12);
+    }
+  }
+
+  function burst(x, y, colour, n) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var s = 1 + Math.random() * 3;
+      particles.push({
+        x: x, y: y,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 20 + Math.random() * 14,
+        r: 1.5 + Math.random() * 2,
+        colour: colour
+      });
+    }
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  canvas.addEventListener('pointerdown', function () {
+    if (state === 'play') typer.focus();
+  });
+
+  typer.addEventListener('input', function (e) {
+    var v = typer.value;
+    if (v.length) {
+      var k = v[v.length - 1];
+      handleKey(k);
+    }
+    typer.value = '';
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (state === 'idle' || state === 'over') {
+        e.preventDefault();
+        start();
+        return;
+      }
+    }
+    if (state !== 'play') return;
+    if (e.key && e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+      e.preventDefault();
+      handleKey(e.key);
+    }
+  });
+  // Keep the input focused for keystrokes
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && state === 'play') typer.focus();
+  });
+  window.addEventListener('blur', function () {
+    if (state === 'play') setTimeout(function () { typer.focus(); }, 50);
+  });
+
+  function update() {
+    if (state === 'play') {
+      elapsed++;
+      spawnTimer++;
+      var spawnInterval = Math.max(40, 130 - Math.floor(elapsed / 60) * 6);
+      if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        spawn();
+      }
+
+      // WPM = (correctChars / 5) per minute
+      var minutes = elapsed / 60 / 60;
+      wpm = minutes > 0.01 ? Math.round((correctChars / 5) / minutes) : 0;
+      updateMeta();
+
+      var floor = H - 60;
+      for (var i = words.length - 1; i >= 0; i--) {
+        var w = words[i];
+        w.y += w.vy;
+        if (w.y > floor) {
+          if (w === target) target = null;
+          words.splice(i, 1);
+          loseLife();
+          if (state !== 'play') return;
+        }
+      }
+    }
+
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vy += 0.05;
+      p.vx *= 0.96;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    for (var i = 0; i < stars.length; i++) {
+      stars[i].y += stars[i].speed;
+      if (stars[i].y > H) { stars[i].y = -2; stars[i].x = Math.random() * W; }
+    }
+
+    if (shakeT > 0) shakeT--;
+  }
+
+  function render() {
+    // background
+    ctx.fillStyle = '#06060a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.45)';
+    ctx.fillRect(0, 0, W, H);
+
+    // stars
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      ctx.fillStyle = 'rgba(180, 220, 210, 0.55)';
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+
+    // floor warning line
+    var floor = H - 60;
+    ctx.fillStyle = 'rgba(255, 80, 100, 0.4)';
+    ctx.fillRect(0, floor, W, 1);
+    ctx.fillStyle = 'rgba(255, 80, 100, 0.07)';
+    ctx.fillRect(0, floor, W, H - floor);
+
+    var shakeX = 0, shakeY = 0;
+    if (shakeT > 0) {
+      shakeX = (Math.random() - 0.5) * shakeT;
+      shakeY = (Math.random() - 0.5) * shakeT;
+    }
+
+    // words
+    ctx.font = '700 22px "JetBrains Mono", ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      var x = w.x + shakeX;
+      var y = w.y + shakeY;
+      var isTarget = (w === target);
+      var rest = w.text.substr(w.typed);
+      var typed = w.text.substr(0, w.typed);
+      var metrics = ctx.measureText(w.text);
+      var totalW = metrics.width;
+
+      // glow if target
+      if (isTarget) {
+        ctx.fillStyle = 'rgba(77, 212, 184, 0.18)';
+        ctx.fillRect(x - totalW / 2 - 8, y - 16, totalW + 16, 32);
+        ctx.strokeStyle = 'rgba(77, 212, 184, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - totalW / 2 - 8 + 0.5, y - 16 + 0.5, totalW + 16 - 1, 32 - 1);
+      }
+
+      // draw two halves so typed and untyped have distinct colours
+      var typedW = ctx.measureText(typed).width;
+      var restW = ctx.measureText(rest).width;
+      var leftX = x - totalW / 2;
+
+      if (typed.length) {
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.fillText(typed, leftX, y);
+      }
+      if (rest.length) {
+        ctx.fillStyle = isTarget ? '#cffff0' : ACCENT;
+        ctx.textAlign = 'left';
+        ctx.fillText(rest, leftX + typedW, y);
+      }
+      ctx.textAlign = 'center';
+    }
+
+    // particles
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      var a = Math.min(1, p.life / 30);
+      ctx.fillStyle = p.colour;
+      ctx.globalAlpha = a;
+      ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
