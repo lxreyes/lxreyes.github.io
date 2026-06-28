@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KART LOOPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 64, 129, 0.20), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 20;
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #ff4081;
+    text-shadow: 0 0 28px rgba(255, 64, 129, 0.55);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 36ch;
+    line-height: 1.55;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #ff4081;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(255, 64, 129, 0.45);
+  }
+  button:hover { background: #ff639a; }
+  .hud {
+    position: fixed;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .lap {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(232, 230, 227, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .hud .meta {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+  .back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.4);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+  .hint b { color: rgba(232, 230, 227, 0.7); font-weight: 700; }
+  .controls {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .key {
+    pointer-events: auto;
+    padding: 14px 0;
+    text-align: center;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(232, 230, 227, 0.85);
+    background: rgba(255, 64, 129, 0.12);
+    border: 1px solid rgba(255, 64, 129, 0.35);
+    border-radius: 12px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .key:active { background: rgba(255, 64, 129, 0.3); }
+  @media (hover: hover) and (pointer: fine) {
+    .controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="lap" id="lap">LAP 1 / 3</div>
+  <div class="meta" id="meta">0.00s &middot; best &mdash;</div>
+</div>
+<div class="controls" aria-hidden="true">
+  <div class="key" id="key-left">&larr;</div>
+  <div class="key" id="key-gas">GAS</div>
+  <div class="key" id="key-right">&rarr;</div>
+</div>
+<div class="overlay" id="start">
+  <h1>KART LOOPS</h1>
+  <p>Three laps around a neon oval. Stay on the track &mdash; the grass slows you. Best lap time saves locally.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint"><b>&larr; &rarr;</b> steer &middot; <b>&uarr;</b> gas &middot; <b>&darr;</b> brake</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Finish</h1>
+  <p id="over-score">Race: 0.00s &middot; Best lap: &mdash;</p>
+  <button id="retry-btn">Race again</button>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var lapEl = document.getElementById('lap');
+  var metaEl = document.getElementById('meta');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overTitleEl = document.getElementById('over-title');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var keyLeft = document.getElementById('key-left');
+  var keyRight = document.getElementById('key-right');
+  var keyGas = document.getElementById('key-gas');
+
+  var ACCENT = '#ff4081';
+  var TOTAL_LAPS = 3;
+
+  var W = 0, H = 0;
+  // Track ellipse — outer + inner radii. The race surface is the area between.
+  var cx = 0, cy = 0;
+  var outerRx = 0, outerRy = 0;
+  var innerRx = 0, innerRy = 0;
+  // Half-width of the track (radial). Used by collision and rendering.
+  var trackWidth = 0;
+  // Start/finish bar position on the track.
+  var startAngle = -Math.PI / 2; // top of oval
+  var lastAngle = startAngle;     // car's last polar angle (for lap detection)
+  var sectorsHit = 0;            // count of sectors crossed counter-clockwise
+  var sectorState = 0;           // 0..3
+  var state = 'idle';
+
+  var car = { x: 0, y: 0, angle: 0, vx: 0, vy: 0, speed: 0 };
+  var raceStart = 0;
+  var raceElapsed = 0;
+  var lap = 1;
+  var lapStart = 0;
+  var lapTimes = [];
+  var bestLap = null;
+
+  var keyL = false, keyR = false, keyUp = false, keyDown = false;
+  var stars = [];
+  var smoke = [];
+
+  try {
+    var b = localStorage.getItem('kart-loops-best');
+    if (b) bestLap = parseFloat(b);
+  } catch (_) {}
+  updateMeta();
+
+  function fmt(t) { return t.toFixed(2) + 's'; }
+
+  function updateMeta() {
+    metaEl.textContent = fmt(raceElapsed) + ' · best ' + (bestLap != null ? fmt(bestLap) : '—');
+  }
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    cx = W / 2;
+    cy = H / 2;
+    var mx = Math.min(W * 0.42, 480);
+    var my = Math.min(H * 0.34, 320);
+    outerRx = mx;
+    outerRy = my;
+    // Inner radii proportional
+    innerRx = mx * 0.45;
+    innerRy = my * 0.4;
+    trackWidth = Math.min(outerRx - innerRx, outerRy - innerRy);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function initStars() {
+    stars = [];
+    for (var i = 0; i < 60; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        twinkle: Math.random() * Math.PI * 2,
+        r: Math.random() < 0.85 ? 1 : 2
+      });
+    }
+  }
+  initStars();
+  window.addEventListener('resize', initStars);
+
+  var audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  var engineOsc = null;
+  var engineGain = null;
+  function engineOn() {
+    if (!audio) return;
+    if (engineOsc) return;
+    engineOsc = audio.createOscillator();
+    engineGain = audio.createGain();
+    engineOsc.frequency.value = 80;
+    engineOsc.type = 'sawtooth';
+    engineGain.gain.value = 0;
+    engineOsc.connect(engineGain).connect(audio.destination);
+    engineOsc.start();
+  }
+  function engineOff() {
+    if (!engineOsc) return;
+    try { engineOsc.stop(); } catch (e) {}
+    engineOsc = null;
+    engineGain = null;
+  }
+  function setEngine(speed) {
+    if (!engineOsc || !audio) return;
+    var t = audio.currentTime;
+    var freq = 70 + Math.abs(speed) * 38;
+    engineOsc.frequency.setTargetAtTime(freq, t, 0.04);
+    var vol = Math.min(0.08, 0.02 + Math.abs(speed) * 0.012);
+    engineGain.gain.setTargetAtTime(vol, t, 0.05);
+  }
+  function tone(freq, dur, type, vol) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function placeCarAtStart() {
+    // Place on track at startAngle, facing tangent (counterclockwise = increasing angle)
+    var midRx = (outerRx + innerRx) / 2;
+    var midRy = (outerRy + innerRy) / 2;
+    car.x = cx + Math.cos(startAngle) * midRx;
+    car.y = cy + Math.sin(startAngle) * midRy;
+    // Tangent at this point goes -sin, cos (counterclockwise)
+    car.angle = startAngle + Math.PI / 2;
+    car.vx = 0;
+    car.vy = 0;
+    car.speed = 0;
+    lastAngle = startAngle;
+    sectorState = 0;
+  }
+
+  function reset() {
+    placeCarAtStart();
+    lap = 1;
+    lapStart = 0;
+    raceStart = 0;
+    raceElapsed = 0;
+    lapTimes = [];
+    smoke = [];
+    lapEl.textContent = 'LAP 1 / ' + TOTAL_LAPS;
+    updateMeta();
+  }
+
+  function start() {
+    ensureAudio();
+    engineOn();
+    reset();
+    state = 'play';
+    raceStart = Date.now();
+    lapStart = raceStart;
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  function finishRace() {
+    state = 'over';
+    engineOff();
+    overTitleEl.textContent = 'Finish';
+    var bestLapText = bestLap != null ? fmt(bestLap) : '—';
+    overScoreEl.textContent = 'Race: ' + fmt(raceElapsed) + ' · Best lap: ' + bestLapText;
+    overOverlay.classList.remove('is-hidden');
+    tone(440, 0.18, 'triangle', 0.18);
+    tone(660, 0.18, 'triangle', 0.18);
+  }
+
+  // -------- Input --------
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+
+  function bind(el, on, off) {
+    el.addEventListener('pointerdown', function (e) { e.preventDefault(); on(); });
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('pointerleave', off);
+  }
+  bind(keyLeft, function () { keyL = true; }, function () { keyL = false; });
+  bind(keyRight, function () { keyR = true; }, function () { keyR = false; });
+  bind(keyGas, function () { keyUp = true; }, function () { keyUp = false; });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (state === 'idle' || state === 'over') {
+        e.preventDefault();
+        start();
+        return;
+      }
+    }
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keyL = true; e.preventDefault(); }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') { keyR = true; e.preventDefault(); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') { keyUp = true; e.preventDefault(); }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') { keyDown = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', function (e) {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keyL = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keyR = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') keyUp = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') keyDown = false;
+  });
+
+  // -------- Track / collision helpers --------
+  // Normalized "distance from track center" — 0 = centerline, 1 = outer edge, -1 = inner edge.
+  // Uses ellipse approximation: how far the (x,y) point is between inner and outer ellipses.
+  function trackDist(x, y) {
+    var dx = x - cx, dy = y - cy;
+    // Inner ellipse value: > 1 means outside inner ellipse, < 1 means inside it.
+    var inner = (dx * dx) / (innerRx * innerRx) + (dy * dy) / (innerRy * innerRy);
+    var outer = (dx * dx) / (outerRx * outerRx) + (dy * dy) / (outerRy * outerRy);
+    // Returns:
+    //   < 0 if inside the inner ellipse (inside the loop hole)
+    //   0..1 on the track
+    //   > 1 if outside the outer ellipse
+    // Map: t = -1 if inner ellipse, 0 at outer
+    // Simplified: return outer - 1 (negative = inside outer, positive = outside) and inner status
+    return { inner: inner, outer: outer };
+  }
+
+  function isOnTrack(x, y) {
+    var d = trackDist(x, y);
+    return d.outer < 1 && d.inner > 1;
+  }
+  function isGrass(x, y) {
+    var d = trackDist(x, y);
+    return d.outer >= 1 || d.inner <= 1;
+  }
+
+  // -------- Simulation --------
+  function updateCar() {
+    var accel = 0;
+    if (keyUp) accel += 0.32;
+    if (keyDown) accel -= 0.22;
+    // Friction
+    car.speed *= 0.96;
+    car.speed += accel;
+    car.speed = Math.max(-2.4, Math.min(6.4, car.speed));
+    // Grass — heavy drag
+    if (isGrass(car.x, car.y)) {
+      car.speed *= 0.92;
+    }
+    // Steering — only when moving
+    if (Math.abs(car.speed) > 0.4) {
+      var turnRate = 0.045 * (car.speed > 0 ? 1 : -1);
+      if (keyL) car.angle -= turnRate;
+      if (keyR) car.angle += turnRate;
+    }
+    // Apply velocity
+    var nx = car.x + Math.cos(car.angle) * car.speed;
+    var ny = car.y + Math.sin(car.angle) * car.speed;
+    car.x = nx;
+    car.y = ny;
+    setEngine(car.speed);
+
+    // Smoke when on grass or turning hard at speed
+    if (Math.random() < 0.5 && Math.abs(car.speed) > 1.5 && isGrass(car.x, car.y)) {
+      smoke.push({
+        x: car.x - Math.cos(car.angle) * 8,
+        y: car.y - Math.sin(car.angle) * 8,
+        life: 28 + Math.random() * 18,
+        r: 3 + Math.random() * 3,
+        a: Math.random() * Math.PI * 2,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6
+      });
+    }
+
+    // Lap detection — track sector progression (counterclockwise)
+    var carAngle = Math.atan2(car.y - cy, car.x - cx);
+    // Normalize to 0..2pi
+    var na = (carAngle + Math.PI * 2) % (Math.PI * 2);
+    // Sectors: 0..pi/2, pi/2..pi, pi..3pi/2, 3pi/2..2pi
+    var sector = Math.floor(na / (Math.PI / 2));
+    // Expect to enter sectors in order CCW from start. start at angle -pi/2 (which is 3pi/2) → na ~ 4.71
+    // CCW means na DECREASES (or wraps). Sectors expected: 3 → 2 → 1 → 0 → 3 (lap done).
+    var expectedNext = (3 - sectorState + 4) % 4;
+    if (sector === expectedNext) {
+      sectorState++;
+      if (sectorState >= 4) {
+        sectorState = 0;
+        // Lap complete
+        var now = Date.now();
+        var elapsed = (now - lapStart) / 1000;
+        lapStart = now;
+        lapTimes.push(elapsed);
+        if (bestLap == null || elapsed < bestLap) {
+          bestLap = elapsed;
+          try { localStorage.setItem('kart-loops-best', String(bestLap)); } catch (_) {}
+        }
+        tone(660, 0.1, 'triangle', 0.2);
+        if (lap >= TOTAL_LAPS) {
+          finishRace();
+          return;
+        }
+        lap++;
+        lapEl.textContent = 'LAP ' + lap + ' / ' + TOTAL_LAPS;
+      }
+    }
+    lastAngle = carAngle;
+  }
+
+  function update() {
+    if (state === 'play') {
+      raceElapsed = (Date.now() - raceStart) / 1000;
+      updateMeta();
+      updateCar();
+    }
+    for (var i = smoke.length - 1; i >= 0; i--) {
+      var s = smoke[i];
+      s.x += s.vx; s.y += s.vy;
+      s.life--;
+      if (s.life <= 0) smoke.splice(i, 1);
+    }
+    for (var i = 0; i < stars.length; i++) stars[i].twinkle += 0.03;
+  }
+
+  // -------- Render --------
+  function renderTrack() {
+    // Outer fill (grass)
+    ctx.fillStyle = 'rgba(50, 16, 30, 0.9)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Outer ellipse + inner ellipse subtraction = track shape
+    // Track surface
+    ctx.fillStyle = '#1d1426';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, outerRx, outerRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Cut out inner
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, innerRx, innerRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Restore body-ish background for outside of outer ellipse
+    // Outer rim
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, outerRx, outerRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner rim
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, innerRx, innerRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center line dashed
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 18]);
+    ctx.beginPath();
+    var midRx = (outerRx + innerRx) / 2;
+    var midRy = (outerRy + innerRy) / 2;
+    ctx.ellipse(cx, cy, midRx, midRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Start / finish bar — perpendicular to track at startAngle
+    var sx = cx + Math.cos(startAngle) * innerRx;
+    var sy = cy + Math.sin(startAngle) * innerRy;
+    var ex = cx + Math.cos(startAngle) * outerRx;
+    var ey = cy + Math.sin(startAngle) * outerRy;
+    // checker
+    var segs = 8;
+    for (var i = 0; i < segs; i++) {
+      var t1 = i / segs;
+      var t2 = (i + 1) / segs;
+      ctx.fillStyle = (i % 2 === 0) ? '#ffffff' : '#0a0a14';
+      ctx.beginPath();
+      ctx.moveTo(sx + (ex - sx) * t1 - 3, sy + (ey - sy) * t1);
+      ctx.lineTo(sx + (ex - sx) * t2 - 3, sy + (ey - sy) * t2);
+      ctx.lineTo(sx + (ex - sx) * t2 + 3, sy + (ey - sy) * t2);
+      ctx.lineTo(sx + (ex - sx) * t1 + 3, sy + (ey - sy) * t1);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function renderCar() {
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+    // body
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(-10, -7, 22, 14);
+    // front
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(8, -6, 4, 12);
+    // wheels
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(-9, -9, 5, 4);
+    ctx.fillRect(-9, 5, 5, 4);
+    ctx.fillRect(6, -9, 5, 4);
+    ctx.fillRect(6, 5, 5, 4);
+    // cockpit
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.fillRect(-3, -4, 6, 8);
+    ctx.restore();
+  }
+
+  function render() {
+    // backdrop
+    ctx.fillStyle = '#06060a';
+    ctx.fillRect(0, 0, W, H);
+    // stars
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      var a = 0.3 + Math.sin(s.twinkle) * 0.2;
+      ctx.fillStyle = 'rgba(255, 200, 220, ' + a + ')';
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+
+    renderTrack();
+
+    // smoke
+    for (var i = 0; i < smoke.length; i++) {
+      var p = smoke[i];
+      var a = Math.min(1, p.life / 40) * 0.6;
+      ctx.fillStyle = 'rgba(255, 200, 220, ' + a + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    renderCar();
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
