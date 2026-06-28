@@ -180,7 +180,7 @@
     var trimmed = raw.trim();
     if (!trimmed) return;
     var ytId = getYouTubeId(trimmed);
-    if (ytId) { useEmbed('https://www.youtube-nocookie.com/embed/' + ytId + '?autoplay=1&rel=0', 'YouTube — built-in controls'); return; }
+    if (ytId) { useEmbed('https://www.youtube.com/embed/' + ytId + '?autoplay=1&rel=0', 'YouTube — built-in controls'); return; }
     var vmId = getVimeoId(trimmed);
     if (vmId) { useEmbed('https://player.vimeo.com/video/' + vmId + '?autoplay=1', 'Vimeo — built-in controls'); return; }
     // Direct video URL

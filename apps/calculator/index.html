@@ -23,24 +23,29 @@
     letter-spacing: 0.22em; text-transform: uppercase; margin: 0 0 18px; color: rgba(232,230,227,0.6); }
   .calc { width: min(360px, 100%); background: rgba(20, 18, 28, 0.7); border: 1px solid rgba(255, 175, 70, 0.3);
     border-radius: 18px; padding: 18px; box-shadow: 0 16px 36px -16px rgba(0, 0, 0, 0.6); }
-  .display { background: #0a0a14; border-radius: 12px; padding: 18px 16px 14px; min-height: 100px;
-    display: flex; flex-direction: column; justify-content: flex-end; margin-bottom: 14px; overflow: hidden; }
+  .display { background: #0a0a14; border-radius: 12px; padding: 18px 16px 14px;
+    display: flex; flex-direction: column; justify-content: flex-end; margin-bottom: 14px;
+    min-height: 100px; overflow: hidden; }
   .display .expr { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 13px;
     color: rgba(232,230,227,0.45); letter-spacing: 0.06em; margin-bottom: 6px; min-height: 16px;
     white-space: nowrap; overflow-x: auto; text-align: right; font-variant-numeric: tabular-nums; }
   .display .val { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700;
-    font-size: clamp(32px, 8vw, 44px); color: #fff; text-align: right; word-break: break-all;
-    font-variant-numeric: tabular-nums; }
-  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .keys button { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 18px;
+    font-size: clamp(32px, 8vw, 44px); color: #fff; text-align: right;
+    font-variant-numeric: tabular-nums; line-height: 1.1; word-break: break-all; }
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 60px; gap: 8px; }
+  @media (max-width: 360px) { .keys { grid-auto-rows: 54px; } }
+  .keys button { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 20px;
     color: #f1ede4; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 14px; aspect-ratio: 1 / 1; cursor: pointer; box-shadow: none; }
-  .keys button:hover { background: rgba(255,255,255,0.1); }
+    border-radius: 14px; cursor: pointer; box-shadow: none; transition: background 100ms, transform 80ms; }
+  .keys button:hover { background: rgba(255,255,255,0.12); }
   .keys button:active { transform: translateY(2px); }
   .keys button.op { background: rgba(255, 175, 70, 0.18); border-color: rgba(255, 175, 70, 0.4); color: #ffaf46; }
+  .keys button.op:hover { background: rgba(255, 175, 70, 0.32); }
   .keys button.op.equals { background: #ffaf46; color: #0a0a0e; border-color: #ffaf46; }
-  .keys button.span2 { aspect-ratio: 2 / 1; grid-column: span 2; }
-  .keys button.fn { background: rgba(255,255,255,0.04); color: rgba(232,230,227,0.7); }
+  .keys button.op.equals:hover { background: #ffc066; }
+  .keys button.span2 { grid-column: span 2; }
+  .keys button.fn { background: rgba(255,255,255,0.04); color: rgba(232,230,227,0.78); font-size: 16px; }
+  .keys button.fn:hover { background: rgba(255,255,255,0.1); }
 </style>
 </head>
 <body>
@@ -53,7 +58,7 @@
   </div>
   <div class="keys" id="keys">
     <button class="fn" data-k="C">AC</button>
-    <button class="fn" data-k="±">±</button>
+    <button class="fn" data-k="N">±</button>
     <button class="fn" data-k="%">%</button>
     <button class="op" data-k="/">÷</button>
     <button data-k="7">7</button>
@@ -79,61 +84,28 @@
   var valEl = document.getElementById('val');
   var keys = document.getElementById('keys');
 
-  // Simple stateful calc: cur (current number string), prev (number), op (pending operator)
-  var cur = '0';
-  var prev = null;
-  var op = null;
-  var justEvaluated = false;
+  // State
+  var cur = '0';        // currently displayed number as a string
+  var prev = null;      // committed previous value (number)
+  var op = null;        // pending operator: '+', '-', '*', '/'
+  var fresh = true;     // next digit starts a new number (just after operator or equals)
+
+  function opSym(o) { return o === '*' ? '×' : o === '/' ? '÷' : o === '-' ? '−' : '+'; }
+
+  function fmt(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return 'Error';
+    if (Math.abs(n) > 1e15 || (n !== 0 && Math.abs(n) < 1e-6)) return n.toExponential(6).replace('+', '');
+    var s = String(parseFloat(n.toPrecision(12)));
+    return s;
+  }
 
   function refresh() {
     valEl.textContent = cur;
     var e = '';
-    if (prev != null && op) e = format(prev) + ' ' + opSym(op);
+    if (prev !== null && op) e = fmt(prev) + ' ' + opSym(op);
     exprEl.innerHTML = e || '&nbsp;';
   }
-  function opSym(o) { return o === '*' ? '×' : o === '/' ? '÷' : o === '-' ? '−' : o; }
-  function format(n) {
-    if (typeof n !== 'number') return String(n);
-    if (!isFinite(n)) return 'Error';
-    var s = (Math.abs(n) > 1e15 || (Math.abs(n) < 1e-6 && n !== 0)) ? n.toExponential(6) : String(parseFloat(n.toPrecision(12)));
-    return s;
-  }
-  function input(k) {
-    if (k >= '0' && k <= '9') {
-      if (justEvaluated) { cur = k; justEvaluated = false; }
-      else if (cur === '0') cur = k;
-      else cur = cur + k;
-    } else if (k === '.') {
-      if (justEvaluated) { cur = '0.'; justEvaluated = false; }
-      else if (cur.indexOf('.') === -1) cur = cur + '.';
-    } else if (k === 'C') {
-      cur = '0'; prev = null; op = null; justEvaluated = false;
-    } else if (k === '±') {
-      if (cur !== '0') cur = cur.charAt(0) === '-' ? cur.substr(1) : '-' + cur;
-    } else if (k === '%') {
-      cur = format(parseFloat(cur) / 100);
-    } else if (k === '+' || k === '-' || k === '*' || k === '/') {
-      if (prev != null && op && !justEvaluated) {
-        prev = compute(prev, parseFloat(cur), op);
-        cur = format(prev);
-      } else {
-        prev = parseFloat(cur);
-      }
-      op = k;
-      justEvaluated = false;
-      cur = '0';
-    } else if (k === '=' || k === 'Enter') {
-      if (op != null && prev != null) {
-        var res = compute(prev, parseFloat(cur), op);
-        cur = format(res);
-        prev = null; op = null;
-        justEvaluated = true;
-      }
-    } else if (k === 'Backspace') {
-      cur = cur.length > 1 ? cur.substr(0, cur.length - 1) : '0';
-    }
-    refresh();
-  }
+
   function compute(a, b, o) {
     if (o === '+') return a + b;
     if (o === '-') return a - b;
@@ -142,21 +114,84 @@
     return b;
   }
 
+  function pressDigit(d) {
+    if (fresh) { cur = d; fresh = false; return; }
+    if (cur === '0') cur = d;
+    else if (cur === '-0') cur = '-' + d;
+    else cur = cur + d;
+  }
+
+  function pressDot() {
+    if (fresh) { cur = '0.'; fresh = false; return; }
+    if (cur.indexOf('.') === -1) cur = cur + '.';
+  }
+
+  function pressOp(newOp) {
+    var n = parseFloat(cur);
+    if (prev === null || fresh) {
+      prev = n;
+    } else if (op) {
+      prev = compute(prev, n, op);
+    }
+    op = newOp;
+    fresh = true;
+  }
+
+  function pressEquals() {
+    if (op === null || prev === null) return;
+    var n = parseFloat(cur);
+    var res = compute(prev, n, op);
+    cur = fmt(res);
+    prev = null;
+    op = null;
+    fresh = true;
+  }
+
+  function clearAll() { cur = '0'; prev = null; op = null; fresh = true; }
+  function negate() {
+    if (cur === '0' || cur === '0.') return;
+    cur = cur.charAt(0) === '-' ? cur.substr(1) : '-' + cur;
+    fresh = false;
+  }
+  function percent() {
+    var n = parseFloat(cur) / 100;
+    cur = fmt(n);
+    fresh = false;
+  }
+  function backspace() {
+    if (fresh) return;
+    if (cur.length <= 1 || (cur.length === 2 && cur.charAt(0) === '-')) cur = '0';
+    else cur = cur.substr(0, cur.length - 1);
+  }
+
+  function handle(k) {
+    if (k >= '0' && k <= '9') pressDigit(k);
+    else if (k === '.') pressDot();
+    else if (k === '+' || k === '-' || k === '*' || k === '/') pressOp(k);
+    else if (k === '=' || k === 'Enter') pressEquals();
+    else if (k === 'C') clearAll();
+    else if (k === 'N') negate();
+    else if (k === '%') percent();
+    else if (k === 'Backspace') backspace();
+    refresh();
+  }
+
   keys.addEventListener('click', function (e) {
     var t = e.target.closest('button');
     if (!t) return;
-    input(t.getAttribute('data-k'));
+    handle(t.getAttribute('data-k'));
   });
 
   window.addEventListener('keydown', function (e) {
     var k = e.key;
-    if ((k >= '0' && k <= '9') || k === '.' || k === '+' || k === '-' || k === '*' || k === '/' || k === '=' || k === 'Enter' || k === 'Backspace') {
+    if ((k >= '0' && k <= '9') || k === '.' || k === '+' || k === '-' || k === '*' || k === '/'
+        || k === '=' || k === 'Enter' || k === 'Backspace' || k === '%') {
       e.preventDefault();
-      input(k);
+      handle(k);
     } else if (k === 'Escape' || k === 'c' || k === 'C') {
       e.preventDefault();
-      input('C');
-    } else if (k === '%') { e.preventDefault(); input('%'); }
+      handle('C');
+    }
   });
 
   refresh();
