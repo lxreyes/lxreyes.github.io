@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CHESS LITE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #06060a;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(212, 178, 122, 0.18), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    touch-action: manipulation;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    background: rgba(6, 6, 10, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 20;
+  }
+  .overlay.is-hidden { display: none; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+    color: #d4b27a;
+    text-shadow: 0 0 28px rgba(212, 178, 122, 0.5);
+  }
+  p {
+    color: rgba(232, 230, 227, 0.72);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 36ch;
+    line-height: 1.55;
+  }
+  button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #d4b27a;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 26px;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(212, 178, 122, 0.45);
+  }
+  button:hover { background: #e0c08c; }
+  .hud {
+    position: fixed;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    z-index: 5;
+  }
+  .hud .status {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.85);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  }
+  .hud .meta {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.42);
+    margin-top: 4px;
+  }
+  .back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); }
+  .hint {
+    color: rgba(232, 230, 227, 0.45);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 18px;
+  }
+  .panel {
+    position: fixed;
+    top: 64px;
+    right: 18px;
+    display: flex;
+    gap: 8px;
+    z-index: 6;
+  }
+  .panel button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.7);
+    background: transparent;
+    border: 1px solid rgba(212, 178, 122, 0.32);
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    box-shadow: none;
+  }
+  .panel button:hover { background: rgba(212, 178, 122, 0.12); color: rgba(232, 230, 227, 0.95); }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="status" id="status">Your move</div>
+  <div class="meta" id="meta">white &middot; W&nbsp;&mdash; / B&nbsp;&mdash;</div>
+</div>
+<div class="panel">
+  <button id="btn-new">New</button>
+  <button id="btn-undo">Undo</button>
+</div>
+<div class="overlay" id="start">
+  <h1>CHESS LITE</h1>
+  <p>Standard chess with the corners knocked off. You play white. The AI grabs captures when it sees them, otherwise picks a random legal move. No castling, no en&nbsp;passant, no promotion &mdash; just take the king to win.</p>
+  <button id="start-btn">Start</button>
+  <div class="hint">tap a piece &middot; tap a square</div>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Win</h1>
+  <p id="over-score">&nbsp;</p>
+  <button id="retry-btn">New game</button>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var statusEl = document.getElementById('status');
+  var metaEl = document.getElementById('meta');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overTitleEl = document.getElementById('over-title');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var btnNew = document.getElementById('btn-new');
+  var btnUndo = document.getElementById('btn-undo');
+
+  var ACCENT = '#d4b27a';
+  var LIGHT = '#e8d3a3';
+  var DARK = '#523c28';
+  var N = 8;
+
+  var W = 0, H = 0;
+  var cell = 60;
+  var gridX = 0, gridY = 0;
+
+  var board = null;  // 8x8 of {type, side} or null
+  var selected = { r: -1, c: -1 };
+  var validTargets = [];
+  var state = 'idle';
+  var turn = 'w';
+  var history = [];
+  var lastMove = null;
+  var wins = { w: 0, b: 0 };
+
+  // Animation state for AI move slide
+  var anim = null;  // { from, to, piece, t }
+
+  // Unicode chess glyphs
+  var GLYPHS_W = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙' };
+  var GLYPHS_B = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' };
+  var VALUE = { K: 100, Q: 9, R: 5, B: 3, N: 3, P: 1 };
+
+  try {
+    var w = localStorage.getItem('chess-lite-wins');
+    if (w) { var x = JSON.parse(w); if (x && typeof x.w === 'number') wins = x; }
+  } catch (_) {}
+  updateMeta();
+
+  function updateMeta() { metaEl.textContent = 'white · W ' + wins.w + ' / B ' + wins.b; }
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    var maxW = W - 28;
+    var maxH = H - 90 - 36;
+    var size = Math.min(maxW, maxH);
+    cell = Math.floor(size / N);
+    gridX = Math.floor((W - cell * N) / 2);
+    gridY = Math.max(86, Math.floor((H - cell * N) / 2));
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  var audio = null;
+  function ensureAudio() {
+    if (!audio) {
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+  }
+  function tone(freq, dur, type, vol) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(vol || 0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function inBounds(r, c) { return r >= 0 && r < N && c >= 0 && c < N; }
+
+  function setup() {
+    board = [];
+    for (var r = 0; r < N; r++) board.push([null, null, null, null, null, null, null, null]);
+    var back = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+    for (var c = 0; c < N; c++) {
+      board[0][c] = { type: back[c], side: 'b' };
+      board[1][c] = { type: 'P', side: 'b' };
+      board[6][c] = { type: 'P', side: 'w' };
+      board[7][c] = { type: back[c], side: 'w' };
+    }
+    selected.r = -1; selected.c = -1;
+    validTargets = [];
+    history = [];
+    lastMove = null;
+    turn = 'w';
+    anim = null;
+    statusEl.textContent = 'Your move';
+  }
+
+  function pieceMoves(r, c) {
+    var p = board[r][c];
+    if (!p) return [];
+    var moves = [];
+    var dirs;
+    switch (p.type) {
+      case 'P': {
+        var dir = p.side === 'w' ? -1 : 1;
+        var startRow = p.side === 'w' ? 6 : 1;
+        if (inBounds(r + dir, c) && !board[r + dir][c]) {
+          moves.push([r + dir, c]);
+          if (r === startRow && !board[r + 2 * dir][c]) moves.push([r + 2 * dir, c]);
+        }
+        for (var d = -1; d <= 1; d += 2) {
+          var nr = r + dir, nc = c + d;
+          if (inBounds(nr, nc) && board[nr][nc] && board[nr][nc].side !== p.side) moves.push([nr, nc]);
+        }
+        break;
+      }
+      case 'N': {
+        var offs = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+        for (var i = 0; i < offs.length; i++) {
+          var nr = r + offs[i][0], nc = c + offs[i][1];
+          if (inBounds(nr, nc) && (!board[nr][nc] || board[nr][nc].side !== p.side)) moves.push([nr, nc]);
+        }
+        break;
+      }
+      case 'B':
+      case 'R':
+      case 'Q': {
+        dirs = [];
+        if (p.type !== 'B') { dirs.push([0,1]); dirs.push([0,-1]); dirs.push([1,0]); dirs.push([-1,0]); }
+        if (p.type !== 'R') { dirs.push([1,1]); dirs.push([1,-1]); dirs.push([-1,1]); dirs.push([-1,-1]); }
+        for (var di = 0; di < dirs.length; di++) {
+          for (var step = 1; step < N; step++) {
+            var nr = r + dirs[di][0] * step, nc = c + dirs[di][1] * step;
+            if (!inBounds(nr, nc)) break;
+            if (!board[nr][nc]) moves.push([nr, nc]);
+            else { if (board[nr][nc].side !== p.side) moves.push([nr, nc]); break; }
+          }
+        }
+        break;
+      }
+      case 'K': {
+        for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          var nr = r + dr, nc = c + dc;
+          if (inBounds(nr, nc) && (!board[nr][nc] || board[nr][nc].side !== p.side)) moves.push([nr, nc]);
+        }
+        break;
+      }
+    }
+    return moves;
+  }
+
+  function allMoves(side) {
+    var moves = [];
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        var p = board[r][c];
+        if (!p || p.side !== side) continue;
+        var m = pieceMoves(r, c);
+        for (var i = 0; i < m.length; i++) {
+          moves.push({ from: [r, c], to: m[i], capture: board[m[i][0]][m[i][1]] });
+        }
+      }
+    }
+    return moves;
+  }
+
+  function applyMove(m) {
+    var fp = board[m.from[0]][m.from[1]];
+    var cap = board[m.to[0]][m.to[1]];
+    history.push({ from: m.from, to: m.to, piece: fp, capture: cap });
+    board[m.to[0]][m.to[1]] = fp;
+    board[m.from[0]][m.from[1]] = null;
+    lastMove = { from: m.from, to: m.to };
+    if (cap) tone(280, 0.06, 'square', 0.16);
+    else tone(420, 0.04, 'sine', 0.12);
+    if (cap && cap.type === 'K') {
+      var winner = fp.side;
+      gameOver(winner);
+      return;
+    }
+    turn = (turn === 'w' ? 'b' : 'w');
+    if (state === 'play') {
+      if (turn === 'w') statusEl.textContent = 'Your move';
+      else {
+        statusEl.textContent = 'AI thinking';
+        setTimeout(aiTurn, 380);
+      }
+    }
+  }
+
+  function startAnimAndApply(m) {
+    var fp = board[m.from[0]][m.from[1]];
+    anim = { from: m.from, to: m.to, piece: fp, t: 0 };
+    setTimeout(function () {
+      anim = null;
+      applyMove(m);
+    }, 260);
+  }
+
+  function aiTurn() {
+    if (state !== 'play') return;
+    var moves = allMoves('b');
+    if (!moves.length) {
+      gameOver('w');
+      return;
+    }
+    var bestScore = -1;
+    var pool = [];
+    for (var i = 0; i < moves.length; i++) {
+      var m = moves[i];
+      var score = 1;
+      if (m.capture) score += (VALUE[m.capture.type] || 1) * 12;
+      // tiny preference for pushing pawns forward
+      if (m.from && board[m.from[0]] && board[m.from[0]][m.from[1]] &&
+          board[m.from[0]][m.from[1]].type === 'P' && m.to[0] > m.from[0]) score += 0.5;
+      if (score > bestScore) { bestScore = score; pool = [m]; }
+      else if (score === bestScore) pool.push(m);
+    }
+    var pick = pool[Math.floor(Math.random() * pool.length)];
+    startAnimAndApply(pick);
+  }
+
+  function gameOver(winner) {
+    state = 'over';
+    if (winner === 'w') wins.w++;
+    else wins.b++;
+    try { localStorage.setItem('chess-lite-wins', JSON.stringify(wins)); } catch (_) {}
+    overTitleEl.textContent = winner === 'w' ? 'You win' : 'AI wins';
+    overScoreEl.textContent = 'Series: W ' + wins.w + ' / B ' + wins.b;
+    overOverlay.classList.remove('is-hidden');
+    updateMeta();
+    if (winner === 'w') { tone(523, 0.12, 'triangle', 0.16); tone(659, 0.12, 'triangle', 0.16); tone(784, 0.16, 'triangle', 0.16); }
+    else { tone(200, 0.2, 'sawtooth', 0.2); tone(120, 0.4, 'sawtooth', 0.18); }
+  }
+
+  function undo() {
+    // Pop pairs: AI move then player move (to give the player back their turn)
+    if (state !== 'play' || !history.length) return;
+    var popOne = function () {
+      var h = history.pop();
+      board[h.from[0]][h.from[1]] = h.piece;
+      board[h.to[0]][h.to[1]] = h.capture;
+      lastMove = history.length ? { from: history[history.length - 1].from, to: history[history.length - 1].to } : null;
+    };
+    if (turn === 'w' && history.length >= 2) {
+      popOne(); // AI's last move
+      popOne(); // player's move
+    } else if (turn === 'b' && history.length >= 1) {
+      popOne();
+    } else {
+      return;
+    }
+    turn = 'w';
+    selected.r = -1; selected.c = -1;
+    validTargets = [];
+    anim = null;
+    statusEl.textContent = 'Your move';
+    tone(360, 0.04, 'sine', 0.1);
+  }
+
+  // -------- UI input --------
+  function start() {
+    ensureAudio();
+    setup();
+    state = 'play';
+    startOverlay.classList.add('is-hidden');
+    overOverlay.classList.add('is-hidden');
+  }
+
+  startBtn.addEventListener('click', start);
+  retryBtn.addEventListener('click', start);
+  btnNew.addEventListener('click', function () { start(); });
+  btnUndo.addEventListener('click', undo);
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (state !== 'play' || turn !== 'w' || anim) return;
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    if (x < gridX || x >= gridX + cell * N || y < gridY || y >= gridY + cell * N) return;
+    var c = Math.floor((x - gridX) / cell);
+    var r = Math.floor((y - gridY) / cell);
+    if (!inBounds(r, c)) return;
+
+    // If a target square is clicked, move there
+    for (var i = 0; i < validTargets.length; i++) {
+      if (validTargets[i][0] === r && validTargets[i][1] === c) {
+        applyMove({ from: [selected.r, selected.c], to: [r, c], capture: board[r][c] });
+        selected.r = -1; selected.c = -1; validTargets = [];
+        return;
+      }
+    }
+    // Otherwise select this piece if it's ours
+    var p = board[r][c];
+    if (p && p.side === 'w') {
+      selected.r = r; selected.c = c;
+      validTargets = pieceMoves(r, c);
+      tone(620, 0.03, 'sine', 0.08);
+    } else {
+      selected.r = -1; selected.c = -1;
+      validTargets = [];
+    }
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (state === 'idle' || state === 'over') {
+        e.preventDefault();
+        start();
+      }
+    } else if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      undo();
+    } else if (e.code === 'KeyN') {
+      e.preventDefault();
+      start();
+    }
+  });
+
+  // -------- Render --------
+  function render() {
+    ctx.fillStyle = '#06060a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(28, 22, 16, 0.55)';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!board) return;
+
+    var boardSize = cell * N;
+    // Board frame
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(gridX - 6, gridY - 6, boardSize + 12, boardSize + 12);
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(gridX - 6 + 1, gridY - 6 + 1, boardSize + 12 - 2, boardSize + 12 - 2);
+
+    // Squares
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        var isLight = (r + c) % 2 === 0;
+        ctx.fillStyle = isLight ? LIGHT : DARK;
+        ctx.fillRect(gridX + c * cell, gridY + r * cell, cell, cell);
+      }
+    }
+
+    // Last move highlight
+    if (lastMove) {
+      ctx.fillStyle = 'rgba(212, 178, 122, 0.35)';
+      ctx.fillRect(gridX + lastMove.from[1] * cell, gridY + lastMove.from[0] * cell, cell, cell);
+      ctx.fillRect(gridX + lastMove.to[1] * cell, gridY + lastMove.to[0] * cell, cell, cell);
+    }
+
+    // Selected piece highlight
+    if (selected.r >= 0) {
+      ctx.fillStyle = 'rgba(255, 230, 160, 0.4)';
+      ctx.fillRect(gridX + selected.c * cell, gridY + selected.r * cell, cell, cell);
+    }
+
+    // Valid targets — dots
+    for (var i = 0; i < validTargets.length; i++) {
+      var tr = validTargets[i][0], tc = validTargets[i][1];
+      var hasPiece = !!board[tr][tc];
+      var x = gridX + tc * cell + cell / 2;
+      var y = gridY + tr * cell + cell / 2;
+      if (hasPiece) {
+        ctx.strokeStyle = 'rgba(60, 30, 10, 0.55)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(x, y, cell * 0.42, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(60, 30, 10, 0.4)';
+        ctx.beginPath();
+        ctx.arc(x, y, cell * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Pieces
+    var fontSize = Math.floor(cell * 0.78);
+    ctx.font = '500 ' + fontSize + 'px "Arial Unicode MS", "Segoe UI Symbol", "Apple Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (var r = 0; r < N; r++) {
+      for (var c = 0; c < N; c++) {
+        if (anim && anim.from[0] === r && anim.from[1] === c) continue; // moving piece drawn later
+        var p = board[r][c];
+        if (!p) continue;
+        var glyph = (p.side === 'w' ? GLYPHS_W : GLYPHS_B)[p.type];
+        // shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillText(glyph, gridX + c * cell + cell / 2 + 2, gridY + r * cell + cell / 2 + 4);
+        ctx.fillStyle = p.side === 'w' ? '#fdf3df' : '#1d1208';
+        ctx.fillText(glyph, gridX + c * cell + cell / 2, gridY + r * cell + cell / 2 + 2);
+      }
+    }
+
+    // Animation overlay (AI piece sliding)
+    if (anim) {
+      anim.t = Math.min(1, anim.t + 0.06);
+      var ease = anim.t * anim.t * (3 - 2 * anim.t);
+      var fr = anim.from[0], fc = anim.from[1];
+      var tr = anim.to[0], tc = anim.to[1];
+      var ax = gridX + (fc + (tc - fc) * ease) * cell + cell / 2;
+      var ay = gridY + (fr + (tr - fr) * ease) * cell + cell / 2;
+      var glyph = (anim.piece.side === 'w' ? GLYPHS_W : GLYPHS_B)[anim.piece.type];
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillText(glyph, ax + 2, ay + 4);
+      ctx.fillStyle = anim.piece.side === 'w' ? '#fdf3df' : '#1d1208';
+      ctx.fillText(glyph, ax, ay + 2);
+    }
+
+    // Coordinate labels (subtle)
+    ctx.font = '700 10px "Space Grotesk", system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(232, 230, 227, 0.4)';
+    var files = 'abcdefgh';
+    for (var c = 0; c < N; c++) {
+      ctx.textAlign = 'left';
+      ctx.fillText(files[c], gridX + c * cell + 4, gridY + cell * N - 6);
+      ctx.textAlign = 'right';
+      ctx.fillText(String(N - c), gridX + cell * N - 4, gridY + c * cell + 12);
+    }
+  }
+
+  function loop() {
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>

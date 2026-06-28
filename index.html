@@ -591,8 +591,33 @@
                 </a>
             </article>
 
-            <article class="project-card project-card--placeholder" data-genre="Strategy" style="--card-accent: #d4b27a; --logo: url('img/logos/chess-lite.svg');" aria-label="CHESS LITE">
-                <h2 class="project-card__title">CHESS LITE</h2>            </article>
+            <article class="project-card" data-key="chess-lite" data-genre="Strategy" style="--card-accent: #d4b27a; --logo: url('img/logos/chess-lite.svg');">
+                <header class="project-card__head">
+                    <h2 class="project-card__title">CHESS LITE</h2>
+                    <span class="project-card__year">2026</span>
+                </header>
+
+                <p class="project-card__desc">
+                    Standard 8&times;8 chess against a capture-greedy AI. All
+                    piece movement is implemented properly; the only
+                    omissions are castling, en&nbsp;passant, and promotion.
+                    Win by taking the king. Unicode glyphs, last-move
+                    highlight, legal-move dots, undo (Cmd&nbsp;Z), and a
+                    persistent win counter against the AI.
+                </p>
+
+                <ul class="tag-list" aria-label="Tech stack">
+                    <li class="tag">Vanilla&nbsp;JS</li>
+                    <li class="tag">Canvas&nbsp;2D</li>
+                    <li class="tag">AI</li>
+                    <li class="tag">Strategy</li>
+                </ul>
+
+                <a class="cta" href="chess-lite/index.html">
+                    Play CHESS LITE
+                    <span class="cta__arrow" aria-hidden="true">&rarr;</span>
+                </a>
+            </article>
 
             <article class="project-card project-card--teaser" aria-label="More projects coming soon">
                 <div class="teaser-status">
