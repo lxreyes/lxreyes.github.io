@@ -113,10 +113,36 @@
     text-transform: uppercase;
     margin-top: 18px;
   }
+  .mute {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(232, 230, 227, 0.6);
+    background: rgba(6, 6, 10, 0.4);
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 11;
+    padding: 0;
+    box-shadow: none;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
+  .mute.is-muted { opacity: 0.4; }
 </style>
+<script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
 <canvas id="c"></canvas>
 <div class="score" id="score">0</div>
 <div class="overlay" id="start">
@@ -248,6 +274,7 @@
 
   function start() {
     ensureAudio();
+    if (window.Music) Music.start('tower-stack');
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');
@@ -339,6 +366,15 @@
     requestAnimationFrame(loop);
   }
   loop();
+  // Music + mute toggle
+  var muteBtn = document.getElementById('mute');
+  if (muteBtn && window.Music) {
+    if (Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () {
+      Music.toggle();
+      muteBtn.classList.toggle('is-muted');
+    });
+  }
 })();
 </script>
 </body>
