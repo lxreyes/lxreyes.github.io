@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PASSWORD GAME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: #f5f3ef;
+    color: #1a1a22;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(217, 167, 95, 0.18), transparent 60%),
+      linear-gradient(180deg, #f7f4ef, #ebe5da);
+    min-height: 100vh;
+    padding: 80px 20px 80px;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .back {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(26, 26, 34, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(26, 26, 34, 0.95); }
+  .mute {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(26, 26, 34, 0.55);
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(26, 26, 34, 0.16);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 11;
+    padding: 0;
+    box-shadow: none;
+  }
+  .mute:hover { color: rgba(26, 26, 34, 0.95); }
+  .mute.is-muted { opacity: 0.4; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(32px, 6vw, 48px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    color: #1a1a22;
+  }
+  .sub {
+    color: rgba(26, 26, 34, 0.6);
+    font-size: 16px;
+    margin: 0 0 24px;
+  }
+  .box {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 18px;
+    box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(26, 26, 34, 0.06);
+  }
+  textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 18px;
+    border: none;
+    outline: none;
+    resize: vertical;
+    background: transparent;
+    color: #1a1a22;
+    padding: 4px;
+  }
+  .stats {
+    margin-top: 14px;
+    display: flex;
+    gap: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(26, 26, 34, 0.5);
+  }
+  .stats b { color: #1a1a22; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rule {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 22px -14px rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(26, 26, 34, 0.06);
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    transition: transform 220ms, background 220ms, border-color 220ms;
+  }
+  .rule.is-passing {
+    background: #e7f7eb;
+    border-color: rgba(46, 160, 90, 0.3);
+  }
+  .rule.is-failing {
+    background: #fbeae9;
+    border-color: rgba(190, 40, 50, 0.28);
+  }
+  .rule.new { animation: rulePop 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes rulePop {
+    from { transform: translateY(-8px) scale(0.96); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .rule__num {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: rgba(26, 26, 34, 0.55);
+    min-width: 60px;
+  }
+  .rule.is-passing .rule__num { color: rgb(28, 130, 70); }
+  .rule.is-failing .rule__num { color: rgb(168, 35, 45); }
+  .rule__txt {
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #1a1a22;
+  }
+  .rule__txt b { font-weight: 700; }
+  .rule__mark {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .rule.is-passing .rule__mark::after { content: "✓"; color: rgb(28, 130, 70); }
+  .rule.is-failing .rule__mark::after { content: "✕"; color: rgb(168, 35, 45); }
+  .win {
+    background: #fff3e0;
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    margin-top: 24px;
+    border: 2px solid rgba(217, 167, 95, 0.45);
+  }
+  .win h2 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 28px;
+    margin: 0 0 8px;
+    color: #6d4115;
+  }
+  .win p { margin: 0; color: rgba(26, 26, 34, 0.7); font-size: 14px; }
+  .footer { color: rgba(26, 26, 34, 0.45); font-size: 12px; text-align: center; padding-top: 14px; }
+</style>
+<script src="../music.js" defer></script>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<div class="wrap">
+  <h1>The Password Game</h1>
+  <p class="sub">Please choose a password.</p>
+  <div class="box">
+    <textarea id="pwd" placeholder="type here…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <div class="stats">
+      <div><b id="len">0</b> chars</div>
+      <div><b id="passing">0</b>/<b id="total">0</b> rules</div>
+    </div>
+  </div>
+  <div class="rules" id="rules"></div>
+  <div class="win" id="win" hidden>
+    <h2>You did it.</h2>
+    <p>That password should keep you safe from absolutely nobody.</p>
+  </div>
+  <div class="footer">inspired by neal.fun · keep typing to unlock more rules</div>
+</div>
+<script>
+(function () {
+  var pwdEl = document.getElementById('pwd');
+  var rulesEl = document.getElementById('rules');
+  var lenEl = document.getElementById('len');
+  var passingEl = document.getElementById('passing');
+  var totalEl = document.getElementById('total');
+  var winEl = document.getElementById('win');
+  var muteBtn = document.getElementById('mute');
+
+  function digitsSum(p) {
+    var m = p.match(/\d/g) || [];
+    var s = 0;
+    for (var i = 0; i < m.length; i++) s += parseInt(m[i], 10);
+    return s;
+  }
+  function romanProduct(p) {
+    var map = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+    var prod = 0;
+    for (var i = 0; i < p.length; i++) {
+      var c = p[i];
+      if (map[c] != null) { prod = prod === 0 ? map[c] : prod * map[c]; }
+    }
+    return prod;
+  }
+  var MONTHS = ['JAN','JANUARY','FEB','FEBRUARY','MAR','MARCH','APR','APRIL','MAY','JUN','JUNE',
+                'JUL','JULY','AUG','AUGUST','SEP','SEPT','SEPTEMBER','OCT','OCTOBER','NOV','NOVEMBER','DEC','DECEMBER'];
+  var ELEMENTS = ['H','HE','LI','BE','B','C','N','O','F','NE','NA','MG','AL','SI','P','S','CL','AR','K','CA',
+                  'FE','CU','ZN','AG','AU','SN','PB','HG','PT','U'];
+  var COUNTRIES = ['USA','UK','GERMANY','FRANCE','JAPAN','INDIA','BRAZIL','CANADA','MEXICO','SPAIN','ITALY','EGYPT','PERU','CHILE'];
+
+  function isPrime(n) {
+    if (n < 2) return false;
+    if (n < 4) return true;
+    if (n % 2 === 0) return false;
+    for (var i = 3; i * i <= n; i += 2) if (n % i === 0) return false;
+    return true;
+  }
+
+  // Pick a fixed "target sum" so the puzzle is deterministic on each load
+  var TARGET = 25;
+  var ROMAN_TARGET = 35;
+
+  var RULES = [
+    { text: 'Your password must be at least <b>5 characters</b>.', test: function (p) { return p.length >= 5; } },
+    { text: 'Your password must contain <b>a number</b>.', test: function (p) { return /\d/.test(p); } },
+    { text: 'Your password must contain <b>an uppercase letter</b>.', test: function (p) { return /[A-Z]/.test(p); } },
+    { text: 'Your password must contain <b>a special character</b>.', test: function (p) { return /[!@#$%^&*()_\-+=\[\]{};:'",.<>?/\\|`~]/.test(p); } },
+    { text: 'The digits in your password must <b>add to ' + TARGET + '</b>.', test: function (p) { return digitsSum(p) === TARGET; } },
+    { text: 'Your password must include <b>a month of the year</b>.', test: function (p) { var u = p.toUpperCase(); for (var i = 0; i < MONTHS.length; i++) if (u.indexOf(MONTHS[i]) !== -1) return true; return false; } },
+    { text: 'Your password must include a <b>Roman numeral</b>.', test: function (p) { return /[IVXLCDM]/.test(p); } },
+    { text: 'Your password must include a <b>country</b> in caps.', test: function (p) { for (var i = 0; i < COUNTRIES.length; i++) if (p.indexOf(COUNTRIES[i]) !== -1) return true; return false; } },
+    { text: 'The length of your password must be a <b>prime number</b>.', test: function (p) { return isPrime(p.length); } },
+    { text: 'Your password must include a <b>chemical element symbol</b> (in caps, like <i>Au</i>, <i>Fe</i>, <i>U</i>).', test: function (p) {
+        for (var i = 0; i < ELEMENTS.length; i++) {
+          var sym = ELEMENTS[i];
+          var re = new RegExp('(?:^|[^A-Za-z])' + sym + '(?:[^a-z]|$)');
+          if (re.test(p)) return true;
+        }
+        return false;
+      } },
+    { text: 'The Roman numerals in your password must <b>multiply to ' + ROMAN_TARGET + '</b>.', test: function (p) { return romanProduct(p) === ROMAN_TARGET; } },
+    { text: 'Your password must include <b>🐔</b>.', test: function (p) { return p.indexOf('🐔') !== -1; } },
+    { text: 'Your password must include <b>the answer to 7 × 8</b>.', test: function (p) { return p.indexOf('56') !== -1; } }
+  ];
+
+  totalEl.textContent = RULES.length;
+  var unlocked = 1;
+
+  function render() {
+    var pwd = pwdEl.value;
+    lenEl.textContent = pwd.length;
+
+    // Determine how many rules to show:
+    // Show first N+1 where N = number of consecutive passing rules from the top.
+    // Already-shown rules stay shown.
+    var shown = unlocked;
+    while (shown < RULES.length) {
+      var ok = true;
+      for (var j = 0; j < shown; j++) if (!RULES[j].test(pwd)) { ok = false; break; }
+      if (!ok) break;
+      shown++;
+    }
+    if (shown > unlocked) unlocked = shown;
+
+    var passing = 0;
+    var html = '';
+    for (var i = 0; i < unlocked; i++) {
+      var pass = RULES[i].test(pwd);
+      if (pass) passing++;
+      html += '<div class="rule ' + (pass ? 'is-passing' : 'is-failing') + '" data-i="' + i + '">' +
+        '<div class="rule__num">Rule ' + (i + 1) + '</div>' +
+        '<div class="rule__txt">' + RULES[i].text + '</div>' +
+        '<div class="rule__mark"></div>' +
+        '</div>';
+    }
+    rulesEl.innerHTML = html;
+    passingEl.textContent = passing;
+    if (passing === RULES.length) {
+      winEl.hidden = false;
+    } else {
+      winEl.hidden = true;
+    }
+  }
+
+  pwdEl.addEventListener('input', render);
+  // Start music on first interaction
+  function kickoff() {
+    if (window.Music) Music.start('password-game');
+    pwdEl.removeEventListener('focus', kickoff);
+    pwdEl.removeEventListener('input', kickoff);
+  }
+  pwdEl.addEventListener('focus', kickoff);
+  pwdEl.addEventListener('input', kickoff);
+
+  // Mute button
+  if (muteBtn) {
+    if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () {
+      if (window.Music) Music.toggle();
+      muteBtn.classList.toggle('is-muted');
+    });
+  }
+
+  render();
+  setTimeout(function () { pwdEl.focus(); }, 100);
+})();
+</script>
+</body>
+</html>

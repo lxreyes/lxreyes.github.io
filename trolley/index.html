@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TROLLEY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: #1c1a1f;
+    color: #f1ede4;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 220, 100, 0.10), transparent 60%),
+      linear-gradient(180deg, #1c1a1f, #0d0c10);
+    min-height: 100vh;
+    padding: 80px 20px 80px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .back {
+    position: fixed;
+    top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(241, 237, 228, 0.5);
+    text-decoration: none;
+    z-index: 10;
+  }
+  .back:hover { color: rgba(241, 237, 228, 0.95); }
+  .mute {
+    position: fixed;
+    top: 16px; right: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(241, 237, 228, 0.6);
+    background: rgba(28, 26, 31, 0.5);
+    border: 1px solid rgba(241, 237, 228, 0.18);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 11;
+    padding: 0;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .mute.is-muted { opacity: 0.4; }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(32px, 6vw, 48px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    color: #ffd86a;
+    text-align: center;
+    text-shadow: 0 0 28px rgba(255, 216, 106, 0.25);
+  }
+  .sub {
+    color: rgba(241, 237, 228, 0.55);
+    font-size: 13px;
+    margin: 0 0 28px;
+    text-align: center;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .scene {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .scene .q {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(241, 237, 228, 0.42);
+    margin: 0 0 10px;
+  }
+  .scene .title {
+    font-size: 22px;
+    line-height: 1.45;
+    margin: 0 0 26px;
+    color: #f1ede4;
+  }
+  .scene .ascii {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.3;
+    color: rgba(255, 216, 106, 0.78);
+    white-space: pre;
+    margin: 0 0 22px;
+    overflow-x: auto;
+  }
+  .choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .choice {
+    text-align: left;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f1ede4;
+    border-radius: 14px;
+    padding: 18px 20px;
+    cursor: pointer;
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    transition: background 160ms, border-color 160ms, transform 160ms;
+  }
+  .choice:hover { background: rgba(255, 216, 106, 0.08); border-color: rgba(255, 216, 106, 0.4); transform: translateY(-2px); }
+  .choice b {
+    display: block;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 216, 106, 0.85);
+    margin-bottom: 6px;
+  }
+  .stats {
+    margin-top: 22px;
+    display: flex;
+    gap: 22px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(241, 237, 228, 0.5);
+    justify-content: center;
+  }
+  .stats b { color: #ffd86a; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .outcome {
+    text-align: center;
+    color: rgba(241, 237, 228, 0.78);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 14px 0 0;
+  }
+  .next {
+    margin: 26px auto 0;
+    display: block;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #0a0a0e;
+    background: #ffd86a;
+    border: none;
+    border-radius: 999px;
+    padding: 12px 24px;
+    cursor: pointer;
+  }
+  .footer { color: rgba(241, 237, 228, 0.3); font-size: 12px; text-align: center; padding-top: 22px; }
+</style>
+<script src="../music.js" defer></script>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<div class="wrap">
+  <h1>TROLLEY</h1>
+  <p class="sub">Absurd trolley problems</p>
+  <div class="scene" id="scene"></div>
+  <div class="stats">
+    <div>scenario <b id="num">1</b> / <b id="total">0</b></div>
+    <div>kills <b id="kills">0</b></div>
+  </div>
+  <div class="footer">tracks all lead somewhere · inspired by neal.fun</div>
+</div>
+<script>
+(function () {
+  var sceneEl = document.getElementById('scene');
+  var numEl = document.getElementById('num');
+  var totalEl = document.getElementById('total');
+  var killsEl = document.getElementById('kills');
+  var muteBtn = document.getElementById('mute');
+
+  var ART = '        |----O O----| \n' +
+            '        |__|_|_|__| \n' +
+            '       /////======\\\\\\\\ \n' +
+            '      |---trolley---| ';
+
+  var PROBLEMS = [
+    {
+      q: 'A trolley is hurtling down the tracks. You can pull a lever to divert it.',
+      left:  { label: 'Pull the lever', detail: '1 person on the side track. They lose.', kills: 1 },
+      right: { label: 'Do nothing', detail: '5 people on the main track. They lose.', kills: 5 }
+    },
+    {
+      q: 'A trolley is hurtling toward 5 elderly philosophers.',
+      left:  { label: 'Pull the lever', detail: 'Diverts onto 1 newborn baby. Whoops.', kills: 1 },
+      right: { label: 'Do nothing', detail: '5 philosophers will never finish their thesis.', kills: 5 }
+    },
+    {
+      q: 'A trolley is hurtling toward 5 people. You can pull a lever to divert it onto another track where your worst enemy is tied up. Your enemy will live, but you\'ll never get revenge.',
+      left:  { label: 'Pull the lever', detail: 'Enemy lives, you carry that for life.', kills: 5 },
+      right: { label: 'Do nothing', detail: 'Enemy is run over. You feel weirdly fine.', kills: 1 }
+    },
+    {
+      q: 'A trolley is hurtling toward a box. You don\'t know what\'s inside.',
+      left:  { label: 'Pull the lever', detail: 'The box was empty. The side track was full.', kills: 3 },
+      right: { label: 'Do nothing', detail: 'The box was full of puppies. So sorry.', kills: 7 }
+    },
+    {
+      q: 'A trolley is hurtling toward 5 vegans. The other track has 1 person eating a steak.',
+      left:  { label: 'Pull the lever', detail: 'The steak survives but the eater does not.', kills: 1 },
+      right: { label: 'Do nothing', detail: 'Five plant-based futures, cut short.', kills: 5 }
+    },
+    {
+      q: 'A trolley is on a perfectly safe track. You can pull a lever to divert it onto a track with 1 person.',
+      left:  { label: 'Pull the lever', detail: 'Why did you do this. Why.', kills: 1 },
+      right: { label: 'Do nothing', detail: 'Everyone lives. You did good.', kills: 0 }
+    },
+    {
+      q: 'A trolley is hurtling toward 5 robots. On the other track, 1 robot programmed to do good.',
+      left:  { label: 'Pull the lever', detail: 'You\'ve killed the chosen one.', kills: 1 },
+      right: { label: 'Do nothing', detail: '5 toaster-shaped beings, gone.', kills: 5 }
+    },
+    {
+      q: 'A trolley is hurtling toward a track with 5 people who never recycle. The other track has 1 person who recycles too much (they print receipts).',
+      left:  { label: 'Pull the lever', detail: 'One smug environmentalist down.', kills: 1 },
+      right: { label: 'Do nothing', detail: 'Five non-recyclers compost themselves.', kills: 5 }
+    },
+    {
+      q: 'A trolley is hurtling toward yourself in the past, before you\'d done anything wrong.',
+      left:  { label: 'Pull the lever', detail: 'You\'ve created a paradox. Probably bad.', kills: 8 },
+      right: { label: 'Do nothing', detail: 'You wink out of existence. So does this game.', kills: 1 }
+    },
+    {
+      q: 'A trolley is hurtling toward 5 mathematicians who refuse to use calculators. You can pull a lever to redirect it onto 1 mathematician who only uses calculators.',
+      left:  { label: 'Pull the lever', detail: 'The calculator one is mourned by their TI-84.', kills: 1 },
+      right: { label: 'Do nothing', detail: 'Five proofs left forever incomplete.', kills: 5 }
+    }
+  ];
+
+  totalEl.textContent = PROBLEMS.length;
+  var idx = 0;
+  var kills = 0;
+
+  function startedMusic() {
+    if (window.Music) {
+      try { Music.start('trolley'); } catch (e) {}
+    }
+  }
+
+  function renderScene() {
+    var p = PROBLEMS[idx];
+    sceneEl.innerHTML =
+      '<p class="q">Problem ' + (idx + 1) + '</p>' +
+      '<p class="title">' + p.q + '</p>' +
+      '<pre class="ascii">' + ART + '</pre>' +
+      '<div class="choices">' +
+        '<button class="choice" data-side="left"><b>Left lever</b>' + p.left.label + '</button>' +
+        '<button class="choice" data-side="right"><b>Right lever</b>' + p.right.label + '</button>' +
+      '</div>';
+    numEl.textContent = idx + 1;
+    sceneEl.querySelectorAll('.choice').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        startedMusic();
+        var pick = btn.getAttribute('data-side') === 'left' ? p.left : p.right;
+        kills += pick.kills;
+        killsEl.textContent = kills;
+        showOutcome(pick);
+      });
+    });
+  }
+
+  function showOutcome(pick) {
+    sceneEl.innerHTML =
+      '<p class="q">Outcome</p>' +
+      '<p class="title">' + pick.label + '.</p>' +
+      '<p class="outcome">' + pick.detail + '<br><br>That\'s ' + pick.kills + ' more on your conscience.</p>' +
+      '<button class="next" id="next">' + (idx + 1 < PROBLEMS.length ? 'Next problem' : 'Final tally') + '</button>';
+    document.getElementById('next').addEventListener('click', function () {
+      idx++;
+      if (idx >= PROBLEMS.length) {
+        showFinal();
+      } else {
+        renderScene();
+      }
+    });
+  }
+
+  function showFinal() {
+    var verdict;
+    if (kills === 0) verdict = 'A perfect saint. Suspicious.';
+    else if (kills <= 5) verdict = 'You did what you could.';
+    else if (kills <= 15) verdict = 'A pragmatist. Or a coward.';
+    else if (kills <= 25) verdict = 'Something is wrong with you.';
+    else verdict = 'You are the trolley problem now.';
+    sceneEl.innerHTML =
+      '<p class="q">Tally</p>' +
+      '<p class="title">' + kills + ' lives, give or take.</p>' +
+      '<p class="outcome">' + verdict + '</p>' +
+      '<button class="next" id="next">Try again</button>';
+    document.getElementById('next').addEventListener('click', function () {
+      idx = 0; kills = 0; killsEl.textContent = 0;
+      renderScene();
+    });
+  }
+
+  if (muteBtn) {
+    if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () {
+      if (window.Music) Music.toggle();
+      muteBtn.classList.toggle('is-muted');
+    });
+  }
+
+  renderScene();
+})();
+</script>
+</body>
+</html>

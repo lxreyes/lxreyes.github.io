@@ -167,6 +167,38 @@
       hat:    mark(arr(16), [2, 6, 10, 14]),
       mel: { type: 'sawtooth', vol: 0.05, dur: 0.22 },
       bs:  { type: 'square', vol: 0.07, dur: 0.3 }
+    },
+
+    // 13. PASSWORD GAME — typewriter-ish bounce
+    'password-game': {
+      bpm: 96,
+      steps: 16,
+      melody: [N.C5, 0, N.E5, 0, N.G5, 0, N.E5, 0, N.A4, 0, N.C5, 0, N.E5, 0, N.D5, 0],
+      bass:   [N.C3, 0, 0, 0, 0, 0, 0, 0, N.A2, 0, 0, 0, N.G2, 0, 0, 0],
+      hat:    mark(arr(16), [0, 2, 4, 6, 8, 10, 12, 14]),
+      mel: { type: 'triangle', vol: 0.05, dur: 0.18 },
+      bs:  { type: 'sine', vol: 0.08, dur: 0.55 }
+    },
+
+    // 14. TROLLEY — somber organ
+    'trolley': {
+      bpm: 64,
+      steps: 16,
+      melody: [N.D4, 0, 0, 0, N.F4, 0, 0, 0, N.A4, 0, 0, 0, N.F4, 0, N.E4, 0],
+      bass:   [N.D2, 0, 0, 0, 0, 0, 0, 0, N.A2, 0, 0, 0, 0, 0, 0, 0],
+      mel: { type: 'triangle', vol: 0.07, dur: 0.75 },
+      bs:  { type: 'sine', vol: 0.10, dur: 1.5 }
+    },
+
+    // 15. GAME OF LIFE — generative ambient
+    'game-of-life': {
+      bpm: 84,
+      steps: 16,
+      melody: [N.E4, 0, N.B4, 0, N.G4, 0, N.D5, 0, N.A4, 0, N.E5, 0, N.B4, 0, N.FS5, 0],
+      bass:   [N.E2, 0, 0, 0, 0, 0, 0, 0, N.A2, 0, 0, 0, 0, 0, 0, 0],
+      hat:    mark(arr(16), [3, 11]),
+      mel: { type: 'sine', vol: 0.06, dur: 0.5 },
+      bs:  { type: 'sine', vol: 0.09, dur: 1.1 }
     }
   };
 
