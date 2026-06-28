@@ -70,7 +70,8 @@
     // ----------------------------------------------------- Drag to reorder
     function initReorder(section) {
         const storageKey = "portfolio-card-order:" + (section.id || "default");
-        const realCardSelector = ".project-card:not(.project-card--teaser):not(.project-card--placeholder)";
+        // Featured tile is pinned via CSS `order: -1` and excluded from drag.
+        const realCardSelector = ".project-card:not(.project-card--teaser):not(.project-card--placeholder):not(.project-card--featured)";
         const realCards = Array.from(section.querySelectorAll(realCardSelector));
         const placeholders = Array.from(section.querySelectorAll(".project-card--placeholder"));
         const teaser = section.querySelector(".project-card--teaser");

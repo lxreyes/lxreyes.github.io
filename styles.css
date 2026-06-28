@@ -401,6 +401,9 @@ main {
     padding: 26px;
     background-size: 30% auto, auto, auto, auto;
     background-position: left 28px top 30px, 110% -10%, -10% 110%, 0 0;
+    /* Pinned to the start of the grid regardless of drag-reorder. */
+    order: -1;
+    cursor: default;
 }
 
 /* Hide the genre chip on the featured tile — the logo + title carry it. */
