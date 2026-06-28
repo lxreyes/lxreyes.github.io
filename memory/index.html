@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MEMORY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif; }
+  body { background: radial-gradient(circle at 50% -10%, rgba(255, 138, 128, 0.16), transparent 60%),
+    radial-gradient(ellipse at center, #14141a, #06060a 75%); min-height: 100vh; padding: 80px 18px 40px; }
+  .wrap { max-width: 540px; margin: 0 auto; text-align: center; }
+  .back { position: fixed; top: 16px; left: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.5);
+    text-decoration: none; z-index: 10; }
+  .back:hover { color: rgba(232,230,227,0.95); }
+  .mute { position: fixed; top: 16px; right: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    color: rgba(232,230,227,0.6); background: rgba(6,6,10,0.4); border: 1px solid rgba(232,230,227,0.18);
+    border-radius: 50%; cursor: pointer; z-index: 11; padding: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .mute.is-muted { opacity: 0.4; }
+  h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: clamp(32px, 6vw, 48px);
+    font-weight: 700; letter-spacing: 0.02em; margin: 0 0 8px; color: #ff8a80;
+    text-shadow: 0 0 28px rgba(255,138,128,0.4); }
+  .sub { color: rgba(232,230,227,0.55); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; margin: 0 0 24px; }
+  .stats { display: flex; gap: 22px; justify-content: center; margin-bottom: 22px;
+    font-family: "Space Grotesk", system-ui, sans-serif; font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: rgba(232,230,227,0.5); }
+  .stats b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
+  .card { aspect-ratio: 3 / 4; position: relative; perspective: 600px; cursor: pointer; }
+  .face { position: absolute; inset: 0; border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; font-size: clamp(28px, 8vw, 44px); transition: transform 320ms cubic-bezier(0.2,0.7,0.2,1);
+    backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .face--front { background: linear-gradient(160deg, rgba(255,138,128,0.18), rgba(255,138,128,0.04));
+    border: 1px solid rgba(255,138,128,0.4); color: rgba(232,230,227,0.5); transform: rotateY(0deg); }
+  .face--back { background: #1a1218; border: 1px solid rgba(232,230,227,0.18); transform: rotateY(180deg); }
+  .card.is-flipped .face--front { transform: rotateY(-180deg); }
+  .card.is-flipped .face--back { transform: rotateY(0deg); }
+  .card.is-matched .face--back { opacity: 0.35; }
+  button.new { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #0a0a0e; background: #ff8a80; border: none;
+    border-radius: 999px; padding: 11px 22px; cursor: pointer; box-shadow: 0 8px 22px rgba(255,138,128,0.4); }
+  button.new:hover { background: #ffa39d; }
+  .win { background: rgba(255,138,128,0.12); border: 1px solid rgba(255,138,128,0.4); border-radius: 14px;
+    padding: 18px; margin-bottom: 18px; }
+  .win h2 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 20px; margin: 0 0 6px; color: #ff8a80; }
+  .win p { color: rgba(232,230,227,0.72); font-size: 13px; margin: 0; }
+  .win[hidden] { display: none; }
+</style>
+<script src="../music.js" defer></script>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<div class="wrap">
+  <h1>MEMORY</h1>
+  <p class="sub">4×4 match-the-pairs</p>
+  <div class="stats">
+    <div>moves <b id="moves">0</b></div>
+    <div>time <b id="time">0:00</b></div>
+    <div>best <b id="best">—</b></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="win" id="win" hidden><h2>Cleared.</h2><p id="winp"></p></div>
+  <button class="new" id="new">New deal</button>
+</div>
+<script>
+(function () {
+  var gridEl = document.getElementById('grid');
+  var movesEl = document.getElementById('moves');
+  var timeEl = document.getElementById('time');
+  var bestEl = document.getElementById('best');
+  var winEl = document.getElementById('win');
+  var winpEl = document.getElementById('winp');
+  var newBtn = document.getElementById('new');
+  var muteBtn = document.getElementById('mute');
+
+  var SYMBOLS = ['🍎','🍌','🍇','🍓','🥝','🍑','🍊','🥑'];
+  var deck = [];
+  var first = null;
+  var lock = false;
+  var moves = 0;
+  var matches = 0;
+  var startedAt = 0;
+  var bestMoves = null;
+  try { var b = localStorage.getItem('memory-best-moves'); if (b) bestMoves = parseInt(b, 10); } catch (_) {}
+  bestEl.textContent = bestMoves != null ? bestMoves + ' moves' : '—';
+
+  function fmt(t) { var m = Math.floor(t/60), s = t%60; return m + ':' + (s<10?'0':'') + s; }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random()*(i+1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  function deal() {
+    var pairs = SYMBOLS.slice();
+    deck = shuffle(pairs.concat(pairs).map(function (s, i) { return { id: i, sym: s, flipped: false, matched: false }; }));
+    moves = 0; matches = 0; first = null; lock = false; startedAt = Date.now();
+    movesEl.textContent = '0'; timeEl.textContent = '0:00';
+    winEl.hidden = true;
+    render();
+    if (window.Music) Music.start('memory');
+  }
+
+  function render() {
+    gridEl.innerHTML = '';
+    for (var i = 0; i < deck.length; i++) {
+      var card = deck[i];
+      var div = document.createElement('div');
+      div.className = 'card' + (card.flipped ? ' is-flipped' : '') + (card.matched ? ' is-matched' : '');
+      div.setAttribute('data-i', i);
+      div.innerHTML =
+        '<div class="face face--front">?</div>' +
+        '<div class="face face--back">' + card.sym + '</div>';
+      div.addEventListener('click', flip);
+      gridEl.appendChild(div);
+    }
+  }
+
+  function flip(e) {
+    if (lock) return;
+    var i = parseInt(this.getAttribute('data-i'), 10);
+    var c = deck[i];
+    if (c.flipped || c.matched) return;
+    c.flipped = true;
+    this.classList.add('is-flipped');
+    if (!first) { first = { card: c, idx: i }; return; }
+    moves++; movesEl.textContent = moves;
+    if (first.card.sym === c.sym) {
+      first.card.matched = true; c.matched = true;
+      gridEl.querySelector('[data-i="' + first.idx + '"]').classList.add('is-matched');
+      this.classList.add('is-matched');
+      first = null;
+      matches++;
+      if (matches === SYMBOLS.length) winGame();
+    } else {
+      lock = true;
+      var f = first, secondEl = this;
+      setTimeout(function () {
+        f.card.flipped = false; c.flipped = false;
+        gridEl.querySelector('[data-i="' + f.idx + '"]').classList.remove('is-flipped');
+        secondEl.classList.remove('is-flipped');
+        first = null; lock = false;
+      }, 700);
+    }
+  }
+
+  function winGame() {
+    var t = Math.floor((Date.now() - startedAt) / 1000);
+    var record = false;
+    if (bestMoves == null || moves < bestMoves) {
+      bestMoves = moves;
+      try { localStorage.setItem('memory-best-moves', String(moves)); } catch (_) {}
+      bestEl.textContent = moves + ' moves';
+      record = true;
+    }
+    winpEl.textContent = (record ? 'New best! ' : '') + moves + ' moves · ' + fmt(t);
+    winEl.hidden = false;
+  }
+
+  setInterval(function () {
+    if (!startedAt || winEl.hidden === false) return;
+    timeEl.textContent = fmt(Math.floor((Date.now() - startedAt) / 1000));
+  }, 500);
+
+  newBtn.addEventListener('click', deal);
+  if (muteBtn) {
+    if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () { if (window.Music) Music.toggle(); muteBtn.classList.toggle('is-muted'); });
+  }
+  deal();
+})();
+</script>
+</body>
+</html>

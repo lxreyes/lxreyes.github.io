@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2048</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none; }
+  body { background: radial-gradient(circle at 50% -10%, rgba(237, 200, 80, 0.16), transparent 60%),
+    radial-gradient(ellipse at center, #14141a, #06060a 75%); min-height: 100vh; padding: 80px 18px 40px;
+    touch-action: none; }
+  .wrap { max-width: 460px; margin: 0 auto; text-align: center; }
+  .back { position: fixed; top: 16px; left: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.5);
+    text-decoration: none; z-index: 10; }
+  .back:hover { color: rgba(232,230,227,0.95); }
+  .mute { position: fixed; top: 16px; right: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    color: rgba(232,230,227,0.6); background: rgba(6,6,10,0.4); border: 1px solid rgba(232,230,227,0.18);
+    border-radius: 50%; cursor: pointer; z-index: 11; padding: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .mute.is-muted { opacity: 0.4; }
+  h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: clamp(36px, 7vw, 56px);
+    font-weight: 700; letter-spacing: 0.04em; margin: 0 0 8px; color: #edc850;
+    text-shadow: 0 0 28px rgba(237,200,80,0.4); }
+  .sub { color: rgba(232,230,227,0.55); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; margin: 0 0 22px; }
+  .stats { display: flex; gap: 14px; justify-content: center; margin-bottom: 18px; }
+  .pill { background: rgba(237,200,80,0.10); border: 1px solid rgba(237,200,80,0.3); border-radius: 12px;
+    padding: 10px 18px; font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.6); }
+  .pill b { display: block; font-size: 22px; color: #fff; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+  .board { position: relative; background: #15110a; border: 1px solid rgba(237,200,80,0.3);
+    border-radius: 12px; padding: 10px; aspect-ratio: 1 / 1; margin: 0 auto 18px; max-width: 420px; }
+  .grid { position: absolute; inset: 10px; display: grid; grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr); gap: 10px; }
+  .cell { background: rgba(255,255,255,0.04); border-radius: 8px; }
+  .tile { position: absolute; display: flex; align-items: center; justify-content: center;
+    font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; border-radius: 8px;
+    transition: top 110ms ease, left 110ms ease; }
+  .new button { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #0a0a0e; background: #edc850; border: none;
+    border-radius: 999px; padding: 11px 22px; cursor: pointer; box-shadow: 0 8px 22px rgba(237,200,80,0.4); }
+  .new button:hover { background: #f3d870; }
+  .over { background: rgba(255, 80, 80, 0.12); border: 1px solid rgba(255, 80, 80, 0.4); border-radius: 14px;
+    padding: 18px; margin-bottom: 18px; }
+  .over h2 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 20px; margin: 0 0 6px; color: #ff8080; }
+  .over p { color: rgba(232,230,227,0.72); font-size: 13px; margin: 0; }
+  .over[hidden] { display: none; }
+  .hint { color: rgba(232,230,227,0.42); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    margin-top: 14px; }
+</style>
+<script src="../music.js" defer></script>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<div class="wrap">
+  <h1>2048</h1>
+  <p class="sub">Slide. Merge. Reach 2048.</p>
+  <div class="stats">
+    <div class="pill">Score<b id="score">0</b></div>
+    <div class="pill">Best<b id="best">0</b></div>
+  </div>
+  <div class="board" id="board">
+    <div class="grid">
+      <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+    </div>
+  </div>
+  <div class="over" id="over" hidden><h2 id="overh">Game Over</h2><p id="overp">No moves left.</p></div>
+  <div class="new"><button id="new">New game</button></div>
+  <div class="hint">arrow keys · WASD · swipe on mobile</div>
+</div>
+<script>
+(function () {
+  var boardEl = document.getElementById('board');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var overEl = document.getElementById('over');
+  var overhEl = document.getElementById('overh');
+  var overpEl = document.getElementById('overp');
+  var newBtn = document.getElementById('new');
+  var muteBtn = document.getElementById('mute');
+
+  var N = 4;
+  var grid = null;
+  var tiles = []; // {value, r, c, el}
+  var nextId = 1;
+  var score = 0, best = 0;
+  var won = false, dead = false;
+  try { best = parseInt(localStorage.getItem('2048-best') || '0', 10) || 0; } catch (_) {}
+  bestEl.textContent = best;
+
+  var COLORS = {
+    2:    '#3a3128', 4:    '#4a3d2e', 8:    '#a16b2b', 16:   '#c97e2b', 32:   '#e0892e',
+    64:   '#e87138', 128:  '#e6c34c', 256:  '#e6b934', 512:  '#e6ae20', 1024: '#e6a000',
+    2048: '#e69400', 4096: '#5b8def', 8192: '#7a5be0'
+  };
+  function colorFor(v) { return COLORS[v] || '#7a5be0'; }
+  function fontFor(v) {
+    if (v < 100) return 'clamp(28px, 8vw, 44px)';
+    if (v < 1000) return 'clamp(24px, 7vw, 38px)';
+    if (v < 10000) return 'clamp(20px, 6vw, 32px)';
+    return 'clamp(16px, 5vw, 26px)';
+  }
+
+  function reset() {
+    grid = [];
+    for (var r = 0; r < N; r++) grid.push([null, null, null, null]);
+    tiles.forEach(function (t) { if (t.el && t.el.parentNode) t.el.parentNode.removeChild(t.el); });
+    tiles = [];
+    score = 0; won = false; dead = false;
+    scoreEl.textContent = '0';
+    overEl.hidden = true;
+    addRandom(); addRandom();
+    layout();
+    if (window.Music) Music.start('twenty-48');
+  }
+
+  function addRandom() {
+    var empties = [];
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) if (!grid[r][c]) empties.push([r, c]);
+    if (!empties.length) return;
+    var pos = empties[Math.floor(Math.random() * empties.length)];
+    var v = Math.random() < 0.9 ? 2 : 4;
+    var tile = { id: nextId++, value: v, r: pos[0], c: pos[1], el: document.createElement('div') };
+    tile.el.className = 'tile';
+    boardEl.appendChild(tile.el);
+    grid[pos[0]][pos[1]] = tile;
+    tiles.push(tile);
+    updateTileEl(tile);
+  }
+
+  function updateTileEl(t) {
+    t.el.textContent = t.value;
+    t.el.style.background = colorFor(t.value);
+    t.el.style.color = t.value < 8 ? 'rgba(232,230,227,0.9)' : '#0a0a0e';
+    t.el.style.fontSize = fontFor(t.value);
+    var W = boardEl.clientWidth - 20; // 10px padding each side
+    var cell = (W - 30) / 4; // 3 gaps of 10
+    t.el.style.width = cell + 'px';
+    t.el.style.height = cell + 'px';
+    t.el.style.top = (10 + t.r * (cell + 10)) + 'px';
+    t.el.style.left = (10 + t.c * (cell + 10)) + 'px';
+  }
+
+  function layout() { tiles.forEach(updateTileEl); }
+  window.addEventListener('resize', layout);
+
+  function trySlide(dir) {
+    // dir: 'l','r','u','d'
+    var moved = false;
+    var didMerge = [];
+    function lineFor(r, c, dr, dc) {
+      var line = [];
+      while (r >= 0 && r < N && c >= 0 && c < N) { line.push([r, c]); r += dr; c += dc; }
+      return line;
+    }
+    var starts = [];
+    var dr = 0, dc = 0;
+    if (dir === 'l') { dc = 1; for (var i = 0; i < N; i++) starts.push([i, 0]); }
+    else if (dir === 'r') { dc = -1; for (var i = 0; i < N; i++) starts.push([i, N-1]); }
+    else if (dir === 'u') { dr = 1; for (var i = 0; i < N; i++) starts.push([0, i]); }
+    else if (dir === 'd') { dr = -1; for (var i = 0; i < N; i++) starts.push([N-1, i]); }
+
+    for (var i = 0; i < starts.length; i++) {
+      var line = lineFor(starts[i][0], starts[i][1], dr, dc);
+      // collect tiles in line order
+      var ts = [];
+      for (var j = 0; j < line.length; j++) {
+        var p = line[j], t = grid[p[0]][p[1]];
+        if (t) { ts.push(t); grid[p[0]][p[1]] = null; }
+      }
+      // merge pass
+      var out = [];
+      for (var j = 0; j < ts.length; j++) {
+        if (out.length && out[out.length-1].value === ts[j].value && !out[out.length-1].merged) {
+          out[out.length-1].value *= 2;
+          out[out.length-1].merged = true;
+          score += out[out.length-1].value;
+          if (out[out.length-1].value === 2048 && !won) won = true;
+          // remove ts[j] tile element after move
+          ts[j].dead = true;
+        } else {
+          out.push(ts[j]);
+        }
+      }
+      // place back
+      for (var j = 0; j < out.length; j++) {
+        var p = line[j];
+        var t = out[j];
+        if (t.r !== p[0] || t.c !== p[1]) moved = true;
+        t.r = p[0]; t.c = p[1];
+        grid[p[0]][p[1]] = t;
+        delete t.merged;
+      }
+      // For tiles that died (merged into another), animate them moving to merge target position then remove
+      // Their grid pos is already replaced — we just need to remove their element on next tick.
+      for (var j = 0; j < ts.length; j++) {
+        if (ts[j].dead && !ts[j].removing) {
+          // animate this tile to the same spot as the merged one (the target out[k])
+          // find new target
+          var k = out.indexOf(ts[j]);
+          // dead tiles aren't in `out` directly — they merged into out[?]. Need a separate index.
+        }
+      }
+    }
+    // Actually move dead tiles to their merge target (same coords as the surviving tile)
+    var alive = [];
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      if (t.dead) {
+        // find any other tile at same row/col after move — but that's just where it merged
+        // We approximate by parking them at their last known r,c (already updated above for survivors)
+        // Survivors have grid[r][c] set. Dead tile keeps its old r/c, which is wherever it ended up.
+        // Set its r/c to the target position by scanning grid.
+        for (var rr = 0; rr < N; rr++) for (var cc = 0; cc < N; cc++) {
+          var g = grid[rr][cc];
+          if (g && g.value === t.value * 2) { t.r = rr; t.c = cc; }
+        }
+        updateTileEl(t);
+        var dropEl = t.el;
+        setTimeout(function (el) { if (el && el.parentNode) el.parentNode.removeChild(el); }.bind(null, dropEl), 120);
+      } else {
+        alive.push(t);
+      }
+    }
+    tiles = alive;
+    // animate
+    layout();
+    if (moved) {
+      setTimeout(function () { addRandom(); layout(); scoreEl.textContent = score; checkBest(); checkDead(); }, 110);
+    }
+  }
+
+  function checkBest() {
+    if (score > best) { best = score; bestEl.textContent = best;
+      try { localStorage.setItem('2048-best', String(best)); } catch (_) {} }
+  }
+  function checkDead() {
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) if (!grid[r][c]) return;
+    // any adjacent equals?
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var v = grid[r][c].value;
+      if (c + 1 < N && grid[r][c+1].value === v) return;
+      if (r + 1 < N && grid[r+1][c].value === v) return;
+    }
+    dead = true;
+    overhEl.textContent = won ? 'You hit 2048!' : 'Game Over';
+    overpEl.textContent = (won ? 'And then ran out of room. ' : 'No moves left. ') + 'Score: ' + score;
+    overEl.hidden = false;
+  }
+
+  window.addEventListener('keydown', function (e) {
+    var d = null;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') d = 'l';
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') d = 'r';
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') d = 'u';
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') d = 'd';
+    if (d) { e.preventDefault(); if (!dead) trySlide(d); }
+  });
+
+  // Swipe handling
+  var sx = 0, sy = 0, swiping = false;
+  boardEl.addEventListener('pointerdown', function (e) { sx = e.clientX; sy = e.clientY; swiping = true; });
+  boardEl.addEventListener('pointerup', function (e) {
+    if (!swiping || dead) return; swiping = false;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) trySlide(dx > 0 ? 'r' : 'l');
+    else trySlide(dy > 0 ? 'd' : 'u');
+  });
+
+  newBtn.addEventListener('click', reset);
+  if (muteBtn) {
+    if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () { if (window.Music) Music.toggle(); muteBtn.classList.toggle('is-muted'); });
+  }
+  reset();
+})();
+</script>
+</body>
+</html>

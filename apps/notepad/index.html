@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NOTEPAD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #faf7f0; color: #1a1a22;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased; }
+  body { background: linear-gradient(180deg, #faf7f0, #efe8d8); display: flex; flex-direction: column; }
+  .back { position: fixed; top: 16px; left: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(26,26,34,0.55);
+    text-decoration: none; z-index: 10; }
+  .back:hover { color: rgba(26,26,34,0.95); }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 18px 22px 18px 110px; border-bottom: 1px solid rgba(26,26,34,0.08); }
+  .bar h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 18px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase; color: #1a1a22; margin: 0; }
+  .bar .stats { margin-left: auto; font-family: "Space Grotesk", system-ui, sans-serif; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: rgba(26,26,34,0.5); display: flex; gap: 16px; }
+  .bar .stats b { color: #1a1a22; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar button { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #1a1a22; background: transparent;
+    border: 1px solid rgba(26,26,34,0.2); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+  .bar button:hover { background: rgba(26,26,34,0.06); }
+  .bar button.primary { color: #f4f0e2; background: #1a1a22; border-color: #1a1a22; }
+  .bar button.primary:hover { background: #2a2a32; }
+  textarea { flex: 1; width: 100%; padding: 36px clamp(20px, 8vw, 80px) 60px; background: transparent;
+    border: none; outline: none; resize: none; font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 16px; line-height: 1.7; color: #1a1a22; }
+  .saved-flash { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #1a1a22; color: #f4f0e2; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity 200ms; }
+  .saved-flash.is-on { opacity: 1; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="bar">
+  <h1>Notepad</h1>
+  <div class="stats">
+    <div>chars <b id="chars">0</b></div>
+    <div>words <b id="words">0</b></div>
+    <div>lines <b id="lines">1</b></div>
+  </div>
+  <button id="download">Download</button>
+  <button id="clear">Clear</button>
+  <button id="save" class="primary">Save</button>
+</div>
+<textarea id="ta" placeholder="Start typing… anything you write is saved to your browser." spellcheck="true" autocapitalize="on" autocomplete="off"></textarea>
+<div class="saved-flash" id="flash">Saved</div>
+<script>
+(function () {
+  var ta = document.getElementById('ta');
+  var charsEl = document.getElementById('chars');
+  var wordsEl = document.getElementById('words');
+  var linesEl = document.getElementById('lines');
+  var saveBtn = document.getElementById('save');
+  var clearBtn = document.getElementById('clear');
+  var downloadBtn = document.getElementById('download');
+  var flash = document.getElementById('flash');
+
+  var STORAGE_KEY = 'notepad-text';
+  try { ta.value = localStorage.getItem(STORAGE_KEY) || ''; } catch (_) {}
+  update();
+
+  function update() {
+    var t = ta.value;
+    charsEl.textContent = t.length;
+    var words = t.trim() ? t.trim().split(/\s+/).length : 0;
+    wordsEl.textContent = words;
+    linesEl.textContent = t.split('\n').length;
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, ta.value); } catch (_) {}
+    flash.classList.add('is-on');
+    setTimeout(function () { flash.classList.remove('is-on'); }, 900);
+  }
+  function dl() {
+    var blob = new Blob([ta.value], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'notepad.txt';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  ta.addEventListener('input', function () { update(); });
+  // Autosave debounced
+  var saveTimer = null;
+  ta.addEventListener('input', function () {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 700);
+  });
+  saveBtn.addEventListener('click', save);
+  clearBtn.addEventListener('click', function () {
+    if (!ta.value || confirm('Clear all text?')) { ta.value = ''; update(); save(); }
+  });
+  downloadBtn.addEventListener('click', dl);
+
+  // Cmd/Ctrl+S
+  window.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') { e.preventDefault(); save(); }
+  });
+
+  setTimeout(function () { ta.focus(); }, 100);
+})();
+</script>
+</body>
+</html>

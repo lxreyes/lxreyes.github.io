@@ -199,6 +199,74 @@
       hat:    mark(arr(16), [3, 11]),
       mel: { type: 'sine', vol: 0.06, dur: 0.5 },
       bs:  { type: 'sine', vol: 0.09, dur: 1.1 }
+    },
+
+    // 16. SNAKE — bouncy 8-bit pentatonic
+    'snake': {
+      bpm: 122,
+      steps: 16,
+      melody: [N.E5, N.B4, N.C5, N.D5, N.E5, 0, N.D5, N.C5, N.B4, 0, N.A4, N.B4, N.C5, 0, N.D5, 0],
+      bass:   [N.A2, 0, 0, 0, N.E2, 0, 0, 0, N.A2, 0, 0, 0, N.E2, 0, 0, 0],
+      kick:   mark(arr(16), [0, 4, 8, 12]),
+      hat:    mark(arr(16), [2, 6, 10, 14]),
+      mel: { type: 'square', vol: 0.05, dur: 0.15 },
+      bs:  { type: 'square', vol: 0.06, dur: 0.4 }
+    },
+
+    // 17. PONG — minimal beat with off-court reverbless tones
+    'pong': {
+      bpm: 100,
+      steps: 16,
+      melody: [N.C5, 0, 0, 0, N.E5, 0, 0, 0, N.G5, 0, 0, 0, N.E5, 0, 0, 0],
+      bass:   [N.C3, 0, 0, 0, 0, 0, 0, 0, N.G2, 0, 0, 0, 0, 0, 0, 0],
+      kick:   mark(arr(16), [0, 8]),
+      hat:    mark(arr(16), [4, 12]),
+      mel: { type: 'sine', vol: 0.06, dur: 0.25 },
+      bs:  { type: 'sine', vol: 0.08, dur: 0.6 }
+    },
+
+    // 18. MEMORY — soft glockenspiel
+    'memory': {
+      bpm: 76,
+      steps: 16,
+      melody: [N.A5, 0, N.E5, 0, N.C5, 0, N.E5, 0, N.G5, 0, N.D5, 0, N.B4, 0, N.D5, 0],
+      bass:   [N.A2, 0, 0, 0, 0, 0, 0, 0, N.G2, 0, 0, 0, 0, 0, 0, 0],
+      mel: { type: 'sine', vol: 0.07, dur: 0.5 },
+      bs:  { type: 'sine', vol: 0.08, dur: 1.0 }
+    },
+
+    // 19. 2048 — focused arpeggios
+    'twenty-48': {
+      bpm: 108,
+      steps: 16,
+      melody: [N.D4, N.A4, N.F5, N.A4, N.D4, N.A4, N.F5, N.A4, N.E4, N.B4, N.G5, N.B4, N.E4, N.B4, N.G5, N.B4],
+      bass:   [N.D2, 0, 0, 0, 0, 0, 0, 0, N.E2, 0, 0, 0, 0, 0, 0, 0],
+      hat:    mark(arr(16), [2, 6, 10, 14]),
+      mel: { type: 'triangle', vol: 0.05, dur: 0.16 },
+      bs:  { type: 'sine', vol: 0.09, dur: 1.0 }
+    },
+
+    // 20. CONNECT FOUR — strategy march
+    'connect-four': {
+      bpm: 92,
+      steps: 16,
+      melody: [N.C4, 0, N.E4, 0, N.G4, 0, N.C5, 0, N.B4, 0, N.G4, 0, N.E4, 0, N.D4, 0],
+      bass:   [N.C2, 0, 0, 0, N.G2, 0, 0, 0, N.A2, 0, 0, 0, N.G2, 0, 0, 0],
+      kick:   mark(arr(16), [0, 8]),
+      snare:  mark(arr(16), [4, 12]),
+      mel: { type: 'triangle', vol: 0.06, dur: 0.32 },
+      bs:  { type: 'triangle', vol: 0.07, dur: 0.7 }
+    },
+
+    // 21. BLACKJACK — smoky jazz lounge
+    'blackjack': {
+      bpm: 80,
+      steps: 16,
+      melody: [N.A4, 0, N.C5, N.E5, N.D5, 0, N.C5, N.B4, N.A4, 0, N.G4, N.A4, N.B4, 0, N.A4, 0],
+      bass:   [N.A2, 0, N.E3, 0, N.A2, 0, N.E3, 0, N.D2, 0, N.A2, 0, N.E2, 0, N.G2, 0],
+      hat:    mark(arr(16), [2, 6, 10, 14]),
+      mel: { type: 'triangle', vol: 0.06, dur: 0.3 },
+      bs:  { type: 'triangle', vol: 0.07, dur: 0.5 }
     }
   };
 

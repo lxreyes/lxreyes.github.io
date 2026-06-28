@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VIDEO PLAYER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none; }
+  body { background: radial-gradient(circle at 50% -10%, rgba(231, 76, 60, 0.18), transparent 60%),
+    radial-gradient(ellipse at center, #14141a, #06060a 75%); min-height: 100vh; padding: 80px 18px 40px; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  .back { position: fixed; top: 16px; left: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.5);
+    text-decoration: none; z-index: 10; }
+  .back:hover { color: rgba(232,230,227,0.95); }
+  h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: clamp(28px, 5vw, 40px);
+    font-weight: 700; letter-spacing: 0.02em; margin: 0 0 6px; color: #ff5252;
+    text-shadow: 0 0 24px rgba(255,82,82,0.35); }
+  .sub { color: rgba(232,230,227,0.55); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; margin: 0 0 22px; }
+  .stage {
+    position: relative; aspect-ratio: 16/9; background: #000; border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(231, 76, 60, 0.35); margin-bottom: 14px;
+  }
+  video { width: 100%; height: 100%; display: block; background: #000; }
+  .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: rgba(232,230,227,0.5); font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; pointer-events: none; }
+  .empty[hidden] { display: none; }
+  .controls { display: flex; align-items: center; gap: 10px; background: rgba(18,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 10px 14px; margin-bottom: 16px; }
+  .controls button { background: rgba(231, 76, 60, 0.14); color: #f1ede4; border: 1px solid rgba(231, 76, 60, 0.4);
+    border-radius: 999px; font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; padding: 8px 14px; cursor: pointer; box-shadow: none; }
+  .controls button:hover { background: rgba(231, 76, 60, 0.28); }
+  .controls input[type="range"] { accent-color: #ff5252; }
+  .scrub { flex: 1; }
+  .time { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px; letter-spacing: 0.06em;
+    color: rgba(232,230,227,0.7); font-variant-numeric: tabular-nums; min-width: 90px; text-align: right; }
+  .vol { width: 90px; }
+  .src { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .src input[type="text"] { flex: 1; min-width: 240px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 14px; color: #f1ede4;
+    font-family: ui-monospace, monospace; font-size: 13px; outline: none; }
+  .src input[type="text"]:focus { border-color: rgba(231, 76, 60, 0.5); }
+  .src button, .src label.file { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px;
+    font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #0a0a0e; background: #ff5252;
+    border: none; border-radius: 999px; padding: 11px 18px; cursor: pointer; box-shadow: 0 8px 22px rgba(231,76,60,0.4); }
+  .src input[type="file"] { display: none; }
+  .src .secondary { background: transparent; color: rgba(232,230,227,0.8); border: 1px solid rgba(255,255,255,0.18); box-shadow: none; }
+  .demo { text-align: center; color: rgba(232,230,227,0.42); font-size: 12px; letter-spacing: 0.06em; }
+  .demo button { background: none; border: none; color: rgba(255,82,82,0.85); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="wrap">
+  <h1>VIDEO PLAYER</h1>
+  <p class="sub">Drop in any direct video URL or a local file</p>
+  <div class="stage">
+    <video id="v" preload="metadata" playsinline></video>
+    <div class="empty" id="empty">paste a URL or pick a file below</div>
+  </div>
+  <div class="controls">
+    <button id="play">Play</button>
+    <input type="range" class="scrub" id="scrub" min="0" max="1000" value="0">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <input type="range" class="vol" id="vol" min="0" max="100" value="80" aria-label="Volume">
+    <button id="fs">Full</button>
+  </div>
+  <div class="src">
+    <input type="text" id="url" placeholder="https://… .mp4 / .webm / .m4v" autocomplete="off">
+    <button id="loadurl">Load URL</button>
+    <label class="file" for="file">Open file</label>
+    <input id="file" type="file" accept="video/*">
+    <button class="secondary" id="clear">Clear</button>
+  </div>
+  <p class="demo">No video? <button id="demobtn">Try a demo clip</button></p>
+</div>
+<script>
+(function () {
+  var v = document.getElementById('v');
+  var emptyEl = document.getElementById('empty');
+  var playBtn = document.getElementById('play');
+  var scrub = document.getElementById('scrub');
+  var timeEl = document.getElementById('time');
+  var vol = document.getElementById('vol');
+  var fsBtn = document.getElementById('fs');
+  var url = document.getElementById('url');
+  var loadurl = document.getElementById('loadurl');
+  var file = document.getElementById('file');
+  var clearBtn = document.getElementById('clear');
+  var demoBtn = document.getElementById('demobtn');
+
+  function fmt(t) {
+    if (!isFinite(t)) return '0:00';
+    var m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function refreshTime() {
+    timeEl.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration || 0);
+    if (v.duration) scrub.value = Math.round((v.currentTime / v.duration) * 1000);
+  }
+
+  function load(src, isObj) {
+    v.src = src;
+    v.load();
+    emptyEl.hidden = true;
+    v.dataset.objurl = isObj ? '1' : '';
+    playBtn.textContent = 'Play';
+    setTimeout(function () { v.play().catch(function () {}); }, 200);
+  }
+  function clearVid() {
+    if (v.dataset.objurl && v.src) try { URL.revokeObjectURL(v.src); } catch (_) {}
+    v.removeAttribute('src');
+    v.load();
+    emptyEl.hidden = false;
+    timeEl.textContent = '0:00 / 0:00';
+    scrub.value = 0;
+  }
+
+  playBtn.addEventListener('click', function () {
+    if (!v.src) return;
+    if (v.paused) v.play(); else v.pause();
+  });
+  v.addEventListener('play', function () { playBtn.textContent = 'Pause'; });
+  v.addEventListener('pause', function () { playBtn.textContent = 'Play'; });
+  v.addEventListener('timeupdate', refreshTime);
+  v.addEventListener('loadedmetadata', refreshTime);
+  scrub.addEventListener('input', function () { if (v.duration) v.currentTime = (scrub.value / 1000) * v.duration; });
+  vol.addEventListener('input', function () { v.volume = vol.value / 100; });
+  v.volume = vol.value / 100;
+  fsBtn.addEventListener('click', function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (v.requestFullscreen) v.requestFullscreen();
+    else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+  });
+  loadurl.addEventListener('click', function () { if (url.value.trim()) load(url.value.trim(), false); });
+  url.addEventListener('keydown', function (e) { if (e.code === 'Enter') loadurl.click(); });
+  file.addEventListener('change', function () {
+    if (!file.files || !file.files[0]) return;
+    var u = URL.createObjectURL(file.files[0]);
+    load(u, true);
+  });
+  clearBtn.addEventListener('click', clearVid);
+  demoBtn.addEventListener('click', function () {
+    // A public domain Big Buck Bunny mirror (W3C)
+    load('https://www.w3schools.com/html/mov_bbb.mp4', false);
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', function (e) {
+    if (e.target === url) return;
+    if (e.code === 'Space') { e.preventDefault(); if (v.src) (v.paused ? v.play() : v.pause()); }
+    if (e.code === 'ArrowLeft') v.currentTime = Math.max(0, v.currentTime - 5);
+    if (e.code === 'ArrowRight') v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
+    if (e.code === 'KeyF') fsBtn.click();
+    if (e.code === 'KeyM') v.muted = !v.muted;
+  });
+})();
+</script>
+</body>
+</html>

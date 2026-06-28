@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CONNECT FOUR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body { background: radial-gradient(circle at 50% -10%, rgba(255, 122, 138, 0.16), transparent 60%),
+    radial-gradient(ellipse at center, #14141a, #06060a 75%); touch-action: manipulation; }
+  canvas { display: block; background: transparent; position: fixed; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
+  .hud { position: fixed; top: 18px; left: 0; right: 0; text-align: center; pointer-events: none;
+    font-family: "Space Grotesk", system-ui, sans-serif; z-index: 5; }
+  .hud .status { font-size: 14px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(232,230,227,0.88); }
+  .hud .meta { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.42); margin-top: 4px; }
+  .back { position: fixed; top: 16px; left: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.5);
+    text-decoration: none; z-index: 10; }
+  .back:hover { color: rgba(232,230,227,0.95); }
+  .mute { position: fixed; top: 16px; right: 16px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    color: rgba(232,230,227,0.6); background: rgba(6,6,10,0.4); border: 1px solid rgba(232,230,227,0.18);
+    border-radius: 50%; cursor: pointer; z-index: 11; padding: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .mute.is-muted { opacity: 0.4; }
+  .new { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 6; }
+  .new button { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #0a0a0e; background: #ff7a8a; border: none;
+    border-radius: 999px; padding: 11px 22px; cursor: pointer; box-shadow: 0 8px 22px rgba(255,122,138,0.4); }
+  .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 20px; background: rgba(6,6,10,0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 20; }
+  .overlay.is-hidden { display: none; }
+  h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: clamp(36px, 8vw, 64px);
+    font-weight: 700; letter-spacing: 0.04em; margin: 0 0 16px; color: #ff7a8a; text-shadow: 0 0 28px rgba(255,122,138,0.5); }
+  p { color: rgba(232,230,227,0.72); font-size: 15px; margin: 0 0 28px; max-width: 34ch; line-height: 1.55; }
+  .overlay button { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: #0a0a0e; background: #ff7a8a; border: none;
+    border-radius: 999px; padding: 13px 26px; cursor: pointer; box-shadow: 0 8px 22px rgba(255,122,138,0.45); }
+</style>
+<script src="../music.js" defer></script>
+</head>
+<body>
+<a href="../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="status" id="status">Your move</div>
+  <div class="meta" id="meta">red — yellow · 0 — 0</div>
+</div>
+<div class="new"><button id="newbtn">New game</button></div>
+<div class="overlay" id="start">
+  <h1>CONNECT FOUR</h1>
+  <p>Drop discs into a 7×6 grid. First to line up four in a row &mdash; horizontally, vertically, or diagonally &mdash; wins. You play <b>red</b>, the AI plays yellow.</p>
+  <button id="start-btn">Start</button>
+</div>
+<div class="overlay is-hidden" id="over">
+  <h1 id="over-title">Win</h1>
+  <p id="over-score">Series 0 — 0</p>
+  <button id="retry-btn">Play again</button>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var statusEl = document.getElementById('status');
+  var metaEl = document.getElementById('meta');
+  var newBtn = document.getElementById('newbtn');
+  var startOverlay = document.getElementById('start');
+  var overOverlay = document.getElementById('over');
+  var overTitleEl = document.getElementById('over-title');
+  var overScoreEl = document.getElementById('over-score');
+  var startBtn = document.getElementById('start-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var muteBtn = document.getElementById('mute');
+
+  var COLS = 7, ROWS = 6;
+  var W = 0, H = 0, cell = 0, bx = 0, by = 0;
+  var board = null; // 0 empty, 1 red (player), 2 yellow (AI)
+  var turn = 1;
+  var state = 'idle';
+  var hoverCol = -1;
+  var winningLine = null;
+  var wins = { red: 0, yellow: 0 };
+  try { var w = localStorage.getItem('c4-wins'); if (w) { var x = JSON.parse(w); if (x && typeof x.red === 'number') wins = x; } } catch (_) {}
+
+  function resize() {
+    W = canvas.clientWidth || window.innerWidth;
+    H = canvas.clientHeight || window.innerHeight;
+    canvas.width = W; canvas.height = H;
+    var maxW = W - 40, maxH = H - 200;
+    cell = Math.floor(Math.min(maxW / COLS, maxH / (ROWS + 1)));
+    bx = Math.floor((W - cell * COLS) / 2);
+    by = Math.max(80, Math.floor((H - cell * (ROWS + 1)) / 2) + cell);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function reset() {
+    board = [];
+    for (var r = 0; r < ROWS; r++) board.push([0,0,0,0,0,0,0]);
+    turn = 1;
+    state = 'play';
+    winningLine = null;
+    statusEl.textContent = 'Your move';
+    updateMeta();
+    if (window.Music) Music.start('connect-four');
+  }
+  function updateMeta() { metaEl.textContent = 'red ' + wins.red + ' · yellow ' + wins.yellow; }
+
+  function dropRow(b, c) {
+    for (var r = ROWS - 1; r >= 0; r--) if (!b[r][c]) return r;
+    return -1;
+  }
+
+  function checkWin(b, side) {
+    var lines = [];
+    function ok(r, c, dr, dc) {
+      var pts = [];
+      for (var k = 0; k < 4; k++) {
+        var rr = r + dr*k, cc = c + dc*k;
+        if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) return null;
+        if (b[rr][cc] !== side) return null;
+        pts.push([rr, cc]);
+      }
+      return pts;
+    }
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        var line = ok(r, c, 0, 1) || ok(r, c, 1, 0) || ok(r, c, 1, 1) || ok(r, c, 1, -1);
+        if (line) return line;
+      }
+    }
+    return null;
+  }
+
+  function isFull(b) {
+    for (var c = 0; c < COLS; c++) if (!b[0][c]) return false;
+    return true;
+  }
+
+  // Move evaluator for AI: count threats
+  function score(b, side) {
+    var opp = side === 1 ? 2 : 1;
+    var s = 0;
+    var lines = [];
+    function tally(r, c, dr, dc) {
+      var arr = [];
+      for (var k = 0; k < 4; k++) {
+        var rr = r + dr*k, cc = c + dc*k;
+        if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) return;
+        arr.push(b[rr][cc]);
+      }
+      var mine = 0, theirs = 0, empty = 0;
+      for (var k = 0; k < 4; k++) { if (arr[k] === side) mine++; else if (arr[k] === opp) theirs++; else empty++; }
+      if (theirs === 0) {
+        if (mine === 4) s += 100000;
+        else if (mine === 3 && empty === 1) s += 80;
+        else if (mine === 2 && empty === 2) s += 8;
+      } else if (mine === 0) {
+        if (theirs === 4) s -= 100000;
+        else if (theirs === 3 && empty === 1) s -= 90;
+        else if (theirs === 2 && empty === 2) s -= 6;
+      }
+    }
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+      tally(r, c, 0, 1); tally(r, c, 1, 0); tally(r, c, 1, 1); tally(r, c, 1, -1);
+    }
+    // center column bonus
+    for (var r = 0; r < ROWS; r++) if (b[r][3] === side) s += 3;
+    return s;
+  }
+
+  function aiMove() {
+    if (state !== 'play') return;
+    // Try immediate-win for AI
+    for (var c = 0; c < COLS; c++) {
+      var r = dropRow(board, c);
+      if (r === -1) continue;
+      board[r][c] = 2;
+      if (checkWin(board, 2)) { finishMove(r, c); return; }
+      board[r][c] = 0;
+    }
+    // Block immediate-win for player
+    for (var c = 0; c < COLS; c++) {
+      var r = dropRow(board, c);
+      if (r === -1) continue;
+      board[r][c] = 1;
+      var p = checkWin(board, 1);
+      board[r][c] = 0;
+      if (p) {
+        board[r][c] = 2; finishMove(r, c); return;
+      }
+    }
+    // Score each move and pick best
+    var bestC = 3, bestS = -Infinity;
+    var order = [3, 4, 2, 5, 1, 6, 0];
+    for (var i = 0; i < order.length; i++) {
+      var c = order[i];
+      var r = dropRow(board, c);
+      if (r === -1) continue;
+      board[r][c] = 2;
+      var s = score(board, 2);
+      board[r][c] = 0;
+      if (s > bestS) { bestS = s; bestC = c; }
+    }
+    var fr = dropRow(board, bestC);
+    board[fr][bestC] = 2;
+    finishMove(fr, bestC);
+  }
+
+  function finishMove(r, c) {
+    var who = board[r][c];
+    var win = checkWin(board, who);
+    if (win) {
+      winningLine = win;
+      state = 'over';
+      if (who === 1) wins.red++; else wins.yellow++;
+      try { localStorage.setItem('c4-wins', JSON.stringify(wins)); } catch (_) {}
+      updateMeta();
+      overTitleEl.textContent = who === 1 ? 'You win!' : 'AI wins';
+      overScoreEl.textContent = 'Series — red ' + wins.red + ' · yellow ' + wins.yellow;
+      overOverlay.classList.remove('is-hidden');
+      return;
+    }
+    if (isFull(board)) {
+      state = 'over';
+      overTitleEl.textContent = 'Draw';
+      overScoreEl.textContent = 'Series — red ' + wins.red + ' · yellow ' + wins.yellow;
+      overOverlay.classList.remove('is-hidden');
+      return;
+    }
+    turn = (turn === 1 ? 2 : 1);
+    if (turn === 2) {
+      statusEl.textContent = 'AI thinking…';
+      setTimeout(aiMove, 320);
+    } else {
+      statusEl.textContent = 'Your move';
+    }
+  }
+
+  function tryDrop(c) {
+    if (state !== 'play' || turn !== 1) return;
+    var r = dropRow(board, c);
+    if (r === -1) return;
+    board[r][c] = 1;
+    finishMove(r, c);
+  }
+
+  startBtn.addEventListener('click', reset);
+  retryBtn.addEventListener('click', reset);
+  newBtn.addEventListener('click', reset);
+  startBtn.addEventListener('click', function () { startOverlay.classList.add('is-hidden'); });
+
+  canvas.addEventListener('pointermove', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    if (x < bx || x >= bx + cell * COLS) { hoverCol = -1; return; }
+    hoverCol = Math.floor((x - bx) / cell);
+  });
+  canvas.addEventListener('pointerdown', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    if (x < bx || x >= bx + cell * COLS) return;
+    var c = Math.floor((x - bx) / cell);
+    tryDrop(c);
+  });
+  if (muteBtn) {
+    if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () { if (window.Music) Music.toggle(); muteBtn.classList.toggle('is-muted'); });
+  }
+
+  function render() {
+    ctx.fillStyle = '#06060a'; ctx.fillRect(0, 0, W, H);
+    if (!board) { requestAnimationFrame(render); return; }
+    // hover preview
+    if (state === 'play' && turn === 1 && hoverCol >= 0) {
+      var r = dropRow(board, hoverCol);
+      if (r !== -1) {
+        var hx = bx + hoverCol * cell + cell/2;
+        var hy = by - cell + cell/2;
+        ctx.fillStyle = 'rgba(255, 122, 138, 0.6)';
+        ctx.beginPath(); ctx.arc(hx, hy, cell*0.36, 0, Math.PI*2); ctx.fill();
+      }
+    }
+    // board background
+    ctx.fillStyle = '#1f2540';
+    ctx.fillRect(bx - 8, by - 8, cell * COLS + 16, cell * ROWS + 16);
+    ctx.strokeStyle = '#ff7a8a'; ctx.lineWidth = 2;
+    ctx.strokeRect(bx - 7, by - 7, cell * COLS + 14, cell * ROWS + 14);
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        var x = bx + c * cell + cell/2;
+        var y = by + r * cell + cell/2;
+        ctx.fillStyle = '#0a0e22';
+        ctx.beginPath(); ctx.arc(x, y, cell*0.42, 0, Math.PI*2); ctx.fill();
+        var v = board[r][c];
+        if (v) {
+          var g = ctx.createRadialGradient(x - cell*0.12, y - cell*0.12, 0, x, y, cell*0.42);
+          if (v === 1) { g.addColorStop(0, '#ffb1bb'); g.addColorStop(1, '#e63946'); }
+          else { g.addColorStop(0, '#fff1a8'); g.addColorStop(1, '#e6a934'); }
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(x, y, cell*0.36, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+    if (winningLine) {
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (var i = 0; i < winningLine.length; i++) {
+        var p = winningLine[i];
+        var px = bx + p[1] * cell + cell/2;
+        var py = by + p[0] * cell + cell/2;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    requestAnimationFrame(render);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
