@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arena — Team Deathmatch</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- The renderer's <canvas> is injected here by main.js -->
+  <div id="game"></div>
+
+  <!-- Heads-up display -->
+  <div id="hud" class="hidden">
+    <div id="crosshair">
+      <span class="ch ch-top"></span>
+      <span class="ch ch-bottom"></span>
+      <span class="ch ch-left"></span>
+      <span class="ch ch-right"></span>
+    </div>
+    <div id="hitmarker"></div>
+    <div id="damage-vignette"></div>
+
+    <!-- Battle-royale status: fighters alive + storm timer -->
+    <div id="br-top">
+      <div class="br-stat"><b id="alive-count">20</b> ALIVE</div>
+      <div class="br-stat" id="zone-status">ZONE SHRINKS</div>
+    </div>
+
+    <!-- Storm warning -->
+    <div id="zone-warning" class="hidden">⚠ GET TO THE ZONE</div>
+
+    <!-- Combo callout -->
+    <div id="combo-banner" class="hidden"></div>
+
+    <!-- Kill feed -->
+    <div id="killfeed"></div>
+
+    <!-- Health -->
+    <div id="hud-bottom-left">
+      <div class="stat">
+        <span class="stat-label">HEALTH</span>
+        <div class="bar"><div id="health-fill" class="bar-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- Ammo + current weapon -->
+    <div id="hud-bottom-right">
+      <div id="weapon-name">RIFLE</div>
+      <div id="ammo">
+        <span id="ammo-current">24</span><span id="ammo-sep">/</span><span id="ammo-reserve">∞</span>
+      </div>
+      <div id="reload-hint" class="hidden">RELOADING…</div>
+    </div>
+
+    <!-- Ability charges (clone / hyper) -->
+    <div id="abilities"></div>
+
+    <!-- Owned upgrades (permanent) -->
+    <div id="powerups"></div>
+
+    <!-- Interaction prompt + pickup toast -->
+    <div id="prompt" class="hidden">Press E to drive</div>
+    <div id="toast" class="hidden"></div>
+
+    <!-- Minimap -->
+    <canvas id="minimap" width="172" height="172"></canvas>
+
+    <!-- On-screen controls reference (toggle with H) -->
+    <div id="controls-hud">
+      <div class="ck"><b>WASD</b> move · <b>Mouse</b> look</div>
+      <div class="ck"><b>LMB</b> shoot · <b>R</b> reload · <b>Q</b> swap</div>
+      <div class="ck"><b>V</b> view · <b>C</b> clone · <b>F</b> hyper</div>
+      <div class="ck"><b>E</b> pick up/car · <b>Space</b> jump · <b>Shift</b> sprint</div>
+      <div class="ck dim">press <b>H</b> to hide</div>
+    </div>
+  </div>
+
+  <!-- Start overlay -->
+  <div id="overlay">
+    <div class="panel">
+      <h1>NEON ROYALE</h1>
+      <p class="subtitle">battle royale · 20 fighters · last one standing wins</p>
+      <button id="start-btn">CLICK TO PLAY</button>
+      <ul class="controls">
+        <li><b>WASD</b> move</li>
+        <li><b>Mouse</b> look</li>
+        <li><b>Left click</b> shoot</li>
+        <li><b>R</b> reload</li>
+        <li><b>Q</b> swap weapon</li>
+        <li><b>V</b> 1st/3rd person</li>
+        <li><b>C</b> summon clone</li>
+        <li><b>F</b> hyper-boost</li>
+        <li><b>E</b> pick up / drive</li>
+        <li><b>Shift</b> sprint · <b>Space</b> jump</li>
+      </ul>
+      <p class="tip">Third-person battle royale. Open blue/green <b>crates</b> for weapons &amp; hyper-boosts; grab <b>cars</b> from garages (press E). Loot permanent stacking upgrades for combos — <b>CLONE</b> (press C), <b>EXPLOSIVE</b> rocket-jumps, <b>CRYO</b> slow, <b>TESLA</b> chain-lightning, <b>AEGIS</b> orbiting shield. Some gems are <b>weapon perks</b> — hold the matching gun to claim them. Use <b>boost pads</b> for rooftops, flank bots out of their sight, and stay in the zone.</p>
+    </div>
+  </div>
+
+  <!-- Match over overlay -->
+  <div id="gameover" class="hidden">
+    <div class="panel">
+      <h1 id="result-title">VICTORY</h1>
+      <p class="subtitle" id="result-sub"></p>
+      <button id="restart-btn">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <!--
+    Boot diagnostics: this plain (non-module) script runs BEFORE the game
+    module, so it can catch load/runtime errors and show them on screen instead
+    of failing silently (a dead "Play" button). It also catches the two most
+    common "it doesn't work" causes: opening via file:// and running inside an
+    embedded preview that blocks the Pointer Lock API.
+  -->
+  <script>
+    (function () {
+      function showFatal(msg) {
+        var box = document.getElementById('boot-error');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'boot-error';
+          box.style.cssText = 'max-width:560px;margin:22px auto 0;padding:14px 18px;' +
+            'border:1px solid #ff5a5a;border-radius:8px;background:rgba(255,90,90,0.12);' +
+            'color:#ffc2c2;font-size:13px;line-height:1.5;text-align:left;white-space:pre-wrap;';
+          var panel = document.querySelector('#overlay .panel') || document.body;
+          panel.appendChild(box);
+        }
+        box.textContent = msg;
+      }
+      window.__bootError = showFatal;
+
+      window.addEventListener('error', function (e) {
+        var m = (e && e.message) || (e.error && e.error.message) || 'Script error';
+        if (e && e.filename) m += '\n( ' + e.filename + (e.lineno ? ':' + e.lineno : '') + ' )';
+        showFatal('Startup error:\n' + m);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e && e.reason;
+        showFatal('Startup error:\n' + (r && r.message ? r.message : String(r)));
+      });
+
+      // If readiness was never signalled, point at the most likely cause.
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          if (window.__GAME_READY || document.getElementById('boot-error')) return;
+          if (typeof THREE === 'undefined') {
+            showFatal('Could not load Three.js from the CDN.\n' +
+              'Check your internet connection and reload.');
+          } else {
+            showFatal('The game did not start.\n' +
+              'Open the browser console (Cmd+Option+J) for details.');
+          }
+        }, 3500);
+      });
+    })();
+  </script>
+
+  <!--
+    Classic (non-module) scripts so the game runs by simply opening this file —
+    no server needed. Three.js is loaded as a global build, then each game file
+    in dependency order (world defines ARENA/World used by the rest; main last).
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/fighter.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/weapon.js"></script>
+  <script src="js/bots.js"></script>
+  <script src="js/storm.js"></script>
+  <script src="js/powerups.js"></script>
+  <script src="js/crates.js"></script>
+  <script src="js/specials.js"></script>
+  <script src="js/destructibles.js"></script>
+  <script src="js/minimap.js"></script>
+  <script src="js/debug.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
