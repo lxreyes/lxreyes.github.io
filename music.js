@@ -258,6 +258,17 @@
       bs:  { type: 'triangle', vol: 0.07, dur: 0.7 }
     },
 
+    // 22. PORTFOLIO — chill ambient lobby, slow and airy
+    'portfolio': {
+      bpm: 80,
+      steps: 16,
+      melody: [N.E5, 0, 0, 0, N.G5, 0, 0, N.A5, 0, 0, N.E5, 0, N.D5, 0, 0, 0],
+      bass:   [N.A2, 0, 0, 0, 0, 0, 0, 0, N.E2, 0, 0, 0, 0, 0, 0, 0],
+      hat:    mark(arr(16), [4, 12]),
+      mel: { type: 'sine', vol: 0.045, dur: 0.7 },
+      bs:  { type: 'sine', vol: 0.07, dur: 1.4 }
+    },
+
     // 21. BLACKJACK — smoky jazz lounge
     'blackjack': {
       bpm: 80,
@@ -409,6 +420,27 @@
     var beatDur = 60 / preset.bpm;
     var t = ((ctx.currentTime - musicStartTime) % beatDur + beatDur) % beatDur;
     return t / beatDur;
+  }
+
+  // Position within the current MEASURE (one bar = preset.steps sixteenth notes).
+  // Returns 0..1 across the whole bar; the start of the bar (downbeat) is at 0.
+  function measurePhase() {
+    if (!preset || !ctx) return -1;
+    var barDur = (60 / preset.bpm) * (preset.steps / 4); // steps/4 beats per bar
+    var t = ((ctx.currentTime - musicStartTime) % barDur + barDur) % barDur;
+    return t / barDur;
+  }
+
+  // True if we're near the BIG beats — the downbeat (step 0) and the halfway
+  // point of the bar (step 8 in a 16-step bar). The kick lives on every beat
+  // in most presets, but only these two count as "big".
+  function isOnDownbeat(toleranceMs) {
+    var p = measurePhase();
+    if (p < 0 || !preset) return false;
+    var barDur = (60 / preset.bpm) * (preset.steps / 4);
+    var tol = ((toleranceMs || 120) / 1000) / barDur;
+    // Near 0 (downbeat) or near 0.5 (halfway through the bar)
+    return p < tol || p > 1 - tol || Math.abs(p - 0.5) < tol;
   }
 
   // True if we're within `toleranceMs` of a beat (default 120ms).
@@ -597,6 +629,8 @@
     isMuted: isMuted,
     sfx: sfx,
     beatPhase: beatPhase,
-    isOnBeat: isOnBeat
+    isOnBeat: isOnBeat,
+    measurePhase: measurePhase,
+    isOnDownbeat: isOnDownbeat
   };
 })();

@@ -1,8 +1,53 @@
 (function () {
     initTabs();
     initThumbnails();
+    initSiteMusic();
     // Enhance every panel independently so each tab remembers its own order.
     document.querySelectorAll(".projects").forEach(initReorder);
+
+    // ------------------------------------------------------- Background music
+    // Plays the 'portfolio' preset from music.js. Autoplay rules require a
+    // gesture before audio can resume, so we start on the first interaction
+    // and otherwise wait for the user to click the ♪ button.
+    function initSiteMusic() {
+        const btn = document.getElementById("site-mute");
+        if (!btn || !window.Music) return;
+        let started = false;
+        // Remember the user's choice to autoplay across visits.
+        let allowAuto = true;
+        try { allowAuto = localStorage.getItem("portfolio-music-off") !== "1"; } catch (_) {}
+        function refresh() {
+            const muted = window.Music.isMuted();
+            btn.classList.toggle("is-muted", muted || !started);
+            btn.classList.toggle("is-playing", started && !muted);
+        }
+        function startOnce() {
+            if (started || !allowAuto) return;
+            started = true;
+            window.Music.start("portfolio");
+            if (window.Music.isMuted()) window.Music.setMuted(false);
+            refresh();
+        }
+        // Autoplay only after a real user gesture.
+        window.addEventListener("pointerdown", startOnce, { once: true, capture: true });
+        window.addEventListener("keydown", startOnce, { once: true, capture: true });
+        btn.addEventListener("click", function () {
+            if (!started) {
+                allowAuto = true;
+                try { localStorage.removeItem("portfolio-music-off"); } catch (_) {}
+                startOnce();
+                return;
+            }
+            window.Music.toggle();
+            if (window.Music.isMuted()) {
+                try { localStorage.setItem("portfolio-music-off", "1"); } catch (_) {}
+            } else {
+                try { localStorage.removeItem("portfolio-music-off"); } catch (_) {}
+            }
+            refresh();
+        });
+        refresh();
+    }
 
     // ------------------------------------------------------- Thumbnails
     // If img/thumbs/<data-key>.jpg (or .png) exists, set --thumb on the
