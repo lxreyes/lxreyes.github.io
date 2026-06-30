@@ -373,8 +373,13 @@
           break;
         }
       }
-      // Cleanup
-      tiles = tiles.filter(t => t.y < H + th + 10);
+      // Cleanup — drop tiles that fell off the bottom OR that have finished
+      // their hit fade-out. Hit tiles park at their tap position, so without
+      // this they'd accumulate forever.
+      tiles = tiles.filter(t => {
+        if (t.hit && t.anim <= 0) return false;
+        return t.y < H + th + 10;
+      });
     }
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -429,6 +434,9 @@
     // Tiles
     const th = tileHeight();
     for (const t of tiles) {
+      // Skip fully-faded hit tiles — they're queued for removal next update.
+      if (t.hit && t.anim <= 0) continue;
+
       const x = t.col * cw + 10;
       const w = cw - 20;
       const y = t.y;
