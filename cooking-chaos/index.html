@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cooking Chaos — Order Rush</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ===== Menu ===== -->
+    <section id="menu" class="screen">
+      <h1>🍳 Cooking Chaos</h1>
+      <p class="sub">Order Rush</p>
+      <p class="tagline">An order pops up — tap the right ingredients to build it
+        <em>before the rival bots do</em>. Fastest correct combo wins the round!</p>
+      <div class="menu-btns">
+        <button id="start-btn" class="btn">Start the Rush</button>
+        <button id="study-btn" class="btn btn-ghost">📖 Study Recipes</button>
+      </div>
+      <div class="how">
+        <strong>How to play</strong>
+        <ul>
+          <li>🧾 A <b>meal</b> appears with the number of ingredients it needs</li>
+          <li>👆 <b>Tap the buttons</b> for the ingredients that belong in it (1–9 keys work too)</li>
+          <li>⚡ Get the <b>exact combo</b> and it auto-serves — no extra clicks</li>
+          <li>🤖 Beat the <b>bots</b>: the faster you serve, the higher you place</li>
+          <li>🌀 Watch for <b>CHAOS</b> — shuffling shelves, decoys, fickle customers &amp; more</li>
+          <li>📖 Stuck? Hit <b>Study Recipes</b> to learn every combo</li>
+          <li>🏆 Most points after <b>8 rounds</b> wins the showdown</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== Game ===== -->
+    <section id="game" class="screen hidden">
+      <header id="topbar">
+        <div class="pill">Round <span id="round-num">1</span>/<span id="round-total">8</span></div>
+        <div class="pill chaos hidden" id="chaos-pill">🌀 CHAOS</div>
+        <div class="pill" id="clock">⏱️ 0.0s</div>
+      </header>
+
+      <div id="racers"></div>
+
+      <div id="order-card">
+        <div id="order-emoji">🍔</div>
+        <div id="order-name">Burger Combo</div>
+        <div id="order-hint">Pick 5 ingredients</div>
+      </div>
+
+      <div id="feedback">&nbsp;</div>
+      <div id="ingredients"></div>
+
+      <div id="round-result" class="hidden"></div>
+    </section>
+
+    <!-- ===== Study mode ===== -->
+    <section id="study" class="screen hidden">
+      <h1>📖 Recipe Book</h1>
+      <p class="tagline">Learn the combos here, then go beat the bots.</p>
+      <button id="study-back" class="btn">← Back to menu</button>
+      <div id="recipe-list"></div>
+    </section>
+
+    <!-- ===== Game over ===== -->
+    <section id="gameover" class="screen hidden">
+      <h1 id="go-title">Showdown Over!</h1>
+      <div id="standings"></div>
+      <button id="again-btn" class="btn">Rematch</button>
+    </section>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
