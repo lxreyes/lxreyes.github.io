@@ -219,7 +219,7 @@
   <p class="sub">Slide. Merge. Reach 2048.</p>
   <div class="stats">
     <div class="pill">Score<b id="score">0</b></div>
-    <div class="pill">Best<b id="best">0</b></div>
+    <div class="pill">Best tile<b id="best">0</b></div>
     <button class="undo" id="undo" type="button" disabled>↶ Undo</button>
     <button class="toggle" id="mode" aria-pressed="false" type="button">
       <span class="dot"></span>Plus
@@ -264,7 +264,9 @@
   var grid = null;
   var tiles = [];
   var nextId = 1;
-  var score = 0, best = 0;
+  var score = 0;
+  var bestTile = 0;          // best achievement is now the highest tile ever reached
+  var maxTileThisGame = 0;
   var won = false, dead = false;
   var plusMode = false;
   var comboTimer = null, milestoneTimer = null;
@@ -274,10 +276,15 @@
   var MILESTONES = [1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000];
   try { plusMode = localStorage.getItem('2048-plus') === '1'; } catch (_) {}
 
-  function bestKey() { return plusMode ? '2048-best-plus' : '2048-best'; }
+  function bestKey() { return plusMode ? '2048-best-tile-plus' : '2048-best-tile'; }
   function loadBest() {
-    try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { best = 0; }
-    bestEl.textContent = best;
+    try { bestTile = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { bestTile = 0; }
+    bestEl.textContent = bestTile;
+  }
+
+  // Shorthand — routes to the shared music.js SFX engine when available.
+  function sfx(name) {
+    if (window.Music && Music.sfx) Music.sfx(name);
   }
   function undoBudget() { return plusMode ? 3 : 1; }
   function updateUndoBtn() {
@@ -341,6 +348,7 @@
     tiles.forEach(function (t) { if (t.el && t.el.parentNode) t.el.parentNode.removeChild(t.el); });
     tiles = [];
     score = 0; won = false; dead = false;
+    maxTileThisGame = 0;
     snapshotStack = [];
     undosLeft = undoBudget();
     lastMilestone = 0;
@@ -466,6 +474,7 @@
     restoreSnapshot(snap);
     undosLeft--;
     updateUndoBtn();
+    sfx('undo');
   }
 
   function trySlide(dir) {
@@ -516,6 +525,7 @@
             gained = Math.round(gained * comboMult(comboCount));
             score += gained;
             roundGain += gained;
+            sfx('bomb');
           } else {
             winner.value = res.value;
             winner.wild = !!res.wild;
@@ -530,9 +540,16 @@
             var gained2 = Math.round(winner.value * comboMult(comboCount));
             score += gained2;
             roundGain += gained2;
-            if (winner.value >= 2048 && !won) won = true;
+            if (winner.value >= 2048 && !won) { won = true; sfx('win'); }
             loser.dead = true;
             loser.dyingTo = winner;
+            // Pick the right SFX for this merge type. Hot, mystery, wild,
+            // doubler are distinct; otherwise it's a plain merge tone.
+            if (res.fire) sfx('hot');
+            else if (res.mystery) sfx('mystery');
+            else if (loser.wild || winner.wild) sfx('wild');
+            else if (loser.dbl || winner.dbl) sfx('doubler');
+            else sfx('merge');
             // Hot merge: schedule fire spread
             if (res.fire) {
               var fIdx = out.length - 1;
@@ -591,7 +608,7 @@
             var bonus = Math.round(v.value * comboMult(Math.max(1, comboCount)));
             score += bonus;
             roundGain += bonus;
-            if (v.value >= 2048 && !won) won = true;
+            if (v.value >= 2048 && !won) { won = true; sfx('win'); }
           }
         }
       }
@@ -636,10 +653,13 @@
     }
 
     if (moved) {
+      // Plain slide click if no merges happened
+      if (comboCount === 0) sfx('move');
       if (comboCount >= 2 && plusMode) showCombo(comboCount, roundGain);
       updateUndoBtn();
       setTimeout(function () {
-        addRandom(false); layout(); scoreEl.textContent = score; checkBest(); checkMilestone(); checkDead();
+        addRandom(false); layout(); scoreEl.textContent = score;
+        checkBestTile(); checkMilestone(); checkDead();
       }, 140);
     } else {
       snapshotStack.pop(); // no-op move, don't waste a snapshot
@@ -682,6 +702,7 @@
     comboEl.classList.add('is-on');
     if (comboTimer) clearTimeout(comboTimer);
     comboTimer = setTimeout(function () { comboEl.classList.remove('is-on'); }, 950);
+    sfx('combo');
   }
 
   function showMilestone(score) {
@@ -691,13 +712,22 @@
     milestoneEl.classList.add('is-on');
     if (milestoneTimer) clearTimeout(milestoneTimer);
     milestoneTimer = setTimeout(function () { milestoneEl.classList.remove('is-on'); }, 1400);
+    sfx('milestone');
   }
 
-  function checkBest() {
-    if (score > best) {
-      best = score;
-      bestEl.textContent = best;
-      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
+  function checkBestTile() {
+    // Walk the current tiles, find the highest plain-number value, save if new best
+    var newMax = 0;
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      if (t.bomb || t.wild || t.dbl || t.mys || t.hot) continue; // specials don't count
+      if (t.value > newMax) newMax = t.value;
+    }
+    if (newMax > maxTileThisGame) maxTileThisGame = newMax;
+    if (maxTileThisGame > bestTile) {
+      bestTile = maxTileThisGame;
+      bestEl.textContent = bestTile;
+      try { localStorage.setItem(bestKey(), String(bestTile)); } catch (_) {}
     }
   }
 
@@ -723,8 +753,10 @@
     }
     dead = true;
     overhEl.textContent = won ? 'You hit 2048!' : 'Game Over';
-    overpEl.textContent = (won ? 'And then ran out of room. ' : 'No moves left. ') + 'Score: ' + score;
+    overpEl.textContent = (won ? 'And then ran out of room. ' : 'No moves left. ') +
+      'Highest tile: ' + maxTileThisGame + ' · Score: ' + score;
     overEl.hidden = false;
+    sfx('gameover');
   }
 
   window.addEventListener('keydown', function (e) {

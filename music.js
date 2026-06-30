@@ -419,11 +419,162 @@
   function toggle() { setMuted(!muted); return muted; }
   function isMuted() { return muted; }
 
+  // ---------------------------------------------------- Sound effects
+  // Quick one-shot SFX so individual games don't each ship their own oscillator
+  // boilerplate. Routed through the shared master gain so the mute toggle
+  // silences SFX along with the music.
+  function sfx(name) {
+    ensureCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+    var t = ctx.currentTime;
+    switch (name) {
+      case 'move':
+        sfxTone(180, 0.05, 'sine', 0.08, t);
+        break;
+      case 'merge':
+        sfxTone(440, 0.10, 'triangle', 0.14, t);
+        sfxTone(660, 0.08, 'triangle', 0.10, t + 0.02);
+        break;
+      case 'wild':
+        sfxTone(880, 0.10, 'sine', 0.14, t);
+        sfxTone(1175, 0.10, 'sine', 0.12, t + 0.05);
+        sfxTone(1568, 0.12, 'sine', 0.10, t + 0.10);
+        break;
+      case 'doubler':
+        sfxTone(220, 0.04, 'sawtooth', 0.16, t);
+        sfxTone(440, 0.06, 'square', 0.14, t + 0.03);
+        sfxTone(880, 0.10, 'triangle', 0.12, t + 0.07);
+        break;
+      case 'mystery':
+        // Random sparkle, three quick notes from a pentatonic pool
+        var pool = [523, 587, 659, 784, 880, 1047];
+        for (var i = 0; i < 3; i++) {
+          var f = pool[Math.floor(Math.random() * pool.length)];
+          sfxTone(f, 0.12, 'sine', 0.10, t + i * 0.05);
+        }
+        break;
+      case 'hot':
+        // Whoosh + crackle: descending tone over noise
+        sfxSweep(1200, 300, 0.25, 'triangle', 0.14, t);
+        sfxNoise(0.20, 0.08, 1800, t);
+        break;
+      case 'bomb':
+        // Boom: low descending tone + noise burst
+        sfxSweep(420, 40, 0.32, 'sawtooth', 0.22, t);
+        sfxNoise(0.30, 0.18, 600, t);
+        break;
+      case 'combo':
+        // Ascending chord
+        sfxTone(523, 0.14, 'triangle', 0.14, t);
+        sfxTone(659, 0.14, 'triangle', 0.14, t + 0.06);
+        sfxTone(784, 0.18, 'triangle', 0.14, t + 0.12);
+        break;
+      case 'milestone':
+        // Triumphant
+        sfxTone(523, 0.18, 'triangle', 0.16, t);
+        sfxTone(659, 0.18, 'triangle', 0.16, t + 0.04);
+        sfxTone(784, 0.18, 'triangle', 0.16, t + 0.08);
+        sfxTone(1047, 0.32, 'triangle', 0.16, t + 0.16);
+        break;
+      case 'undo':
+        sfxTone(420, 0.06, 'sine', 0.12, t);
+        sfxTone(320, 0.08, 'sine', 0.10, t + 0.04);
+        break;
+      case 'gameover':
+        sfxSweep(280, 70, 0.45, 'sawtooth', 0.20, t);
+        sfxSweep(180, 45, 0.55, 'sawtooth', 0.16, t + 0.1);
+        break;
+      case 'win':
+        sfxTone(523, 0.14, 'triangle', 0.16, t);
+        sfxTone(659, 0.14, 'triangle', 0.16, t + 0.08);
+        sfxTone(784, 0.14, 'triangle', 0.16, t + 0.16);
+        sfxTone(1047, 0.28, 'triangle', 0.16, t + 0.24);
+        break;
+      case 'select':
+        sfxTone(620, 0.04, 'sine', 0.08, t);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function sfxTone(freq, dur, type, vol, when) {
+    if (!ctx || !masterGain) return;
+    var t = when || ctx.currentTime;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.frequency.setValueAtTime(freq, t);
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(masterGain);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function sfxSweep(fromFreq, toFreq, dur, type, vol, when) {
+    if (!ctx || !masterGain) return;
+    var t = when || ctx.currentTime;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.frequency.setValueAtTime(fromFreq, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, toFreq), t + dur);
+    o.type = type || 'sawtooth';
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(masterGain);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function sfxNoise(dur, vol, cutoff, when) {
+    if (!ctx || !masterGain) return;
+    var t = when || ctx.currentTime;
+    var bufSize = Math.floor(ctx.sampleRate * dur);
+    var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.6);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = cutoff || 1200;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(filt).connect(g).connect(masterGain);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }
+
+  // Resume the audio context on any user gesture. Browsers create the context
+  // suspended until they see a click / key / touch — without this hook the
+  // music engine fires up but produces no audible output.
+  function wakeOnUserGesture() {
+    var awake = false;
+    function wake() {
+      if (awake) return;
+      awake = true;
+      ensureCtx();
+      if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+      window.removeEventListener('pointerdown', wake, true);
+      window.removeEventListener('keydown', wake, true);
+      window.removeEventListener('touchstart', wake, true);
+    }
+    window.addEventListener('pointerdown', wake, true);
+    window.addEventListener('keydown', wake, true);
+    window.addEventListener('touchstart', wake, true);
+  }
+  wakeOnUserGesture();
+
   window.Music = {
     start: start,
     stop: stop,
     setMuted: setMuted,
     toggle: toggle,
-    isMuted: isMuted
+    isMuted: isMuted,
+    sfx: sfx
   };
 })();
