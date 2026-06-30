@@ -234,9 +234,8 @@
   var trackWidth = 0;
   // Start/finish bar position on the track.
   var startAngle = -Math.PI / 2; // top of oval
-  var lastAngle = startAngle;     // car's last polar angle (for lap detection)
-  var sectorsHit = 0;            // count of sectors crossed counter-clockwise
-  var sectorState = 0;           // 0..3
+  var lastSector = 3;            // sector the car was in last frame (init at top = 3)
+  var sectorState = 0;           // 0..3 — count of forward sector transitions this lap
   var state = 'idle';
 
   var car = { x: 0, y: 0, angle: 0, vx: 0, vy: 0, speed: 0 };
@@ -355,7 +354,7 @@
     car.vx = 0;
     car.vy = 0;
     car.speed = 0;
-    lastAngle = startAngle;
+    lastSector = 3; // car starts at the top sector
     sectorState = 0;
   }
 
@@ -512,38 +511,42 @@
       if (skids[i].life <= 0) skids.splice(i, 1);
     }
 
-    // Lap detection — track sector progression (counterclockwise)
+    // Lap detection — track sector transitions. The car physically traverses
+    // the four quadrants in the order 3 → 0 → 1 → 2 → 3 (CCW around the oval),
+    // so each forward transition is from sector S to (S + 1) % 4. After four
+    // such transitions the car has completed a lap and is back at sector 3.
     var carAngle = Math.atan2(car.y - cy, car.x - cx);
-    // Normalize to 0..2pi
     var na = (carAngle + Math.PI * 2) % (Math.PI * 2);
-    // Sectors: 0..pi/2, pi/2..pi, pi..3pi/2, 3pi/2..2pi
     var sector = Math.floor(na / (Math.PI / 2));
-    // Expect to enter sectors in order CCW from start. start at angle -pi/2 (which is 3pi/2) → na ~ 4.71
-    // CCW means na DECREASES (or wraps). Sectors expected: 3 → 2 → 1 → 0 → 3 (lap done).
-    var expectedNext = (3 - sectorState + 4) % 4;
-    if (sector === expectedNext) {
-      sectorState++;
-      if (sectorState >= 4) {
-        sectorState = 0;
-        // Lap complete
-        var now = Date.now();
-        var elapsed = (now - lapStart) / 1000;
-        lapStart = now;
-        lapTimes.push(elapsed);
-        if (bestLap == null || elapsed < bestLap) {
-          bestLap = elapsed;
-          try { localStorage.setItem('kart-loops-best', String(bestLap)); } catch (_) {}
+    if (sector !== lastSector) {
+      var forward = (lastSector + 1) % 4;
+      if (sector === forward) {
+        sectorState++;
+        if (sectorState >= 4) {
+          sectorState = 0;
+          var now = Date.now();
+          var elapsed = (now - lapStart) / 1000;
+          lapStart = now;
+          lapTimes.push(elapsed);
+          if (bestLap == null || elapsed < bestLap) {
+            bestLap = elapsed;
+            try { localStorage.setItem('kart-loops-best', String(bestLap)); } catch (_) {}
+          }
+          tone(660, 0.1, 'triangle', 0.2);
+          if (lap >= TOTAL_LAPS) {
+            lap = TOTAL_LAPS;
+            lapEl.textContent = 'LAP ' + lap + ' / ' + TOTAL_LAPS;
+            finishRace();
+            lastSector = sector;
+            return;
+          }
+          lap++;
+          lapEl.textContent = 'LAP ' + lap + ' / ' + TOTAL_LAPS;
         }
-        tone(660, 0.1, 'triangle', 0.2);
-        if (lap >= TOTAL_LAPS) {
-          finishRace();
-          return;
-        }
-        lap++;
-        lapEl.textContent = 'LAP ' + lap + ' / ' + TOTAL_LAPS;
       }
+      // Either forward step or wrong direction — record the new sector either way.
+      lastSector = sector;
     }
-    lastAngle = carAngle;
   }
 
   function update() {

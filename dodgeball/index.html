@@ -438,25 +438,47 @@
     if (shakeT > 0) {
       ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
     }
-    ctx.clearRect(-20, -20, W + 40, H + 40);
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0,   '#150810');
+    sky.addColorStop(0.6, '#1f0b14');
+    sky.addColorStop(1,   '#3a1018');
+    ctx.fillStyle = sky;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
 
-    // stars background
+    // Stars background
     for (const s of stars) {
       const a = 0.35 + Math.sin(s.twinkle) * 0.22;
       ctx.fillStyle = `rgba(255, 200, 180, ${a})`;
       ctx.fillRect(s.x, s.y, s.r, s.r);
     }
 
-    // floor
-    ctx.fillStyle = 'rgba(255, 122, 69, 0.18)';
+    // Floor — glowing horizon + arena
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = ACCENT;
     ctx.fillRect(0, groundY, W, 2);
-    ctx.fillStyle = 'rgba(8, 8, 14, 0.85)';
+    ctx.shadowBlur = 0;
+    const floor = ctx.createLinearGradient(0, groundY, 0, H);
+    floor.addColorStop(0, 'rgba(20, 8, 12, 0.95)');
+    floor.addColorStop(1, 'rgba(6, 2, 4, 1)');
+    ctx.fillStyle = floor;
     ctx.fillRect(0, groundY + 2, W, H - groundY - 2);
-    // floor dashes
-    ctx.fillStyle = 'rgba(255, 122, 69, 0.32)';
+    // Perspective floor lines — scrolling forward
     const off = (elapsed * 1.6) % 60;
+    ctx.fillStyle = 'rgba(255, 122, 69, 0.45)';
     for (let i = -1; i < Math.ceil(W / 60) + 1; i++) {
       ctx.fillRect(i * 60 - off, groundY + 14, 22, 2);
+    }
+    // Subtle depth bars further from camera
+    ctx.strokeStyle = 'rgba(255, 122, 69, 0.10)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      const fy = groundY + 24 + i * 22;
+      ctx.beginPath();
+      ctx.moveTo(0, fy);
+      ctx.lineTo(W, fy);
+      ctx.stroke();
     }
 
     // trail
@@ -505,25 +527,42 @@
 
     // player (only render when alive)
     if (state === 'play') {
-      // shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      // Drop shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.beginPath();
-      ctx.ellipse(player.x, groundY - 2, player.r * 0.8, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(player.x, groundY - 2, player.r * 0.85, 5, 0, 0, Math.PI * 2);
       ctx.fill();
-      // body
-      const g = ctx.createRadialGradient(player.x - player.r * 0.3, player.y - player.r * 0.3, 0, player.x, player.y, player.r);
-      g.addColorStop(0, '#fff');
+      // Glow aura
+      const aura = ctx.createRadialGradient(player.x, player.y, player.r * 0.6, player.x, player.y, player.r * 2);
+      aura.addColorStop(0, 'rgba(255, 122, 69, 0.4)');
+      aura.addColorStop(1, 'rgba(255, 122, 69, 0)');
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.r * 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Body
+      const g = ctx.createRadialGradient(player.x - player.r * 0.35, player.y - player.r * 0.35, 0, player.x, player.y, player.r);
+      g.addColorStop(0, '#fff7e6');
+      g.addColorStop(0.6, '#ffbe8a');
       g.addColorStop(1, ACCENT);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
       ctx.fill();
-      // ring
+      // Specular highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.beginPath();
+      ctx.ellipse(player.x - player.r * 0.4, player.y - player.r * 0.45, player.r * 0.28, player.r * 0.16, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Outer ring with shadow blur
+      ctx.shadowColor = ACCENT;
+      ctx.shadowBlur = 14;
       ctx.strokeStyle = ACCENT;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.r + 3, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
     ctx.restore();

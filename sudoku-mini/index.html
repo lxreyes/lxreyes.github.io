@@ -538,34 +538,71 @@
   }
 
   function render() {
-    ctx.fillStyle = '#06060a';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(18, 22, 36, 0.55)';
+    // Ambient background gradient
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0a1024');
+    bg.addColorStop(0.6, '#0d0f22');
+    bg.addColorStop(1, '#06060a');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
     if (!board) return;
 
-    // grid background
-    ctx.fillStyle = '#0e1226';
+    // Soft drop shadow under the board
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(gridX + gridSize / 2, gridY + gridSize + 12, gridSize * 0.45, 10, 0, 0, Math.PI * 2);
+    ctx.filter = 'blur(8px)';
+    ctx.fill();
+    ctx.filter = 'none';
+
+    // Grid background with subtle gradient
+    var boardGrad = ctx.createLinearGradient(gridX, gridY, gridX, gridY + gridSize);
+    boardGrad.addColorStop(0, '#141a30');
+    boardGrad.addColorStop(1, '#0a0e1e');
+    ctx.fillStyle = boardGrad;
     ctx.fillRect(gridX, gridY, gridSize, gridSize);
 
-    // highlight: row + col + block of selected
+    // Given-cell tint — slightly darker fill so clues sit visually deeper than user entries
+    for (var rr = 0; rr < N; rr++) {
+      for (var cc = 0; cc < N; cc++) {
+        if (given[rr][cc]) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+          ctx.fillRect(gridX + cc * cell, gridY + rr * cell, cell, cell);
+        }
+      }
+    }
+
+    // Highlight: row + col + block of selected
     if (selected.r >= 0 && state === 'play') {
       var sr = selected.r, sc = selected.c;
-      ctx.fillStyle = 'rgba(161, 193, 255, 0.06)';
+      ctx.fillStyle = 'rgba(161, 193, 255, 0.08)';
       ctx.fillRect(gridX, gridY + sr * cell, gridSize, cell);
       ctx.fillRect(gridX + sc * cell, gridY, cell, gridSize);
       var br = Math.floor(sr / BR) * BR;
       var bc = Math.floor(sc / BC) * BC;
       ctx.fillRect(gridX + bc * cell, gridY + br * cell, cell * BC, cell * BR);
-      // selected cell stronger
-      ctx.fillStyle = 'rgba(161, 193, 255, 0.18)';
-      ctx.fillRect(gridX + sc * cell, gridY + sr * cell, cell, cell);
+      // Selected cell — radial highlight + glow ring
+      var cxSel = gridX + sc * cell;
+      var cySel = gridY + sr * cell;
+      var radial = ctx.createRadialGradient(cxSel + cell / 2, cySel + cell / 2, 0,
+                                            cxSel + cell / 2, cySel + cell / 2, cell);
+      radial.addColorStop(0, 'rgba(161, 193, 255, 0.34)');
+      radial.addColorStop(1, 'rgba(161, 193, 255, 0.08)');
+      ctx.fillStyle = radial;
+      ctx.fillRect(cxSel, cySel, cell, cell);
+      ctx.strokeStyle = '#a1c1ff';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#a1c1ff';
+      ctx.shadowBlur = 12;
+      ctx.strokeRect(cxSel + 1, cySel + 1, cell - 2, cell - 2);
+      ctx.shadowBlur = 0;
 
-      // same-number highlight
+      // Same-number highlight — soft pulse
       var sv = board[sr][sc];
       if (sv) {
-        ctx.fillStyle = 'rgba(161, 193, 255, 0.12)';
+        var pulseA = 0.18 + 0.06 * Math.sin(Date.now() * 0.004);
+        ctx.fillStyle = 'rgba(161, 193, 255, ' + pulseA + ')';
         for (var r = 0; r < N; r++) {
           for (var c = 0; c < N; c++) {
             if (board[r][c] === sv && !(r === sr && c === sc)) {

@@ -529,9 +529,28 @@
   }
 
   function drawCell(x, y, colour) {
+    // Solid base
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, cell, cell);
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    // Glossy top sheen (slightly lighter at top)
+    var sheen = ctx.createLinearGradient(0, y, 0, y + cell);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    sheen.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+    sheen.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x, y, cell, cell);
+    // Top highlight strip
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillRect(x + 2, y + 2, cell - 4, 2);
+    // Left highlight (thin)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.fillRect(x + 2, y + 2, 2, cell - 4);
+    // Right + bottom shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillRect(x + cell - 3, y + 2, 2, cell - 4);
+    ctx.fillRect(x + 2, y + cell - 3, cell - 4, 2);
+    // Outline
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
   }

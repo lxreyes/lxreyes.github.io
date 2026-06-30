@@ -411,45 +411,95 @@
     if (shakeT > 0) {
       ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
     }
-    ctx.clearRect(-20, -20, W + 40, H + 40);
+    // Deep sea-ish background gradient
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#06121c');
+    bg.addColorStop(0.6, '#0a1a26');
+    bg.addColorStop(1, '#040a14');
+    ctx.fillStyle = bg;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
 
-    // bubbles
-    for (const b of bubbles) {
-      const grad = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 0, b.x, b.y, b.r);
-      grad.addColorStop(0, `hsla(${b.hue}, 95%, 80%, 0.55)`);
-      grad.addColorStop(0.7, `hsla(${b.hue}, 85%, 60%, 0.20)`);
-      grad.addColorStop(1, `hsla(${b.hue}, 90%, 70%, 0.0)`);
-      ctx.fillStyle = grad;
+    // Floating ambient micro-bubbles (depth particles)
+    const tElapsed = elapsed * 0.02;
+    for (let i = 0; i < 22; i++) {
+      const ax = ((i * 73 + 31) % W);
+      const ay = (H - ((tElapsed * 12 + i * 47) % H));
+      const ar = 1 + (i % 3);
+      ctx.fillStyle = `rgba(120, 200, 230, ${0.08 + (i % 4) * 0.04})`;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-      // outline
-      ctx.strokeStyle = `hsla(${b.hue}, 95%, 75%, 0.85)`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.beginPath();
-      ctx.ellipse(b.x - b.r * 0.35, b.y - b.r * 0.42, b.r * 0.22, b.r * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.arc(ax, ay, ar, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // particles
+    // Bubbles — iridescent multi-stop gradient with rim glow
+    for (const b of bubbles) {
+      // Outer glow / aura
+      const aura = ctx.createRadialGradient(b.x, b.y, b.r * 0.6, b.x, b.y, b.r * 1.45);
+      aura.addColorStop(0, `hsla(${b.hue}, 95%, 70%, 0.30)`);
+      aura.addColorStop(1, `hsla(${b.hue}, 95%, 70%, 0)`);
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body — iridescent, with hue shift around the rim
+      const body = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 0, b.x, b.y, b.r);
+      body.addColorStop(0,    `hsla(${b.hue + 20}, 95%, 88%, 0.6)`);
+      body.addColorStop(0.45, `hsla(${b.hue}, 90%, 70%, 0.28)`);
+      body.addColorStop(0.85, `hsla(${b.hue - 30}, 85%, 55%, 0.15)`);
+      body.addColorStop(1,    `hsla(${b.hue}, 90%, 70%, 0)`);
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rim — soap-film outline
+      const rim = ctx.createLinearGradient(b.x - b.r, b.y, b.x + b.r, b.y);
+      rim.addColorStop(0,   `hsla(${b.hue - 40}, 95%, 80%, 0.95)`);
+      rim.addColorStop(0.5, `hsla(${b.hue}, 95%, 85%, 0.95)`);
+      rim.addColorStop(1,   `hsla(${b.hue + 40}, 95%, 80%, 0.95)`);
+      ctx.strokeStyle = rim;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Big crescent highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(b.x - b.r * 0.35, b.y - b.r * 0.42, b.r * 0.24, b.r * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Tiny secondary highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.arc(b.x + b.r * 0.35, b.y + b.r * 0.25, b.r * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Particles — soap droplets, slight glow
     for (const p of particles) {
       const a = Math.min(1, p.life / 30);
+      ctx.shadowColor = `hsl(${p.hue}, 90%, 70%)`;
+      ctx.shadowBlur = 8;
       ctx.fillStyle = `hsla(${p.hue}, 95%, 75%, ${a})`;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.shadowBlur = 0;
 
-    // ripples
+    // Ripple rings — wider, double-stroke
     for (const r of ripples) {
       const a = r.life / 14;
-      ctx.strokeStyle = `rgba(65, 214, 255, ${a * 0.5})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(120, 230, 255, ${a * 0.6})`;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${a * 0.5})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r * 0.55, 0, Math.PI * 2);
       ctx.stroke();
     }
 

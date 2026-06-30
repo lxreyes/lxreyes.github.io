@@ -528,79 +528,144 @@
 
   // -------- Render --------
   function render() {
-    ctx.fillStyle = '#06060a';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(28, 22, 16, 0.55)';
+    // Wood-grain inspired backdrop
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0,   '#1b110a');
+    bg.addColorStop(0.5, '#150d08');
+    bg.addColorStop(1,   '#0a0604');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
     if (!board) return;
 
     var boardSize = cell * N;
-    // Board frame
-    ctx.fillStyle = '#3a2a1a';
-    ctx.fillRect(gridX - 6, gridY - 6, boardSize + 12, boardSize + 12);
+
+    // Soft drop shadow under the board
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.filter = 'blur(12px)';
+    ctx.fillRect(gridX - 2, gridY + boardSize - 4, boardSize + 4, 24);
+    ctx.filter = 'none';
+
+    // Wooden frame (with horizontal grain lines)
+    var frameGrad = ctx.createLinearGradient(0, gridY - 8, 0, gridY + boardSize + 8);
+    frameGrad.addColorStop(0,    '#5a3a22');
+    frameGrad.addColorStop(0.5,  '#3a2516');
+    frameGrad.addColorStop(1,    '#2c1c0e');
+    ctx.fillStyle = frameGrad;
+    ctx.fillRect(gridX - 8, gridY - 8, boardSize + 16, boardSize + 16);
+    // Grain lines
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.lineWidth = 1;
+    for (var gi = 0; gi < 8; gi++) {
+      var gy = gridY - 8 + gi * 3 + 2;
+      ctx.beginPath();
+      ctx.moveTo(gridX - 8, gy);
+      ctx.lineTo(gridX + boardSize + 8, gy);
+      ctx.stroke();
+    }
+    for (var gi = 0; gi < 8; gi++) {
+      var gy = gridY + boardSize + 8 - gi * 3 - 2;
+      ctx.beginPath();
+      ctx.moveTo(gridX - 8, gy);
+      ctx.lineTo(gridX + boardSize + 8, gy);
+      ctx.stroke();
+    }
+    // Inner edge highlight
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 2;
-    ctx.strokeRect(gridX - 6 + 1, gridY - 6 + 1, boardSize + 12 - 2, boardSize + 12 - 2);
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = 8;
+    ctx.strokeRect(gridX - 2, gridY - 2, boardSize + 4, boardSize + 4);
+    ctx.shadowBlur = 0;
 
-    // Squares
+    // Squares with gradient on each tile for subtle dimensionality
     for (var r = 0; r < N; r++) {
       for (var c = 0; c < N; c++) {
         var isLight = (r + c) % 2 === 0;
-        ctx.fillStyle = isLight ? LIGHT : DARK;
-        ctx.fillRect(gridX + c * cell, gridY + r * cell, cell, cell);
+        var sqX = gridX + c * cell;
+        var sqY = gridY + r * cell;
+        var sqGrad = ctx.createLinearGradient(sqX, sqY, sqX, sqY + cell);
+        if (isLight) {
+          sqGrad.addColorStop(0, '#f0dca8');
+          sqGrad.addColorStop(1, '#d8c089');
+        } else {
+          sqGrad.addColorStop(0, '#624a30');
+          sqGrad.addColorStop(1, '#3e2a16');
+        }
+        ctx.fillStyle = sqGrad;
+        ctx.fillRect(sqX, sqY, cell, cell);
       }
     }
 
-    // Last move highlight
+    // Last-move highlight — warm tinted overlay
     if (lastMove) {
-      ctx.fillStyle = 'rgba(212, 178, 122, 0.35)';
+      ctx.fillStyle = 'rgba(255, 200, 120, 0.32)';
       ctx.fillRect(gridX + lastMove.from[1] * cell, gridY + lastMove.from[0] * cell, cell, cell);
       ctx.fillRect(gridX + lastMove.to[1] * cell, gridY + lastMove.to[0] * cell, cell, cell);
     }
 
-    // Selected piece highlight
+    // Selected piece highlight — radial glow
     if (selected.r >= 0) {
-      ctx.fillStyle = 'rgba(255, 230, 160, 0.4)';
-      ctx.fillRect(gridX + selected.c * cell, gridY + selected.r * cell, cell, cell);
+      var selX = gridX + selected.c * cell;
+      var selY = gridY + selected.r * cell;
+      var selGrad = ctx.createRadialGradient(selX + cell/2, selY + cell/2, 0,
+                                              selX + cell/2, selY + cell/2, cell);
+      selGrad.addColorStop(0, 'rgba(255, 230, 160, 0.55)');
+      selGrad.addColorStop(1, 'rgba(255, 230, 160, 0.1)');
+      ctx.fillStyle = selGrad;
+      ctx.fillRect(selX, selY, cell, cell);
+      ctx.strokeStyle = '#ffe6a0';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ffd86a';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(selX + 1, selY + 1, cell - 2, cell - 2);
+      ctx.shadowBlur = 0;
     }
 
-    // Valid targets — dots
+    // Valid targets — pulsing dots / capture rings
+    var pulse = 0.85 + 0.15 * Math.sin(Date.now() * 0.005);
     for (var i = 0; i < validTargets.length; i++) {
       var tr = validTargets[i][0], tc = validTargets[i][1];
       var hasPiece = !!board[tr][tc];
       var x = gridX + tc * cell + cell / 2;
       var y = gridY + tr * cell + cell / 2;
       if (hasPiece) {
-        ctx.strokeStyle = 'rgba(60, 30, 10, 0.55)';
+        ctx.strokeStyle = 'rgba(220, 60, 60, ' + (0.75 * pulse) + ')';
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.arc(x, y, cell * 0.42, 0, Math.PI * 2);
         ctx.stroke();
       } else {
-        ctx.fillStyle = 'rgba(60, 30, 10, 0.4)';
+        ctx.fillStyle = 'rgba(80, 50, 20, ' + (0.6 * pulse) + ')';
         ctx.beginPath();
         ctx.arc(x, y, cell * 0.14, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Pieces
+    // Pieces with soft shadows
     var fontSize = Math.floor(cell * 0.78);
     ctx.font = '500 ' + fontSize + 'px "Arial Unicode MS", "Segoe UI Symbol", "Apple Color Emoji", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (var r = 0; r < N; r++) {
       for (var c = 0; c < N; c++) {
-        if (anim && anim.from[0] === r && anim.from[1] === c) continue; // moving piece drawn later
+        if (anim && anim.from[0] === r && anim.from[1] === c) continue;
         var p = board[r][c];
         if (!p) continue;
         var glyph = (p.side === 'w' ? GLYPHS_W : GLYPHS_B)[p.type];
-        // shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fillText(glyph, gridX + c * cell + cell / 2 + 2, gridY + r * cell + cell / 2 + 4);
-        ctx.fillStyle = p.side === 'w' ? '#fdf3df' : '#1d1208';
+        // Soft dark shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillText(glyph, gridX + c * cell + cell / 2 + 2, gridY + r * cell + cell / 2 + 5);
+        // Piece body
+        ctx.fillStyle = p.side === 'w' ? '#fffaee' : '#0a0604';
         ctx.fillText(glyph, gridX + c * cell + cell / 2, gridY + r * cell + cell / 2 + 2);
+        // Highlight rim for white pieces only
+        if (p.side === 'w') {
+          ctx.strokeStyle = 'rgba(140, 90, 40, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.strokeText(glyph, gridX + c * cell + cell / 2, gridY + r * cell + cell / 2 + 2);
+        }
       }
     }
 

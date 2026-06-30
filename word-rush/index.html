@@ -437,6 +437,16 @@
     }
   }
 
+  function roundCap(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
   startBtn.addEventListener('click', start);
   retryBtn.addEventListener('click', start);
   canvas.addEventListener('pointerdown', function () {
@@ -519,25 +529,33 @@
   }
 
   function render() {
-    // background
-    ctx.fillStyle = '#06060a';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(20, 26, 36, 0.45)';
+    // Background — vertical gradient
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#061418');
+    bg.addColorStop(0.5, '#0a1a1d');
+    bg.addColorStop(1, '#180a14');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // stars
+    // Stars
     for (var i = 0; i < stars.length; i++) {
       var s = stars[i];
-      ctx.fillStyle = 'rgba(180, 220, 210, 0.55)';
+      ctx.fillStyle = 'rgba(180, 220, 210, 0.5)';
       ctx.fillRect(s.x, s.y, s.r, s.r);
     }
 
-    // floor warning line
+    // Floor warning band — gradient + glowing line that pulses
     var floor = H - 60;
-    ctx.fillStyle = 'rgba(255, 80, 100, 0.4)';
-    ctx.fillRect(0, floor, W, 1);
-    ctx.fillStyle = 'rgba(255, 80, 100, 0.07)';
+    var floorGrad = ctx.createLinearGradient(0, floor, 0, H);
+    floorGrad.addColorStop(0, 'rgba(255, 80, 100, 0)');
+    floorGrad.addColorStop(1, 'rgba(255, 80, 100, ' + (0.16 + 0.08 * Math.sin(Date.now() * 0.005)) + ')');
+    ctx.fillStyle = floorGrad;
     ctx.fillRect(0, floor, W, H - floor);
+    ctx.shadowColor = '#ff5060';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = 'rgba(255, 80, 100, 0.85)';
+    ctx.fillRect(0, floor, W, 2);
+    ctx.shadowBlur = 0;
 
     var shakeX = 0, shakeY = 0;
     if (shakeT > 0) {
@@ -545,7 +563,7 @@
       shakeY = (Math.random() - 0.5) * shakeT;
     }
 
-    // words
+    // Words
     ctx.font = '700 22px "JetBrains Mono", ui-monospace, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -559,29 +577,64 @@
       var metrics = ctx.measureText(w.text);
       var totalW = metrics.width;
 
-      // glow if target
-      if (isTarget) {
-        ctx.fillStyle = 'rgba(77, 212, 184, 0.18)';
-        ctx.fillRect(x - totalW / 2 - 8, y - 16, totalW + 16, 32);
-        ctx.strokeStyle = 'rgba(77, 212, 184, 0.7)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x - totalW / 2 - 8 + 0.5, y - 16 + 0.5, totalW + 16 - 1, 32 - 1);
+      // Falling streak trail above the word — fades upward
+      if (!isTarget) {
+        var trailGrad = ctx.createLinearGradient(0, y - 40, 0, y);
+        trailGrad.addColorStop(0, 'rgba(77, 212, 184, 0)');
+        trailGrad.addColorStop(1, 'rgba(77, 212, 184, 0.16)');
+        ctx.fillStyle = trailGrad;
+        ctx.fillRect(x - totalW / 2 - 4, y - 40, totalW + 8, 40);
       }
 
-      // draw two halves so typed and untyped have distinct colours
+      // Capsule background — gradient for the target lock-on, subtle for others
+      var padX = 10, padY = 8;
+      var capX = x - totalW / 2 - padX;
+      var capY = y - 16;
+      var capW = totalW + padX * 2;
+      var capH = 32;
+      if (isTarget) {
+        var capGrad = ctx.createLinearGradient(capX, capY, capX, capY + capH);
+        capGrad.addColorStop(0, 'rgba(77, 212, 184, 0.28)');
+        capGrad.addColorStop(1, 'rgba(77, 212, 184, 0.08)');
+        ctx.fillStyle = capGrad;
+        ctx.shadowColor = '#4dd4b8';
+        ctx.shadowBlur = 14;
+        roundCap(capX, capY, capW, capH, 8);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(77, 212, 184, 0.9)';
+        ctx.lineWidth = 1.5;
+        roundCap(capX + 0.5, capY + 0.5, capW - 1, capH - 1, 8);
+        ctx.stroke();
+      } else {
+        // Faint capsule outline for non-target words
+        ctx.strokeStyle = 'rgba(77, 212, 184, 0.18)';
+        ctx.lineWidth = 1;
+        roundCap(capX + 0.5, capY + 0.5, capW - 1, capH - 1, 8);
+        ctx.stroke();
+      }
+
+      // Draw typed (white, glow) + untyped halves
       var typedW = ctx.measureText(typed).width;
-      var restW = ctx.measureText(rest).width;
       var leftX = x - totalW / 2;
 
       if (typed.length) {
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = isTarget ? 8 : 0;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'left';
         ctx.fillText(typed, leftX, y);
+        ctx.shadowBlur = 0;
       }
       if (rest.length) {
+        if (isTarget) {
+          ctx.shadowColor = '#4dd4b8';
+          ctx.shadowBlur = 10;
+        }
         ctx.fillStyle = isTarget ? '#cffff0' : ACCENT;
         ctx.textAlign = 'left';
         ctx.fillText(rest, leftX + typedW, y);
+        ctx.shadowBlur = 0;
       }
       ctx.textAlign = 'center';
     }

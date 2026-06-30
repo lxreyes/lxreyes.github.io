@@ -22,12 +22,29 @@
   }
   body {
     background:
-      radial-gradient(circle at 50% -10%, rgba(84, 224, 138, 0.18), transparent 60%),
-      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+      radial-gradient(circle at 18% -10%, rgba(255, 107, 157, 0.14), transparent 50%),
+      radial-gradient(circle at 82% -10%, rgba(84, 224, 138, 0.18), transparent 50%),
+      radial-gradient(circle at 50% 110%, rgba(91, 141, 239, 0.14), transparent 55%),
+      radial-gradient(ellipse at center, #15131e, #06060a 75%);
     display: flex;
     flex-direction: column;
     touch-action: manipulation;
+    position: relative;
+    overflow: hidden;
   }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 25% 30%, rgba(255, 255, 255, 0.04) 0, transparent 6%),
+      radial-gradient(circle at 75% 45%, rgba(255, 255, 255, 0.05) 0, transparent 6%),
+      radial-gradient(circle at 55% 75%, rgba(255, 255, 255, 0.04) 0, transparent 8%),
+      radial-gradient(circle at 15% 80%, rgba(255, 255, 255, 0.03) 0, transparent 8%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body > * { position: relative; z-index: 1; }
   .back {
     position: absolute;
     top: 16px;
@@ -95,8 +112,20 @@
     letter-spacing: 0.04em;
     line-height: 1;
     color: #fff;
-    text-shadow: 0 0 36px currentColor;
+    text-shadow: 0 0 36px currentColor, 0 4px 18px rgba(0, 0, 0, 0.5);
     transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    position: relative;
+  }
+  .word::after {
+    content: '';
+    position: absolute;
+    left: -10%; right: -10%;
+    bottom: -8px;
+    height: 4px;
+    background: currentColor;
+    opacity: 0.6;
+    filter: blur(6px);
+    border-radius: 4px;
   }
   .word.pop { transform: scale(1.12); }
   .word.shake { animation: shake 280ms ease-in-out; }
@@ -133,29 +162,56 @@
     appearance: none;
     -webkit-appearance: none;
     border: 2px solid var(--col);
-    background: color-mix(in srgb, var(--col) 14%, transparent);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--col) 20%, transparent),
+                              color-mix(in srgb, var(--col) 6%, transparent));
     color: var(--col);
-    border-radius: 14px;
-    padding: 18px 14px;
+    border-radius: 16px;
+    padding: 20px 14px;
     font-family: "Space Grotesk", system-ui, sans-serif;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: transform 120ms, background 120ms, box-shadow 120ms;
+    transition: transform 120ms, background 120ms, box-shadow 120ms, border-color 120ms;
     text-shadow: 0 0 14px currentColor;
+    position: relative;
+    overflow: hidden;
   }
-  .option:hover { background: color-mix(in srgb, var(--col) 28%, transparent); }
+  .option::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    background:
+      radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--col) 28%, transparent) 0,
+                                          transparent 50%);
+    border-radius: 15px;
+    pointer-events: none;
+  }
+  .option:hover {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--col) 36%, transparent),
+                              color-mix(in srgb, var(--col) 14%, transparent));
+    box-shadow: 0 0 24px color-mix(in srgb, var(--col) 50%, transparent);
+    transform: translateY(-2px);
+  }
   .option:active { transform: translateY(2px); }
   .option.correct {
     background: var(--col);
     color: #06060a;
     text-shadow: none;
-    box-shadow: 0 0 28px var(--col);
+    box-shadow: 0 0 36px var(--col), 0 0 10px var(--col);
+    animation: optionWin 360ms ease;
+  }
+  @keyframes optionWin {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.07); }
+    100% { transform: scale(1); }
   }
   .option.wrong {
-    opacity: 0.4;
+    opacity: 0.32;
+    filter: grayscale(0.6);
   }
 
   .overlay {

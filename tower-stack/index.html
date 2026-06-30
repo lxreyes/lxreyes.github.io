@@ -322,38 +322,98 @@
       ctx.rotate(b.rot);
       ctx.translate(-(b.x + b.w / 2), -(y + b.h / 2));
     }
+    // Body gradient
     const grad = ctx.createLinearGradient(0, y, 0, y + b.h);
-    grad.addColorStop(0, `hsl(${b.hue}, 82%, 60%)`);
-    grad.addColorStop(1, `hsl(${b.hue}, 65%, 42%)`);
+    grad.addColorStop(0, `hsl(${b.hue}, 85%, 68%)`);
+    grad.addColorStop(0.5, `hsl(${b.hue}, 80%, 55%)`);
+    grad.addColorStop(1, `hsl(${b.hue}, 65%, 38%)`);
     ctx.fillStyle = grad;
     ctx.fillRect(b.x, y, b.w, b.h);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    // Glossy top sheen
+    const sheen = ctx.createLinearGradient(0, y, 0, y + b.h * 0.5);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(b.x, y, b.w, b.h * 0.5);
+    // Highlight strip on top
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
     ctx.fillRect(b.x, y, b.w, 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    // Right-edge shadow for a hint of 3D
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.fillRect(b.x + b.w - 3, y + 2, 3, b.h - 2);
+    // Bottom shadow line
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
     ctx.fillRect(b.x, y + b.h - 2, b.w, 2);
     if (rotated && b.rot) ctx.restore();
   }
 
   function render() {
-    ctx.clearRect(0, 0, W, H);
-    // ground hint line
+    // Sky gradient backdrop — twilight orange at top, deep purple at bottom
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0,    '#160820');
+    sky.addColorStop(0.55, '#2a1228');
+    sky.addColorStop(1,    '#3a1a18');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // Distant horizon stars (static, no parallax)
+    const horizon = H * 0.6;
+    for (let i = 0; i < 30; i++) {
+      const sx = (i * 137 + 41) % W;
+      const sy = (i * 79 + 19) % (horizon * 0.7);
+      ctx.fillStyle = `rgba(255, 220, 200, ${0.15 + (i % 3) * 0.1})`;
+      ctx.fillRect(sx, sy, 1 + (i % 4 === 0 ? 1 : 0), 1 + (i % 4 === 0 ? 1 : 0));
+    }
+
+    // Ground glow
     const groundY = (H - 80) - cameraY + 28;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    const grad = ctx.createLinearGradient(0, groundY - 20, 0, groundY + 4);
+    grad.addColorStop(0, 'rgba(255, 168, 77, 0)');
+    grad.addColorStop(1, 'rgba(255, 168, 77, 0.4)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, groundY - 20, W, 22);
+    ctx.fillStyle = 'rgba(255, 168, 77, 0.7)';
+    ctx.shadowColor = '#ffa84d';
+    ctx.shadowBlur = 16;
     ctx.fillRect(0, groundY, W, 2);
+    ctx.shadowBlur = 0;
+
+    // Tower drop shadow — a soft elongated ellipse beneath the base block
+    if (blocks.length) {
+      const base = blocks[0];
+      const baseY = base.y - cameraY + base.h;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(base.x + base.w / 2, baseY + 8, base.w * 0.55, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     for (const b of blocks) drawBlock(b, false);
     for (const f of falling) drawBlock(f, true);
+
     if (moving && state === 'play') {
       drawBlock(moving, false);
-      // shadow on top of last placed block
+      // Drop guide — overlap zone glows brighter to help time the tap
       const prev = blocks[blocks.length - 1];
       const left = Math.max(moving.x, prev.x);
       const right = Math.min(moving.x + moving.w, prev.x + prev.w);
       if (right > left) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.fillRect(left, prev.y - cameraY, right - left, 3);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.fillRect(left, prev.y - cameraY, right - left, 4);
+        // A faint trajectory line from moving block down to landing zone
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.setLineDash([4, 6]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(left, moving.y - cameraY + moving.h);
+        ctx.lineTo(left, prev.y - cameraY);
+        ctx.moveTo(right, moving.y - cameraY + moving.h);
+        ctx.lineTo(right, prev.y - cameraY);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
+
     if (flashT > 0) {
       ctx.fillStyle = `rgba(255, 168, 77, ${flashT / 24})`;
       ctx.fillRect(0, 0, W, H);
