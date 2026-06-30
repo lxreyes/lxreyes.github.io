@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REACTION TEST</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 110, 110, 0.16), transparent 60%),
+      radial-gradient(circle at 50% 110%, rgba(110, 255, 160, 0.10), transparent 55%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+  }
+  .stage {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    cursor: pointer; padding: 24px;
+    transition: background 80ms ease;
+  }
+  .stage.is-idle    { background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent); }
+  .stage.is-wait    { background: #b53030; color: #fff; }
+  .stage.is-ready   { background: #4cc466; color: #06060a; }
+  .stage.is-early   { background: #5a3aa8; color: #fff; }
+  .stage.is-result  { background: rgba(76, 196, 102, 0.08); }
+  .label {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(36px, 9vw, 76px);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .sub {
+    font-size: clamp(13px, 2.2vw, 16px);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55);
+    margin-top: 16px;
+  }
+  .stage.is-wait .sub  { color: rgba(255, 255, 255, 0.75); }
+  .stage.is-ready .sub { color: rgba(6, 6, 10, 0.65); }
+  .stage.is-early .sub { color: rgba(255, 255, 255, 0.8); }
+  .stats {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: clamp(18px, 4vw, 36px);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .stat b {
+    display: block;
+    font-size: 22px;
+    color: rgba(232, 230, 227, 0.95);
+    font-variant-numeric: tabular-nums;
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.6); text-decoration: none;
+    z-index: 10; background: rgba(6, 6, 10, 0.45);
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
+  .stage.is-wait .back  { background: rgba(0,0,0,0.25); }
+  .stage.is-ready .back { background: rgba(6,6,10,0.4); color: #06060a; border-color: rgba(6,6,10,0.5); }
+  .reset {
+    position: fixed; top: 16px; right: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.6); cursor: pointer;
+    background: rgba(6, 6, 10, 0.45); padding: 8px 12px;
+    border-radius: 999px; border: 1px solid rgba(232, 230, 227, 0.18);
+    z-index: 10;
+  }
+  .reset:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
+  .history {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 6;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.05em;
+    color: rgba(232, 230, 227, 0.55);
+    pointer-events: none;
+  }
+  .history .pip {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-variant-numeric: tabular-nums;
+    min-width: 46px;
+    text-align: center;
+  }
+  .history .pip.is-early { color: #a890ff; background: rgba(168, 144, 255, 0.08); border-color: rgba(168, 144, 255, 0.3); }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<button class="reset" id="reset" type="button">Reset</button>
+<div class="history" id="history"></div>
+
+<div class="stage is-idle" id="stage">
+  <h1 class="label" id="label">Reaction Test</h1>
+  <p class="sub" id="sub">Click to begin · wait for green</p>
+</div>
+
+<div class="stats">
+  <div class="stat">Last<b id="stat-last">&mdash;</b></div>
+  <div class="stat">Avg of 5<b id="stat-avg">&mdash;</b></div>
+  <div class="stat">Best<b id="stat-best">&mdash;</b></div>
+</div>
+
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  var label = document.getElementById('label');
+  var sub = document.getElementById('sub');
+  var historyEl = document.getElementById('history');
+  var statLast = document.getElementById('stat-last');
+  var statAvg = document.getElementById('stat-avg');
+  var statBest = document.getElementById('stat-best');
+  var resetBtn = document.getElementById('reset');
+
+  var state = 'idle'; // idle | wait | ready | early | result
+  var greenAt = 0;
+  var waitTimer = null;
+  var times = []; // last N reaction times
+  var best = Infinity;
+  try { times = JSON.parse(localStorage.getItem('reaction-times') || '[]'); } catch (_) { times = []; }
+  try { best = parseFloat(localStorage.getItem('reaction-best') || 'Infinity'); } catch (_) { best = Infinity; }
+
+  function ms(n) { return n.toFixed(0) + 'ms'; }
+  function refresh() {
+    var last = times.length ? times[times.length - 1] : null;
+    statLast.textContent = last == null ? '—' : ms(last);
+    if (times.length === 0) statAvg.textContent = '—';
+    else {
+      var slice = times.slice(-5);
+      var avg = slice.reduce(function (a, b) { return a + b; }, 0) / slice.length;
+      statAvg.textContent = ms(avg);
+    }
+    statBest.textContent = isFinite(best) ? ms(best) : '—';
+    // History pips
+    historyEl.innerHTML = '';
+    var recent = times.slice(-8);
+    for (var i = 0; i < recent.length; i++) {
+      var pip = document.createElement('div');
+      pip.className = 'pip';
+      if (recent[i] < 0) { pip.classList.add('is-early'); pip.textContent = 'early'; }
+      else pip.textContent = recent[i].toFixed(0);
+      historyEl.appendChild(pip);
+    }
+  }
+  refresh();
+
+  function setStage(name, lbl, subLbl) {
+    stage.classList.remove('is-idle', 'is-wait', 'is-ready', 'is-early', 'is-result');
+    stage.classList.add('is-' + name);
+    state = name;
+    label.textContent = lbl;
+    sub.textContent = subLbl;
+  }
+
+  function startRound() {
+    setStage('wait', 'Wait…', 'Don’t click until green');
+    var delay = 1200 + Math.random() * 2800; // 1.2 - 4.0 seconds
+    clearTimeout(waitTimer);
+    waitTimer = setTimeout(function () {
+      if (state !== 'wait') return;
+      setStage('ready', 'CLICK!', 'as fast as you can');
+      greenAt = performance.now();
+    }, delay);
+  }
+
+  function recordTime(t) {
+    times.push(t);
+    if (times.length > 50) times = times.slice(-50);
+    if (t > 0 && t < best) {
+      best = t;
+      try { localStorage.setItem('reaction-best', String(best)); } catch (_) {}
+    }
+    try { localStorage.setItem('reaction-times', JSON.stringify(times)); } catch (_) {}
+    refresh();
+  }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.target === resetBtn) return;
+    if (state === 'idle' || state === 'result' || state === 'early') {
+      startRound();
+    } else if (state === 'wait') {
+      // Early click — penalty
+      clearTimeout(waitTimer);
+      recordTime(-1);
+      setStage('early', 'Too early!', 'Click to try again');
+    } else if (state === 'ready') {
+      var elapsed = performance.now() - greenAt;
+      recordTime(elapsed);
+      setStage('result', elapsed.toFixed(0) + 'ms', 'Click to go again');
+    }
+  });
+
+  // Keyboard support: Space restarts
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (state === 'idle' || state === 'result' || state === 'early') startRound();
+      else if (state === 'wait') {
+        clearTimeout(waitTimer);
+        recordTime(-1);
+        setStage('early', 'Too early!', 'Click to try again');
+      } else if (state === 'ready') {
+        var elapsed = performance.now() - greenAt;
+        recordTime(elapsed);
+        setStage('result', elapsed.toFixed(0) + 'ms', 'Click to go again');
+      }
+    }
+  });
+
+  resetBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    times = []; best = Infinity;
+    try { localStorage.removeItem('reaction-times'); } catch (_) {}
+    try { localStorage.removeItem('reaction-best'); } catch (_) {}
+    clearTimeout(waitTimer);
+    setStage('idle', 'Reaction Test', 'Click to begin · wait for green');
+    refresh();
+  });
+})();
+</script>
+</body>
+</html>
