@@ -240,6 +240,7 @@
   var state = 'idle';
 
   var car = { x: 0, y: 0, angle: 0, vx: 0, vy: 0, speed: 0 };
+  var skids = []; // persistent tire skid marks: {x1,y1,x2,y2,life}
   var raceStart = 0;
   var raceElapsed = 0;
   var lap = 1;
@@ -366,6 +367,7 @@
     raceElapsed = 0;
     lapTimes = [];
     smoke = [];
+    skids = [];
     lapEl.textContent = 'LAP 1 / ' + TOTAL_LAPS;
     updateMeta();
   }
@@ -479,7 +481,7 @@
     car.y = ny;
     setEngine(car.speed);
 
-    // Smoke when on grass or turning hard at speed
+    // Smoke when on grass at speed
     if (Math.random() < 0.5 && Math.abs(car.speed) > 1.5 && isGrass(car.x, car.y)) {
       smoke.push({
         x: car.x - Math.cos(car.angle) * 8,
@@ -490,6 +492,24 @@
         vx: (Math.random() - 0.5) * 0.6,
         vy: (Math.random() - 0.5) * 0.6
       });
+    }
+
+    // Tire skid marks when turning sharply at speed (on track only)
+    if ((keyL || keyR) && car.speed > 3.2 && isOnTrack(car.x, car.y)) {
+      var perpX = -Math.sin(car.angle), perpY = Math.cos(car.angle);
+      var backX = car.x - Math.cos(car.angle) * 6;
+      var backY = car.y - Math.sin(car.angle) * 6;
+      skids.push({
+        x1: backX + perpX * 5, y1: backY + perpY * 5,
+        x2: backX - perpX * 5, y2: backY - perpY * 5,
+        life: 240
+      });
+      if (skids.length > 220) skids.splice(0, skids.length - 220);
+    }
+    // Age existing skids
+    for (var i = skids.length - 1; i >= 0; i--) {
+      skids[i].life--;
+      if (skids[i].life <= 0) skids.splice(i, 1);
     }
 
     // Lap detection — track sector progression (counterclockwise)
@@ -543,17 +563,23 @@
 
   // -------- Render --------
   function renderTrack() {
-    // Outer fill (grass)
-    ctx.fillStyle = 'rgba(50, 16, 30, 0.9)';
+    // Grass area — gradient for depth (lighter near edges)
+    var grassGrad = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.max(W, H) * 0.7);
+    grassGrad.addColorStop(0, '#3a0e22');
+    grassGrad.addColorStop(0.5, '#280618');
+    grassGrad.addColorStop(1, '#150311');
+    ctx.fillStyle = grassGrad;
     ctx.fillRect(0, 0, W, H);
 
-    // Outer ellipse + inner ellipse subtraction = track shape
-    // Track surface
-    ctx.fillStyle = '#1d1426';
+    // Asphalt — gradient from accent-tinted to dark
+    var asphalt = ctx.createRadialGradient(cx, cy - outerRy * 0.4, 0, cx, cy, outerRy);
+    asphalt.addColorStop(0, '#241a30');
+    asphalt.addColorStop(1, '#0e0816');
+    ctx.fillStyle = asphalt;
     ctx.beginPath();
     ctx.ellipse(cx, cy, outerRx, outerRy, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Cut out inner
+    // Cut out inner grass island
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
@@ -561,23 +587,68 @@
     ctx.fill();
     ctx.restore();
 
-    // Restore body-ish background for outside of outer ellipse
-    // Outer rim
+    // Re-fill the inner island with grass (so it blends correctly)
+    ctx.fillStyle = grassGrad;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, innerRx, innerRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Small infield highlight near center
+    ctx.fillStyle = 'rgba(255, 64, 129, 0.06)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, innerRx * 0.6, innerRy * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Asphalt texture — faint radial spokes
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 24; i++) {
+      var ang = (i / 24) * Math.PI * 2;
+      var x1 = cx + Math.cos(ang) * innerRx;
+      var y1 = cy + Math.sin(ang) * innerRy;
+      var x2 = cx + Math.cos(ang) * outerRx;
+      var y2 = cy + Math.sin(ang) * outerRy;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // Rumble strips — alternating red/white near the edges
+    function rumble(rx, ry, push) {
+      var stripes = 36;
+      for (var i = 0; i < stripes; i++) {
+        var a1 = (i / stripes) * Math.PI * 2;
+        var a2 = ((i + 1) / stripes) * Math.PI * 2;
+        ctx.fillStyle = (i % 2 === 0) ? '#ff4081' : '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a1) * rx, cy + Math.sin(a1) * ry);
+        ctx.lineTo(cx + Math.cos(a2) * rx, cy + Math.sin(a2) * ry);
+        ctx.lineTo(cx + Math.cos(a2) * (rx + push), cy + Math.sin(a2) * (ry + push));
+        ctx.lineTo(cx + Math.cos(a1) * (rx + push), cy + Math.sin(a1) * (ry + push));
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    // Outer rumble strip (just inside the outer edge)
+    rumble(outerRx - 4, outerRy - 4, 3);
+    // Inner rumble strip (just outside the inner edge)
+    rumble(innerRx, innerRy, 3);
+
+    // Outer + inner rim with glow
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = 12;
     ctx.strokeStyle = ACCENT;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.ellipse(cx, cy, outerRx, outerRy, 0, 0, Math.PI * 2);
     ctx.stroke();
-
-    // Inner rim
-    ctx.strokeStyle = ACCENT;
-    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.ellipse(cx, cy, innerRx, innerRy, 0, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    // Center line dashed
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    // Dashed centerline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 18]);
     ctx.beginPath();
@@ -587,54 +658,140 @@
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Start / finish bar — perpendicular to track at startAngle
+    // Skid marks (drawn over the track surface but under the kart)
+    for (var i = 0; i < skids.length; i++) {
+      var s = skids[i];
+      var a = Math.min(1, s.life / 240) * 0.7;
+      ctx.strokeStyle = 'rgba(0, 0, 0, ' + a + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+    }
+
+    // Start / finish bar — checker pattern, brighter and beefier
     var sx = cx + Math.cos(startAngle) * innerRx;
     var sy = cy + Math.sin(startAngle) * innerRy;
     var ex = cx + Math.cos(startAngle) * outerRx;
     var ey = cy + Math.sin(startAngle) * outerRy;
-    // checker
-    var segs = 8;
+    var segs = 10;
+    var barWidth = 5;
     for (var i = 0; i < segs; i++) {
       var t1 = i / segs;
       var t2 = (i + 1) / segs;
       ctx.fillStyle = (i % 2 === 0) ? '#ffffff' : '#0a0a14';
       ctx.beginPath();
-      ctx.moveTo(sx + (ex - sx) * t1 - 3, sy + (ey - sy) * t1);
-      ctx.lineTo(sx + (ex - sx) * t2 - 3, sy + (ey - sy) * t2);
-      ctx.lineTo(sx + (ex - sx) * t2 + 3, sy + (ey - sy) * t2);
-      ctx.lineTo(sx + (ex - sx) * t1 + 3, sy + (ey - sy) * t1);
+      ctx.moveTo(sx + (ex - sx) * t1 - barWidth, sy + (ey - sy) * t1);
+      ctx.lineTo(sx + (ex - sx) * t2 - barWidth, sy + (ey - sy) * t2);
+      ctx.lineTo(sx + (ex - sx) * t2 + barWidth, sy + (ey - sy) * t2);
+      ctx.lineTo(sx + (ex - sx) * t1 + barWidth, sy + (ey - sy) * t1);
       ctx.closePath();
       ctx.fill();
     }
   }
 
   function renderCar() {
+    // Speed lines behind the kart at high speed
+    if (state === 'play' && car.speed > 3.5) {
+      ctx.save();
+      ctx.translate(car.x, car.y);
+      ctx.rotate(car.angle);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 2;
+      var streak = (car.speed - 3) * 4;
+      for (var i = 0; i < 5; i++) {
+        var off = (i - 2) * 4;
+        ctx.beginPath();
+        ctx.moveTo(-14, off);
+        ctx.lineTo(-14 - streak, off);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
-    // body
-    ctx.fillStyle = ACCENT;
-    ctx.fillRect(-10, -7, 22, 14);
-    // front
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(8, -6, 4, 12);
-    // wheels
+
+    // Drop shadow under the kart
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 14, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rear wing / spoiler
     ctx.fillStyle = '#0a0a14';
-    ctx.fillRect(-9, -9, 5, 4);
-    ctx.fillRect(-9, 5, 5, 4);
-    ctx.fillRect(6, -9, 5, 4);
-    ctx.fillRect(6, 5, 5, 4);
-    // cockpit
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.fillRect(-3, -4, 6, 8);
+    ctx.fillRect(-13, -9, 3, 18);
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(-13, -9, 3, 2);
+    ctx.fillRect(-13, 7, 3, 2);
+
+    // Rear wheels — fat tires
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(-11, -10, 6, 5);
+    ctx.fillRect(-11, 5, 6, 5);
+    // Front wheels
+    ctx.fillRect(7, -10, 6, 5);
+    ctx.fillRect(7, 5, 6, 5);
+    // Wheel highlights
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fillRect(-11, -10, 6, 1);
+    ctx.fillRect(-11, 5, 6, 1);
+    ctx.fillRect(7, -10, 6, 1);
+    ctx.fillRect(7, 5, 6, 1);
+
+    // Main body — gradient (pink front, darker rear) with rounded nose
+    var bodyGrad = ctx.createLinearGradient(-10, 0, 12, 0);
+    bodyGrad.addColorStop(0, '#a91d52');
+    bodyGrad.addColorStop(0.5, ACCENT);
+    bodyGrad.addColorStop(1, '#ff85a8');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.moveTo(-10, -7);
+    ctx.lineTo(10, -7);
+    ctx.quadraticCurveTo(15, -4, 15, 0);
+    ctx.quadraticCurveTo(15, 4, 10, 7);
+    ctx.lineTo(-10, 7);
+    ctx.closePath();
+    ctx.fill();
+
+    // Center stripe
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-10, -1, 22, 2);
+
+    // Number / sidepods
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(-7, -6, 4, 3);
+    ctx.fillRect(-7, 3, 4, 3);
+
+    // Cockpit — tinted helmet visor
+    ctx.fillStyle = '#0a0a14';
+    ctx.beginPath();
+    ctx.ellipse(1, 0, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Helmet
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(1, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Visor (dark front)
+    ctx.fillStyle = '#1a0a30';
+    ctx.fillRect(2, -2, 3, 4);
+
+    // Front nose highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.fillRect(11, -3, 3, 1);
+
     ctx.restore();
   }
 
   function render() {
-    // backdrop
+    // Backdrop with subtle vignette
     ctx.fillStyle = '#06060a';
     ctx.fillRect(0, 0, W, H);
-    // stars
+
+    // Stars
     for (var i = 0; i < stars.length; i++) {
       var s = stars[i];
       var a = 0.3 + Math.sin(s.twinkle) * 0.2;
@@ -644,7 +801,7 @@
 
     renderTrack();
 
-    // smoke
+    // Smoke
     for (var i = 0; i < smoke.length; i++) {
       var p = smoke[i];
       var a = Math.min(1, p.life / 40) * 0.6;

@@ -520,37 +520,97 @@
     }
     ctx.clearRect(-20, -20, W + 40, H + 40);
 
-    // stars (parallax)
+    // Sky gradient — twilight purple at the horizon, deeper at the top
+    const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+    sky.addColorStop(0,    '#0c0815');
+    sky.addColorStop(0.55, '#1b0f2c');
+    sky.addColorStop(0.85, '#3a154a');
+    sky.addColorStop(1,    '#591b48');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, groundY);
+
+    // A soft, drifting moon
+    const moonX = ((W * 0.8 - scrollX * 0.02) % (W + 200) + W + 200) % (W + 200) - 100;
+    const moonY = groundY * 0.28;
+    const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 60);
+    moonGrad.addColorStop(0, 'rgba(255, 220, 230, 0.95)');
+    moonGrad.addColorStop(0.45, 'rgba(255, 180, 210, 0.4)');
+    moonGrad.addColorStop(1, 'rgba(255, 180, 210, 0)');
+    ctx.fillStyle = moonGrad;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 60, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff6f2';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stars (parallax)
     for (const s of stars) {
       const x = ((s.x - scrollX * s.depth * 0.18) % W + W) % W;
       const a = 0.4 + Math.sin(s.twinkle) * 0.25;
-      ctx.fillStyle = `rgba(180, 160, 255, ${a})`;
+      ctx.fillStyle = `rgba(220, 200, 255, ${a})`;
       ctx.fillRect(x, s.y, s.r, s.r);
     }
 
-    // distant mountains (silhouette)
-    drawMountains(0.35, 'rgba(40, 28, 70, 0.85)', 0.18, 80);
-    drawMountains(0.6, 'rgba(60, 36, 100, 0.85)', 0.22, 110);
+    // Three layers of parallax mountains — farther ones get snow caps + atmospheric haze
+    drawMountains(0.18, '#2b1840', 0.20, 60, '#5a3b6e');
+    drawMountains(0.42, '#1f0f30', 0.22, 95, null);
+    drawMountains(0.7,  '#11071a', 0.18, 135, null);
 
-    // ground
-    ctx.fillStyle = 'rgba(157, 77, 255, 0.16)';
+    // Ground — neon horizon line + dark earth + scrolling lane dashes
+    ctx.fillStyle = ACCENT;
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = 14;
     ctx.fillRect(0, groundY, W, 2);
-    ctx.fillStyle = 'rgba(8, 8, 14, 0.85)';
+    ctx.shadowBlur = 0;
+    const earth = ctx.createLinearGradient(0, groundY, 0, H);
+    earth.addColorStop(0, 'rgba(20, 8, 26, 0.95)');
+    earth.addColorStop(1, 'rgba(4, 2, 8, 1)');
+    ctx.fillStyle = earth;
     ctx.fillRect(0, groundY + 2, W, H - groundY - 2);
-    // ground accent dashes scrolling
-    ctx.fillStyle = 'rgba(157, 77, 255, 0.4)';
+
+    ctx.fillStyle = 'rgba(157, 77, 255, 0.55)';
     for (let i = -1; i < Math.ceil(W / 90) + 1; i++) {
       const x = ((i * 90 - (scrollX * 0.8) % 90));
-      ctx.fillRect(x, groundY + 12, 30, 2);
+      ctx.fillRect(x, groundY + 14, 30, 2);
+    }
+    // Faint grid-like depth lines on the ground
+    ctx.strokeStyle = 'rgba(157, 77, 255, 0.10)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const y = groundY + 22 + i * 18;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
     }
 
-    // dust
+    // Speed lines — show up when running fast and on the ground
+    if (state === 'play' && speed > 8 && ninja.onGround) {
+      const lines = Math.floor((speed - 8) * 3);
+      ctx.strokeStyle = 'rgba(220, 200, 255, 0.4)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < lines; i++) {
+        const yL = groundY - 30 - (i * 7 + ((scrollX * 0.5 + i * 31) % 28));
+        const x1 = W - ((scrollX * 0.7 + i * 73) % (W + 160));
+        ctx.beginPath();
+        ctx.moveTo(x1, yL);
+        ctx.lineTo(x1 - 50, yL);
+        ctx.stroke();
+      }
+    }
+
+    // Dust
     for (const d of dust) {
-      ctx.fillStyle = `rgba(180, 160, 255, ${Math.min(1, d.life / 20)})`;
-      ctx.fillRect(d.x, d.y, d.r, d.r);
+      const a = Math.min(1, d.life / 20);
+      ctx.fillStyle = `rgba(200, 180, 255, ${a * 0.85})`;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // obstacles
+    // Obstacles
     for (const o of obstacles) {
       if (o.type === 'box') {
         drawCrate(o.x, groundY - o.h, o.w, o.h);
@@ -559,55 +619,132 @@
       }
     }
 
-    // ninja
+    // Ninja
     drawNinja();
 
     ctx.restore();
   }
 
-  function drawMountains(depth, color, height, peak) {
+  function drawMountains(depth, color, height, peak, snowColor) {
     const speed2 = scrollX * depth * 0.08;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, groundY);
+    // Build a smooth peak silhouette
     const step = 80;
+    const points = [];
     for (let i = -1; i < Math.ceil(W / step) + 2; i++) {
       const x = i * step - (speed2 % step);
       const h = peak * (0.6 + 0.4 * Math.sin(i * 1.7 + depth * 7));
-      ctx.lineTo(x + step / 2, groundY - h);
+      points.push({ x: x + step / 2, y: groundY - h });
     }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    for (const p of points) ctx.lineTo(p.x, p.y);
     ctx.lineTo(W + step, groundY);
     ctx.closePath();
     ctx.fill();
+    // Atmospheric haze near base of distant mountains
+    const haze = ctx.createLinearGradient(0, groundY - peak * 0.4, 0, groundY);
+    haze.addColorStop(0, 'rgba(89, 27, 72, 0)');
+    haze.addColorStop(1, 'rgba(89, 27, 72, 0.55)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, groundY - peak * 0.4, W, peak * 0.4);
+    // Snow caps on the tallest peaks
+    if (snowColor) {
+      ctx.fillStyle = snowColor;
+      ctx.beginPath();
+      for (const p of points) {
+        // Only cap peaks that rise above 70% of the slice height
+        if (groundY - p.y > peak * 0.55) {
+          ctx.moveTo(p.x - 9, p.y + 6);
+          ctx.lineTo(p.x, p.y);
+          ctx.lineTo(p.x + 9, p.y + 6);
+          ctx.closePath();
+        }
+      }
+      ctx.fill();
+    }
   }
 
   function drawCrate(x, y, w, h) {
-    ctx.fillStyle = '#2a1f44';
+    // Wooden side gradient
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, '#3a2a55');
+    g.addColorStop(1, '#1c1130');
+    ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
+    // Top + bottom accent stripes
     ctx.fillStyle = ACCENT;
     ctx.fillRect(x, y, w, 3);
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(x, y + h - 3, w, 3);
-    ctx.strokeStyle = 'rgba(157, 77, 255, 0.4)';
-    ctx.lineWidth = 1.5;
+    // Plank lines (vertical) and a single horizontal seam
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = 1;
+    const planks = Math.max(2, Math.floor(w / 16));
+    for (let p = 1; p < planks; p++) {
+      const px = x + (w * p / planks);
+      ctx.beginPath();
+      ctx.moveTo(px + 0.5, y + 3);
+      ctx.lineTo(px + 0.5, y + h - 3);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(x, y + h / 2);
+    ctx.lineTo(x + w, y + h / 2);
+    ctx.stroke();
+    // Glowing rim — neon outline
+    ctx.strokeStyle = 'rgba(180, 130, 255, 0.55)';
+    ctx.lineWidth = 1.2;
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    // Corner studs
+    ctx.fillStyle = ACCENT;
+    ctx.fillRect(x + 2, y + 2, 3, 3);
+    ctx.fillRect(x + w - 5, y + 2, 3, 3);
+    ctx.fillRect(x + 2, y + h - 5, 3, 3);
+    ctx.fillRect(x + w - 5, y + h - 5, 3, 3);
   }
+
   function drawOverhang(x, y, w, h, gap) {
-    // hanging beam
-    ctx.fillStyle = '#2a1f44';
+    // Hanging beam with rivet pattern
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, '#3a2a55');
+    g.addColorStop(1, '#1c1130');
+    ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = ACCENT;
+    ctx.fillRect(x, y, w, 2);
     ctx.fillRect(x, y + h - 4, w, 2);
-    // blade silhouettes
-    ctx.fillStyle = 'rgba(220, 200, 255, 0.85)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(x + 8 + i * ((w - 16) / 3), y + 6, 3, 3);
+    }
+    // Blades with gleaming reflection
+    const swing = Math.sin(scrollX * 0.04) * 2;
     for (let i = 0; i < 3; i++) {
-      const bx = x + 12 + i * (w - 24) / 2;
+      const bx = x + 12 + i * (w - 24) / 2 + swing;
+      const by = y + h;
+      // Steel triangle
+      const bladeGrad = ctx.createLinearGradient(bx - 6, by, bx + 6, by + 14);
+      bladeGrad.addColorStop(0, '#f8f3ff');
+      bladeGrad.addColorStop(0.5, '#c8b8d8');
+      bladeGrad.addColorStop(1, '#5a486a');
+      ctx.fillStyle = bladeGrad;
       ctx.beginPath();
-      ctx.moveTo(bx, y + h);
-      ctx.lineTo(bx - 6, y + h + 12);
-      ctx.lineTo(bx + 6, y + h + 12);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - 7, by + 14);
+      ctx.lineTo(bx + 7, by + 14);
       ctx.closePath();
       ctx.fill();
+      // Gleam line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx - 2, by + 2);
+      ctx.lineTo(bx - 4, by + 8);
+      ctx.stroke();
+      // Drip
+      ctx.fillStyle = 'rgba(255, 80, 100, 0.6)';
+      ctx.fillRect(bx - 1, by + 14, 2, 3);
     }
   }
 
@@ -618,73 +755,146 @@
     const x = ninja.x;
     const w = ninja.w;
 
-    // shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    const shadowScale = Math.max(0.4, 1 - (groundY - (y + h)) * 0.005);
+    // Soft drop shadow under the runner (shrinks as they get higher)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    const shadowScale = Math.max(0.35, 1 - (groundY - (y + h)) * 0.005);
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, groundY + 2, w * 0.55 * shadowScale, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + w / 2, groundY + 2, w * 0.55 * shadowScale, 5 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // body
-    ctx.fillStyle = ACCENT;
+    // Body gradient — accent purple → darker purple for depth
+    const bodyGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+    bodyGrad.addColorStop(0, '#c789ff');
+    bodyGrad.addColorStop(0.5, ACCENT);
+    bodyGrad.addColorStop(1, '#5a2299');
+
     if (ducking) {
-      // sliding pose: rounded rectangle, leaning forward
+      // Sliding pose — body
+      ctx.fillStyle = bodyGrad;
       ctx.beginPath();
       ctx.moveTo(x + 4, y + h);
-      ctx.lineTo(x + w + 6, y + h);
-      ctx.quadraticCurveTo(x + w + 12, y + h * 0.5, x + w - 2, y + 2);
+      ctx.lineTo(x + w + 8, y + h);
+      ctx.quadraticCurveTo(x + w + 14, y + h * 0.5, x + w - 2, y + 2);
       ctx.lineTo(x + 6, y + 6);
-      ctx.quadraticCurveTo(x - 8, y + h * 0.6, x + 4, y + h);
+      ctx.quadraticCurveTo(x - 10, y + h * 0.65, x + 4, y + h);
       ctx.closePath();
       ctx.fill();
-      // headband sash trailing
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      // Speed lines off the back
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        const lx = x - 6 - i * 7;
+        ctx.beginPath();
+        ctx.moveTo(lx, y + 4 + i * 4);
+        ctx.lineTo(lx - 14, y + 4 + i * 4);
+        ctx.stroke();
+      }
+      // Trailing headband
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(x + w - 10, y + 8);
-      ctx.lineTo(x - 12, y + 12);
+      ctx.moveTo(x + w - 10, y + 6);
+      ctx.lineTo(x - 18, y + 12);
       ctx.stroke();
+      // Eye band
+      ctx.fillStyle = '#06060a';
+      ctx.fillRect(x + w - 18, y + 8, 14, 3);
     } else {
-      // head
+      const legPhase = (runFrame * 0.18) % (Math.PI * 2);
+
+      // Katana sheath on the back
+      ctx.save();
+      ctx.translate(x + w / 2, y + 28);
+      ctx.rotate(-0.35);
+      const sheathGrad = ctx.createLinearGradient(-12, -2, 12, 2);
+      sheathGrad.addColorStop(0, '#2a1640');
+      sheathGrad.addColorStop(1, '#0c0518');
+      ctx.fillStyle = sheathGrad;
+      ctx.fillRect(-3, -22, 6, 38);
+      ctx.fillStyle = '#a45cf5';
+      ctx.fillRect(-3, -22, 6, 3);
+      // Hilt wrap
+      ctx.fillStyle = '#1a0a30';
+      ctx.fillRect(-4, 16, 8, 4);
+      ctx.restore();
+
+      // Head
+      ctx.fillStyle = bodyGrad;
       ctx.beginPath();
-      ctx.arc(x + w / 2, y + 13, 12, 0, Math.PI * 2);
+      ctx.arc(x + w / 2, y + 13, 13, 0, Math.PI * 2);
       ctx.fill();
-      // body
-      ctx.fillRect(x + 6, y + 22, w - 12, h - 38);
-      // running legs alternate
-      const leg = Math.floor(runFrame * 0.08) % 4;
-      ctx.fillStyle = ACCENT;
+
+      // Torso (rounded rect via path)
+      ctx.beginPath();
+      const tx = x + 5, tw = w - 10, ty = y + 22, th = h - 38;
+      const r = 4;
+      ctx.moveTo(tx + r, ty);
+      ctx.arcTo(tx + tw, ty, tx + tw, ty + th, r);
+      ctx.arcTo(tx + tw, ty + th, tx, ty + th, r);
+      ctx.arcTo(tx, ty + th, tx, ty, r);
+      ctx.arcTo(tx, ty, tx + tw, ty, r);
+      ctx.closePath();
+      ctx.fill();
+
+      // Belt / chest strap
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(tx, ty + th * 0.55, tw, 3);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(tx + 2, ty + th * 0.55 + 1, 2, 1);
+
       if (ninja.onGround) {
-        const legPhase = (runFrame * 0.18) % (Math.PI * 2);
         const offA = Math.sin(legPhase) * 8;
         const offB = Math.sin(legPhase + Math.PI) * 8;
-        // left leg
+        // Legs with tapered look (use path)
+        ctx.fillStyle = bodyGrad;
         ctx.fillRect(x + 9, y + h - 18, 7, 18 + offA);
-        // right leg
         ctx.fillRect(x + w - 16, y + h - 18, 7, 18 + offB);
-        // arms swing
+        // Shoes (dark caps)
+        ctx.fillStyle = '#1a0a30';
+        ctx.fillRect(x + 8, y + h - 18 + 18 + offA - 3, 9, 3);
+        ctx.fillRect(x + w - 17, y + h - 18 + 18 + offB - 3, 9, 3);
+        // Arms swinging
+        ctx.fillStyle = bodyGrad;
         ctx.fillRect(x - 2, y + 26 + Math.sin(legPhase) * 6, 7, 18);
         ctx.fillRect(x + w - 5, y + 26 + Math.sin(legPhase + Math.PI) * 6, 7, 18);
       } else {
-        // tucked in air
+        ctx.fillStyle = bodyGrad;
+        // Tucked legs
         ctx.fillRect(x + 8, y + h - 18, 8, 18);
         ctx.fillRect(x + w - 16, y + h - 22, 8, 14);
+        // Arms up — reaching
         ctx.fillRect(x - 4, y + 24, 8, 16);
         ctx.fillRect(x + w - 4, y + 28, 8, 16);
+        // Shoes
+        ctx.fillStyle = '#1a0a30';
+        ctx.fillRect(x + 7, y + h - 3, 10, 3);
+        ctx.fillRect(x + w - 17, y + h - 11, 10, 3);
       }
-      // headband
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(x + 4, y + 12, w - 8, 4);
-      // trailing band
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+
+      // Headband strip (white)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 3, y + 11, w - 6, 4);
+      // Trailing headband — wave with run frame
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(x + 6, y + 14);
-      ctx.lineTo(x - 14, y + 18 + (ninja.onGround ? Math.sin(runFrame * 0.18) * 3 : 0));
+      const tail = ninja.onGround ? Math.sin(runFrame * 0.18) * 4 : 0;
+      ctx.moveTo(x + 4, y + 13);
+      ctx.quadraticCurveTo(x - 8, y + 12 + tail, x - 22, y + 16 + tail);
       ctx.stroke();
-      // mask eye band
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + 17);
+      ctx.quadraticCurveTo(x - 10, y + 17 + tail * 0.7, x - 24, y + 20 + tail);
+      ctx.stroke();
+
+      // Eye band + glowing eyes
       ctx.fillStyle = '#06060a';
-      ctx.fillRect(x + 6, y + 17, w - 12, 3);
+      ctx.fillRect(x + 4, y + 16, w - 8, 4);
+      ctx.fillStyle = '#ffd6ff';
+      ctx.fillRect(x + 9,     y + 17, 3, 2);
+      ctx.fillRect(x + w - 12, y + 17, 3, 2);
     }
   }
 

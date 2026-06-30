@@ -309,14 +309,21 @@
   }
 
   function burst(x, y) {
-    for (let i = 0; i < 12; i++) {
+    // Central glow ring (one particle representing the ripple)
+    particles.push({
+      x, y, vx: 0, vy: 0,
+      life: 22, r0: 8, ring: true, color: ACCENT
+    });
+    // Star burst
+    for (let i = 0; i < 18; i++) {
       const a = Math.random() * Math.PI * 2;
-      const s = 2 + Math.random() * 4;
+      const s = 2 + Math.random() * 5;
       particles.push({
         x, y,
         vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-        life: 28 + Math.random() * 12,
-        color: ACCENT,
+        life: 28 + Math.random() * 14,
+        size: 2 + Math.random() * 2,
+        color: Math.random() < 0.3 ? '#fff' : ACCENT,
       });
     }
   }
@@ -387,55 +394,119 @@
       const s = shakeT;
       ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
     }
-    ctx.clearRect(-20, -20, W + 40, H + 40);
+    // Full-canvas background — soft vertical gradient that pulses faintly with score
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#1a0a18');
+    bgGrad.addColorStop(0.5, '#0c050a');
+    bgGrad.addColorStop(1, '#08020a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
 
-    // Column guides
     const cw = colWidth();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+
+    // Column guide lines — neon, brighter at the bottom edge
     for (let i = 1; i < COLS; i++) {
-      ctx.fillRect(i * cw - 0.5, 0, 1, H);
+      const gx = i * cw;
+      const lineGrad = ctx.createLinearGradient(0, 0, 0, H);
+      lineGrad.addColorStop(0, 'rgba(255, 107, 157, 0.04)');
+      lineGrad.addColorStop(1, 'rgba(255, 107, 157, 0.18)');
+      ctx.fillStyle = lineGrad;
+      ctx.fillRect(gx - 0.5, 0, 1, H);
     }
 
-    // Bottom danger line
-    ctx.fillStyle = 'rgba(255, 107, 157, 0.18)';
-    ctx.fillRect(0, H - 4, W, 4);
+    // Bottom danger zone — pulsing red gradient
+    const danger = ctx.createLinearGradient(0, H - 50, 0, H);
+    danger.addColorStop(0, 'rgba(255, 80, 100, 0)');
+    danger.addColorStop(1, 'rgba(255, 80, 100, ' + (0.18 + 0.1 * Math.sin(Date.now() * 0.005)) + ')');
+    ctx.fillStyle = danger;
+    ctx.fillRect(0, H - 50, W, 50);
+    ctx.fillStyle = ACCENT;
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = 10;
+    ctx.fillRect(0, H - 2, W, 2);
+    ctx.shadowBlur = 0;
 
     // Tiles
     const th = tileHeight();
     for (const t of tiles) {
-      const x = t.col * cw + 8;
-      const w = cw - 16;
+      const x = t.col * cw + 10;
+      const w = cw - 20;
       const y = t.y;
-      const r = 14;
-      const animScale = t.hit ? (1 + (1 - t.anim / 14) * 0.05) : 1;
+      const r = 16;
+      const animScale = t.hit ? (1 + (1 - t.anim / 14) * 0.08) : 1;
       const opacity = t.hit ? Math.max(0, t.anim / 14) : 1;
-      ctx.globalAlpha = opacity;
       const cx = x + w / 2;
       const cy = y + th / 2;
+
+      // Motion trail above the tile — quick fade-out streak suggesting downward motion
+      if (!t.hit) {
+        const trailGrad = ctx.createLinearGradient(0, y - 60, 0, y);
+        trailGrad.addColorStop(0, 'rgba(255, 107, 157, 0)');
+        trailGrad.addColorStop(1, 'rgba(255, 107, 157, 0.18)');
+        ctx.fillStyle = trailGrad;
+        roundRect(x + 6, y - 60, w - 12, 60, 8);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = opacity;
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(animScale, animScale);
       ctx.translate(-cx, -cy);
+
+      // Outer glow
+      ctx.shadowColor = ACCENT;
+      ctx.shadowBlur = 18;
+      // Tile gradient body
       const grad = ctx.createLinearGradient(0, y, 0, y + th);
-      grad.addColorStop(0, ACCENT);
+      grad.addColorStop(0, '#ff85b3');
+      grad.addColorStop(0.5, ACCENT);
       grad.addColorStop(1, ACCENT_DARK);
       ctx.fillStyle = grad;
       roundRect(x, y, w, th, r);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-      roundRect(x, y, w, 6, r);
+      ctx.shadowBlur = 0;
+
+      // Top highlight (glassy)
+      const sheen = ctx.createLinearGradient(0, y, 0, y + th * 0.5);
+      sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+      sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = sheen;
+      roundRect(x + 3, y + 3, w - 6, th * 0.45, r - 4);
       ctx.fill();
+
+      // Inner border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.lineWidth = 1.5;
+      roundRect(x + 0.75, y + 0.75, w - 1.5, th - 1.5, r);
+      ctx.stroke();
+
+      // Bottom shadow line
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fillRect(x + r, y + th - 4, w - 2 * r, 3);
+
       ctx.restore();
       ctx.globalAlpha = 1;
     }
 
     // Particles
     for (const p of particles) {
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = Math.min(1, p.life / 40);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-      ctx.fill();
+      if (p.ring) {
+        const t = 1 - p.life / 22;
+        const radius = p.r0 + t * 70;
+        ctx.strokeStyle = 'rgba(255, 107, 157, ' + (0.7 * p.life / 22) + ')';
+        ctx.lineWidth = 3 - t * 2.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.min(1, p.life / 40);
+        const r = p.size || 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
 
