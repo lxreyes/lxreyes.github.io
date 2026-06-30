@@ -357,6 +357,14 @@ main {
     transform: translateY(0);
 }
 
+/* Touch devices — :hover never fires reliably, so always show the CTA. */
+@media (hover: none) {
+    .project-card:not(.project-card--teaser) .cta {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .cta:hover,
 .cta:focus-visible {
     box-shadow: 0 10px 28px color-mix(in srgb, var(--card-accent, var(--accent)) 60%, transparent);

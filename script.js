@@ -81,7 +81,15 @@
 
         for (const card of realCards) {
             card.setAttribute("draggable", "true");
-            for (const link of card.querySelectorAll("a")) link.setAttribute("draggable", "false");
+            for (const link of card.querySelectorAll("a")) {
+                link.setAttribute("draggable", "false");
+                // Stop the parent card from claiming the pointerdown as a drag
+                // start — that was eating clicks on the Play CTA when the cursor
+                // moved at all between mousedown and mouseup.
+                link.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+                link.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+                link.addEventListener("dragstart", function (e) { e.preventDefault(); e.stopPropagation(); });
+            }
             card.addEventListener("dragstart", onDragStart);
             card.addEventListener("dragend", onDragEnd);
             card.addEventListener("dragover", onDragOver);
