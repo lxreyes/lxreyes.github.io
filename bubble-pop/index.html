@@ -155,12 +155,29 @@
   }
   .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
   .mute.is-muted { opacity: 0.4; }
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 11; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #41d6ff; border-color: rgba(65, 214, 255,0.5); background: rgba(65, 214, 255,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #41d6ff; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <canvas id="c"></canvas>
 <div class="hud">
   <div class="score" id="score">0</div>
@@ -206,7 +223,25 @@
   let elapsed = 0;
   let shakeT = 0;
 
-  try { best = parseInt(localStorage.getItem('bubble-pop-best') || '0', 10) || 0; } catch (_) {}
+  // Plus mode: combo bonus + golden bubbles worth more
+  let plusMode = false;
+  let lastPopAt = 0;
+  let comboCount = 0;
+  try { plusMode = localStorage.getItem('bubble-pop-plus') === '1'; } catch (_) {}
+  function bestKey() { return plusMode ? 'bubble-pop-best-plus' : 'bubble-pop-best'; }
+  function loadBest() { try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) {} }
+  loadBest();
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('bubble-pop-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      loadBest();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function resize() {
     W = window.innerWidth;
@@ -286,7 +321,7 @@
     state = 'over';
     if (score > best) {
       best = score;
-      try { localStorage.setItem('bubble-pop-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
     }
     overScoreEl.textContent = 'Score: ' + score + ' · Best: ' + best;
     overOverlay.classList.remove('is-hidden');
@@ -298,12 +333,15 @@
     const x = r + 10 + Math.random() * (W - 2 * r - 20);
     const drift = (Math.random() - 0.5) * 0.6;
     const baseSpeed = 0.7 + elapsed * 0.0006 + Math.random() * 0.5;
+    // Plus mode: occasional golden bubble (10% spawn) worth +10 score
+    const golden = plusMode && Math.random() < 0.10;
     bubbles.push({
       x, y: H + r,
       vx: drift, vy: -baseSpeed - (40 / r) * 0.6,
       r,
-      hue: 180 + Math.random() * 50,
+      hue: golden ? 48 : 180 + Math.random() * 50,
       wobble: Math.random() * Math.PI * 2,
+      golden: golden,
     });
   }
 
@@ -315,15 +353,28 @@
       const dx = x - b.x, dy = y - b.y;
       if (dx * dx + dy * dy <= (b.r + 4) * (b.r + 4)) {
         burst(b);
-        // smaller bubbles score more
-        const gained = Math.max(1, Math.round(80 / b.r));
+        // Smaller bubbles score more; gold scores +10 base
+        let gained = b.golden ? 10 : Math.max(1, Math.round(80 / b.r));
+        // Plus combo: pop within 600ms of last pop → bonus multiplier
+        if (plusMode) {
+          const now = Date.now();
+          if (now - lastPopAt < 600) {
+            comboCount++;
+            gained = Math.round(gained * (1 + 0.5 * Math.min(comboCount, 4)));
+          } else {
+            comboCount = 0;
+          }
+          lastPopAt = now;
+        }
         score += gained;
         scoreEl.textContent = score;
-        pop(420 + (60 - b.r) * 12);
+        pop(b.golden ? 880 : 420 + (60 - b.r) * 12);
         bubbles.splice(i, 1);
         return;
       }
     }
+    // Missed tap — break combo
+    if (plusMode) { comboCount = 0; lastPopAt = 0; }
   }
 
   function burst(b) {

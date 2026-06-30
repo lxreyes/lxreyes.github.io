@@ -137,14 +137,35 @@
   }
   .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
   .mute.is-muted { opacity: 0.4; }
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 11; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #ffa84d; border-color: rgba(255,168,77,0.5); background: rgba(255,168,77,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #ffa84d; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
+  .streak { position: absolute; top: 76px; left: 0; right: 0; text-align: center;
+    font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px; letter-spacing: 0.24em;
+    text-transform: uppercase; color: rgba(255, 216, 106, 0.85); pointer-events: none; display: none; }
+  body.is-plus .streak { display: block; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <canvas id="c"></canvas>
 <div class="score" id="score">0</div>
+<div class="streak" id="streak"></div>
 <div class="overlay" id="start">
   <h1>TOWER STACK</h1>
   <p>Tap when the block lines up. Overhang gets sliced off &mdash; the smaller it gets, the harder it stacks.</p>
@@ -177,6 +198,27 @@
   let state = 'idle';
   let score = 0;
   let flashT = 0;
+  // Plus mode — perfect-drop streak bonus.
+  let plusMode = false;
+  let perfectStreak = 0;
+  let bestStreak = 0;
+  try { plusMode = localStorage.getItem('tower-plus') === '1'; } catch (_) {}
+  try { bestStreak = parseInt(localStorage.getItem('tower-best-streak') || '0', 10) || 0; } catch (_) {}
+  const plusToggle = document.getElementById('plus-toggle');
+  const streakEl = document.getElementById('streak');
+  if (plusMode) document.body.classList.add('is-plus');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  function updateStreak() { streakEl.textContent = 'Streak ' + perfectStreak + ' · Best ' + bestStreak; }
+  updateStreak();
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('tower-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function resize() {
     W = window.innerWidth;
@@ -202,12 +244,18 @@
     cameraTarget = 0;
     score = 0;
     flashT = 0;
+    perfectStreak = 0;
     scoreEl.textContent = '0';
+    if (plusMode) updateStreak();
   }
 
   function makeMoving() {
     const prev = blocks[blocks.length - 1];
-    const speed = 2.6 + Math.min(score * 0.08, 3.4);
+    // Plus mode: faster base speed AND faster ramp. Classic stays gentle.
+    const baseSpeed = plusMode ? 3.6 : 2.6;
+    const ramp = plusMode ? 0.12 : 0.08;
+    const cap = plusMode ? 5.2 : 3.4;
+    const speed = baseSpeed + Math.min(score * ramp, cap);
     const dir = Math.random() < 0.5 ? 1 : -1;
     const startX = dir > 0 ? -prev.w - 20 : W + 20;
     return {
@@ -249,17 +297,40 @@
     const right = Math.min(moving.x + moving.w, prev.x + prev.w);
     const overlap = right - left;
     if (overlap <= 2) { sound(80, 0.5, 'sawtooth'); gameOver(); return; }
-    blocks.push({ x: left, w: overlap, y: moving.y, h: moving.h, hue: moving.hue });
-    if (moving.x < left) {
-      falling.push({ x: moving.x, y: moving.y, w: left - moving.x, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+    // Plus mode: if the drop is within 4px of perfect alignment, keep the
+    // full previous width, score +5, and increment the perfect-streak counter.
+    let perfect = false;
+    if (plusMode) {
+      const offset = Math.abs(moving.x - prev.x);
+      if (offset <= 4) perfect = true;
     }
-    if (moving.x + moving.w > right) {
-      falling.push({ x: right, y: moving.y, w: (moving.x + moving.w) - right, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+    if (perfect) {
+      blocks.push({ x: prev.x, w: prev.w, y: moving.y, h: moving.h, hue: moving.hue });
+      perfectStreak++;
+      if (perfectStreak > bestStreak) {
+        bestStreak = perfectStreak;
+        try { localStorage.setItem('tower-best-streak', String(bestStreak)); } catch (_) {}
+      }
+      score += 5;
+      sound(660, 0.08, 'triangle', 0.18);
+      sound(880, 0.08, 'triangle', 0.16);
+      // Sparkle particles above the block
+      flashT = 18;
+    } else {
+      blocks.push({ x: left, w: overlap, y: moving.y, h: moving.h, hue: moving.hue });
+      if (moving.x < left) {
+        falling.push({ x: moving.x, y: moving.y, w: left - moving.x, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+      }
+      if (moving.x + moving.w > right) {
+        falling.push({ x: right, y: moving.y, w: (moving.x + moving.w) - right, h: moving.h, hue: moving.hue, vy: 0, vr: (Math.random() - 0.5) * 0.04 });
+      }
+      if (plusMode && perfectStreak > 0) perfectStreak = 0;
+      score++;
+      sound(280 + score * 12, 0.12, 'triangle');
+      flashT = 12;
     }
-    score++;
     scoreEl.textContent = score;
-    sound(280 + score * 12, 0.12, 'triangle');
-    flashT = 12;
+    if (plusMode) updateStreak();
     const topY = blocks[blocks.length - 1].y;
     const screenY = topY - cameraY;
     if (screenY < H * 0.45) cameraTarget = cameraY - (H * 0.45 - screenY);

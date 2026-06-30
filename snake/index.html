@@ -52,12 +52,41 @@
   .pad .down { grid-column: 2; grid-row: 2; }
   .pad .right { grid-column: 3; grid-row: 2; }
   @media (hover: hover) and (pointer: fine) { .pad { display: none; } }
+  /* Plus toggle */
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 11; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #58c759; border-color: rgba(88,199,89,0.5); background: rgba(88,199,89,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #58c759; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
+  body.is-plus { background:
+    radial-gradient(circle at 50% -10%, rgba(255, 220, 80, 0.18), transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(88, 199, 89, 0.12), transparent 60%),
+    radial-gradient(ellipse at center, #14141a, #06060a 75%); }
+  .beat-flash { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 6px 12px;
+    font-family: "Space Grotesk", system-ui, sans-serif; font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #ffd86a; background: rgba(255, 216, 106, 0.12);
+    border: 1px solid rgba(255, 216, 106, 0.45); border-radius: 999px; opacity: 0;
+    transition: opacity 180ms; pointer-events: none; z-index: 8; }
+  .beat-flash.is-on { opacity: 1; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
+<div class="beat-flash" id="beat-flash">On Beat &middot; +Apple</div>
 <canvas id="c"></canvas>
 <div class="hud">
   <div class="score" id="score">0</div>
@@ -93,6 +122,8 @@
   var startBtn = document.getElementById('start-btn');
   var retryBtn = document.getElementById('retry-btn');
   var muteBtn = document.getElementById('mute');
+  var plusToggle = document.getElementById('plus-toggle');
+  var beatFlashEl = document.getElementById('beat-flash');
 
   var COLS = 24, ROWS = 24;
   var W = 0, H = 0, cell = 0, gx = 0, gy = 0;
@@ -100,12 +131,24 @@
   var dir = { x: 1, y: 0 };
   var queued = null;
   var apple = null;
+  var bonusApples = []; // Plus-mode rhythm bonus apples
   var tick = 0;
   var speed = 8;
   var state = 'idle';
   var score = 0;
   var best = 0;
-  try { best = parseInt(localStorage.getItem('snake-best') || '0', 10) || 0; } catch (_) {}
+  var plusMode = false;
+  var beatFlashTimer = null;
+  try { best = parseInt(localStorage.getItem(plusKey()) || '0', 10) || 0; } catch (_) {}
+  try { plusMode = localStorage.getItem('snake-plus') === '1'; } catch (_) {}
+  if (plusMode) document.body.classList.add('is-plus');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+
+  function plusKey() { return plusMode ? 'snake-best-plus' : 'snake-best'; }
+  function loadBest() {
+    try { best = parseInt(localStorage.getItem(plusKey()) || '0', 10) || 0; } catch (_) { best = 0; }
+  }
+  loadBest();
 
   function resize() {
     W = canvas.clientWidth || window.innerWidth;
@@ -123,18 +166,39 @@
   function reset() {
     snake = [{ x: 12, y: 12 }, { x: 11, y: 12 }, { x: 10, y: 12 }];
     dir = { x: 1, y: 0 }; queued = null;
+    bonusApples = [];
     spawnApple();
     score = 0; tick = 0; speed = 8;
     scoreEl.textContent = '0';
     metaEl.textContent = 'length ' + snake.length + ' · best ' + best;
   }
-  function spawnApple() {
-    while (true) {
+  function freeCell() {
+    var tries = 200;
+    while (tries-- > 0) {
       var x = Math.floor(Math.random() * COLS), y = Math.floor(Math.random() * ROWS);
       var hit = false;
       for (var i = 0; i < snake.length; i++) if (snake[i].x === x && snake[i].y === y) { hit = true; break; }
-      if (!hit) { apple = { x: x, y: y }; return; }
+      if (apple && apple.x === x && apple.y === y) hit = true;
+      for (var i = 0; i < bonusApples.length; i++) if (bonusApples[i].x === x && bonusApples[i].y === y) { hit = true; break; }
+      if (!hit) return { x: x, y: y };
     }
+    return null;
+  }
+  function spawnApple() {
+    var p = freeCell();
+    if (p) apple = p;
+  }
+  function spawnBonusApple() {
+    var p = freeCell();
+    if (p) bonusApples.push({ x: p.x, y: p.y, life: 180 }); // ~3 seconds at 60fps
+  }
+  function flashBeat(label) {
+    beatFlashEl.textContent = label;
+    beatFlashEl.classList.remove('is-on');
+    void beatFlashEl.offsetWidth;
+    beatFlashEl.classList.add('is-on');
+    if (beatFlashTimer) clearTimeout(beatFlashTimer);
+    beatFlashTimer = setTimeout(function () { beatFlashEl.classList.remove('is-on'); }, 700);
   }
   function start() {
     if (window.Music) Music.start('snake');
@@ -144,7 +208,7 @@
   }
   function gameOver() {
     state = 'over';
-    if (score > best) { best = score; try { localStorage.setItem('snake-best', String(best)); } catch (_) {} }
+    if (score > best) { best = score; try { localStorage.setItem(plusKey(), String(best)); } catch (_) {} }
     overTitleEl.textContent = 'Game Over';
     overScoreEl.textContent = 'Length ' + snake.length + ' · Best ' + best;
     metaEl.textContent = 'length ' + snake.length + ' · best ' + best;
@@ -156,7 +220,16 @@
   function turn(nx, ny) {
     // Reject reverse on the active dir
     if (dir.x === -nx && dir.y === -ny) return;
+    var changed = (dir.x !== nx || dir.y !== ny);
     queued = { x: nx, y: ny };
+    // Plus-mode rhythm bonus: if this is a NEW direction AND we're on-beat,
+    // drop a bonus apple. Window is forgiving (~150ms either side of the beat).
+    if (plusMode && changed && state === 'play' && window.Music && window.Music.isOnBeat &&
+        window.Music.isOnBeat(150)) {
+      spawnBonusApple();
+      flashBeat('On Beat · +Apple');
+      if (window.Music && window.Music.sfx) window.Music.sfx('mystery');
+    }
   }
   var KEY_MAP = {
     'ArrowUp': [0,-1], 'KeyW': [0,-1],
@@ -182,22 +255,60 @@
     if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
     muteBtn.addEventListener('click', function () { if (window.Music) Music.toggle(); muteBtn.classList.toggle('is-muted'); });
   }
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('snake-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      loadBest();
+      // Restart so the new mode applies immediately
+      if (state === 'play' || state === 'over') start();
+      else metaEl.textContent = 'length ' + snake.length + ' · best ' + best;
+    });
+  }
 
   function step() {
     if (queued) { dir = queued; queued = null; }
     var head = snake[0];
     var nx = head.x + dir.x, ny = head.y + dir.y;
-    if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) { gameOver(); return; }
+    // Plus mode: walls wrap. Classic mode: dies on wall.
+    if (plusMode) {
+      if (nx < 0) nx = COLS - 1;
+      else if (nx >= COLS) nx = 0;
+      if (ny < 0) ny = ROWS - 1;
+      else if (ny >= ROWS) ny = 0;
+    } else {
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) { gameOver(); return; }
+    }
     for (var i = 0; i < snake.length; i++) if (snake[i].x === nx && snake[i].y === ny) { gameOver(); return; }
     snake.unshift({ x: nx, y: ny });
+    var ate = false;
     if (apple && nx === apple.x && ny === apple.y) {
       score++;
+      ate = true;
+      spawnApple();
+    }
+    // Check bonus apples
+    for (var i = bonusApples.length - 1; i >= 0; i--) {
+      if (bonusApples[i].x === nx && bonusApples[i].y === ny) {
+        bonusApples.splice(i, 1);
+        score += 3; // bonus
+        ate = true;
+        flashBeat('Bonus +3');
+      }
+    }
+    if (ate) {
       scoreEl.textContent = score;
       speed = Math.min(20, 8 + Math.floor(score / 4));
       metaEl.textContent = 'length ' + snake.length + ' · best ' + best;
-      spawnApple();
     } else {
       snake.pop();
+    }
+    // Age bonus apples — they expire after ~3 seconds
+    for (var i = bonusApples.length - 1; i >= 0; i--) {
+      bonusApples[i].life--;
+      if (bonusApples[i].life <= 0) bonusApples.splice(i, 1);
     }
   }
 
@@ -218,12 +329,38 @@
     // grid hint
     ctx.fillStyle = 'rgba(88,199,89,0.04)';
     for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) if ((r+c)%2===0) ctx.fillRect(gx+c*cell, gy+r*cell, cell, cell);
+    // Plus-mode beat-pulse on board border + diagonal grid
+    if (plusMode && window.Music && window.Music.beatPhase) {
+      var phase = window.Music.beatPhase();
+      if (phase >= 0) {
+        var pulse = Math.max(0, 1 - phase * 3); // bright at start of beat, fades
+        ctx.strokeStyle = 'rgba(255, 216, 106, ' + (pulse * 0.65) + ')';
+        ctx.lineWidth = 2 + pulse * 2;
+        ctx.strokeRect(gx + 1, gy + 1, cell*COLS - 2, cell*ROWS - 2);
+      }
+    }
     // apple
     if (apple) {
       ctx.fillStyle = '#ff5566';
       var ax = gx + apple.x*cell + cell/2, ay = gy + apple.y*cell + cell/2;
       ctx.beginPath(); ctx.arc(ax, ay, cell*0.38, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#54e08a'; ctx.fillRect(ax-1, ay-cell*0.42, 2, 5);
+    }
+    // bonus apples (rhythm pickups) — gold with a pulsing glow
+    for (var bi = 0; bi < bonusApples.length; bi++) {
+      var ba = bonusApples[bi];
+      var fade = Math.min(1, ba.life / 180);
+      var bx = gx + ba.x*cell + cell/2, by = gy + ba.y*cell + cell/2;
+      var pulse = 0.85 + 0.15 * Math.sin(Date.now() * 0.012);
+      ctx.shadowColor = '#ffd86a';
+      ctx.shadowBlur = 14 * pulse;
+      ctx.fillStyle = 'rgba(255, 216, 106, ' + fade + ')';
+      ctx.beginPath(); ctx.arc(bx, by, cell * 0.4 * pulse, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // star sparkle
+      ctx.fillStyle = 'rgba(255, 255, 255, ' + (fade * 0.85) + ')';
+      ctx.fillRect(bx - 1, by - cell * 0.55, 2, 4);
+      ctx.fillRect(bx - cell * 0.55, by - 1, 4, 2);
     }
     // snake
     for (var i = snake.length - 1; i >= 0; i--) {

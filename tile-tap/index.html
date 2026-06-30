@@ -182,13 +182,13 @@
   const startBtn = document.getElementById('start-btn');
   const retryBtn = document.getElementById('retry-btn');
 
-  const COLS = 4;
   const ACCENT = '#ff6b9d';
   const ACCENT_DARK = '#c94474';
+  const GOLD = '#ffd86a';
 
   let W = 0, H = 0;
   const DPR = Math.min(window.devicePixelRatio || 1, 2);
-  let tiles = []; // {col, y, hit, missed}
+  let tiles = []; // {col, y, hit, missed, gold}
   let particles = []; // {x, y, vx, vy, life, color}
   let state = 'idle';
   let score = 0;
@@ -199,8 +199,32 @@
   let nextCol = -1;
   let shakeT = 0;
 
-  try { best = parseInt(localStorage.getItem('tile-tap-best') || '0', 10) || 0; } catch (_) {}
-  bestEl.textContent = 'best ' + best;
+  // Plus mode — 5 columns + occasional gold tile worth +5.
+  let plusMode = false;
+  try { plusMode = localStorage.getItem('tile-tap-plus') === '1'; } catch (_) {}
+  let COLS = plusMode ? 5 : 4;
+
+  function plusKey() { return plusMode ? 'tile-tap-best-plus' : 'tile-tap-best'; }
+  function loadBest() {
+    try { best = parseInt(localStorage.getItem(plusKey()) || '0', 10) || 0; } catch (_) {}
+    bestEl.textContent = 'best ' + best;
+  }
+  loadBest();
+
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('tile-tap-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      COLS = plusMode ? 5 : 4;
+      loadBest();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function resize() {
     W = window.innerWidth;
@@ -274,7 +298,8 @@
     let col;
     do { col = Math.floor(Math.random() * COLS); } while (col === nextCol);
     nextCol = col;
-    tiles.push({ col, y: -tileHeight(), hit: false, missed: false, anim: 0 });
+    var gold = plusMode && Math.random() < 0.10;
+    tiles.push({ col, y: -tileHeight(), hit: false, missed: false, anim: 0, gold: gold });
   }
 
   function tileHeight() { return Math.min(H * 0.22, 180); }
@@ -293,12 +318,18 @@
     if (target) {
       target.hit = true;
       target.anim = 14;
-      score++;
+      const gained = target.gold ? 5 : 1;
+      score += gained;
       scoreEl.textContent = score;
       // Speed up gradually
       speed = 4.5 + Math.min(score * 0.07, 6);
       spawnInterval = Math.max(14, 38 - score * 0.4);
-      sound(440 + score * 10, 0.08, 'triangle', 0.25);
+      if (target.gold) {
+        sound(880, 0.1, 'triangle', 0.25);
+        sound(1320, 0.12, 'sine', 0.18);
+      } else {
+        sound(440 + score * 10, 0.08, 'triangle', 0.25);
+      }
       burst(col * colWidth() + colWidth() / 2, target.y + tileHeight() / 2);
     } else {
       // Empty tap

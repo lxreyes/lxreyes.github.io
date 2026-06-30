@@ -180,12 +180,29 @@
   }
   .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
   .mute.is-muted { opacity: 0.4; }
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 11; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #9d4dff; border-color: rgba(157, 77, 255,0.5); background: rgba(157, 77, 255,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #9d4dff; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <canvas id="c"></canvas>
 <div class="hud">
   <div class="score" id="score">0</div>
@@ -245,10 +262,32 @@
     vy: 0,
     duck: false,
     onGround: true,
+    jumpsLeft: 0,
   };
 
-  try { best = parseInt(localStorage.getItem('ninja-run-best') || '0', 10) || 0; } catch (_) {}
-  bestEl.textContent = 'best ' + best + 'm';
+  // Plus mode — 2 features: double jump + collectible coins
+  let plusMode = false;
+  let coins = []; // {x, y, life}
+  let coinScore = 0;
+  let coinSpawnDist = 0;
+  try { plusMode = localStorage.getItem('ninja-plus') === '1'; } catch (_) {}
+  function bestKey() { return plusMode ? 'ninja-run-best-plus' : 'ninja-run-best'; }
+  function loadBest() {
+    try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) {}
+    bestEl.textContent = 'best ' + best + 'm';
+  }
+  loadBest();
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('ninja-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      loadBest();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function resize() {
     W = window.innerWidth;
@@ -319,6 +358,9 @@
   function reset() {
     obstacles = [];
     dust = [];
+    coins = [];
+    coinScore = 0;
+    coinSpawnDist = 0;
     distance = 0;
     speed = 6;
     scrollX = 0;
@@ -329,6 +371,7 @@
     ninja.vy = 0;
     ninja.duck = false;
     ninja.onGround = true;
+    ninja.jumpsLeft = 0;
     scoreEl.textContent = '0';
   }
 
@@ -346,7 +389,7 @@
     const d = Math.floor(distance);
     if (d > best) {
       best = d;
-      try { localStorage.setItem('ninja-run-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
       bestEl.textContent = 'best ' + best + 'm';
     }
     overScoreEl.textContent = 'Distance: ' + d + 'm · Best: ' + best + 'm';
@@ -362,7 +405,13 @@
       ninja.vy = -16;
       ninja.onGround = false;
       ninja.duck = false;
+      // Plus mode grants a single extra mid-air jump
+      ninja.jumpsLeft = plusMode ? 1 : 0;
       sound(620, 0.1, 'sine', 0.22);
+    } else if (ninja.jumpsLeft > 0) {
+      ninja.vy = -14;
+      ninja.jumpsLeft--;
+      sound(720, 0.08, 'triangle', 0.18);
     }
   }
   function setDuck(on) {
@@ -423,8 +472,8 @@
 
   function update() {
     if (state === 'play') {
-      // distance + difficulty
-      distance += speed * 0.06;
+      // distance + difficulty (Plus mode applies a 1.5x score multiplier)
+      distance += speed * 0.06 * (plusMode ? 1.5 : 1);
       scoreEl.textContent = Math.floor(distance);
       speed = 6 + Math.min(distance * 0.012, 8);
       scrollX += speed;

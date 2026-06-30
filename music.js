@@ -383,6 +383,8 @@
     }
   }
 
+  var musicStartTime = 0;
+
   function start(name) {
     var p = PRESETS[name];
     if (!p) return;
@@ -395,9 +397,27 @@
     stepDur = (60 / preset.bpm) / 4; // 16th notes
     step = 0;
     nextNoteTime = ctx.currentTime + 0.05;
+    musicStartTime = nextNoteTime;
     running = true;
     if (timer) clearInterval(timer);
     timer = setInterval(scheduler, 25);
+  }
+
+  // Returns position within the current beat (0..1). -1 if music hasn't started.
+  function beatPhase() {
+    if (!preset || !ctx) return -1;
+    var beatDur = 60 / preset.bpm;
+    var t = ((ctx.currentTime - musicStartTime) % beatDur + beatDur) % beatDur;
+    return t / beatDur;
+  }
+
+  // True if we're within `toleranceMs` of a beat (default 120ms).
+  function isOnBeat(toleranceMs) {
+    var p = beatPhase();
+    if (p < 0 || !preset) return false;
+    var beatDur = 60 / preset.bpm;
+    var tol = ((toleranceMs || 120) / 1000) / beatDur;
+    return p < tol || p > 1 - tol;
   }
 
   function stop() {
@@ -575,6 +595,8 @@
     setMuted: setMuted,
     toggle: toggle,
     isMuted: isMuted,
-    sfx: sfx
+    sfx: sfx,
+    beatPhase: beatPhase,
+    isOnBeat: isOnBeat
   };
 })();
