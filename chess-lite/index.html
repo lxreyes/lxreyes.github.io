@@ -255,6 +255,14 @@
   var GLYPHS_B = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' };
   var VALUE = { K: 100, Q: 9, R: 5, B: 3, N: 3, P: 1 };
 
+  // Plus mode: smarter AI (2-ply lookahead with material eval) + auto-promote
+  // pawns to queen on reaching the last rank.
+  var plusMode = false;
+  try { plusMode = localStorage.getItem('chess-plus') === '1'; } catch (_) {}
+  var plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+
   try {
     var w = localStorage.getItem('chess-lite-wins');
     if (w) { var x = JSON.parse(w); if (x && typeof x.w === 'number') wins = x; }
@@ -392,9 +400,19 @@
   function applyMove(m) {
     var fp = board[m.from[0]][m.from[1]];
     var cap = board[m.to[0]][m.to[1]];
-    history.push({ from: m.from, to: m.to, piece: fp, capture: cap });
+    history.push({ from: m.from, to: m.to, piece: fp, capture: cap, promoted: false });
     board[m.to[0]][m.to[1]] = fp;
     board[m.from[0]][m.from[1]] = null;
+    // Plus mode: auto-promote pawn to queen on the last rank.
+    if (plusMode && fp.type === 'P') {
+      var lastRank = fp.side === 'w' ? 0 : 7;
+      if (m.to[0] === lastRank) {
+        board[m.to[0]][m.to[1]] = { type: 'Q', side: fp.side };
+        history[history.length - 1].promoted = true;
+        tone(880, 0.1, 'triangle', 0.18);
+        tone(1320, 0.12, 'triangle', 0.14);
+      }
+    }
     lastMove = { from: m.from, to: m.to };
     if (cap) tone(280, 0.06, 'square', 0.16);
     else tone(420, 0.04, 'sine', 0.12);
@@ -422,6 +440,20 @@
     }, 260);
   }
 
+  function materialEval(side) {
+    // Positive = side wins material. Iterates board and sums VALUE deltas.
+    var s = 0;
+    for (var r = 0; r < 8; r++) {
+      for (var c = 0; c < 8; c++) {
+        var p = board[r][c];
+        if (!p) continue;
+        var v = VALUE[p.type] || 0;
+        s += (p.side === side ? v : -v);
+      }
+    }
+    return s;
+  }
+
   function aiTurn() {
     if (state !== 'play') return;
     var moves = allMoves('b');
@@ -429,13 +461,59 @@
       gameOver('w');
       return;
     }
+    if (plusMode) {
+      // 2-ply lookahead: try each move, simulate, score worst-case reply.
+      var bestScore = -Infinity;
+      var pool = [];
+      for (var i = 0; i < moves.length; i++) {
+        var m = moves[i];
+        // Simulate
+        var fp = board[m.from[0]][m.from[1]];
+        var cap = board[m.to[0]][m.to[1]];
+        board[m.to[0]][m.to[1]] = fp;
+        board[m.from[0]][m.from[1]] = null;
+        // Treat king-capture as instant win
+        var score;
+        if (cap && cap.type === 'K') {
+          score = 1000;
+        } else {
+          // Worst-case player reply
+          var replies = allMoves('w');
+          var worst = Infinity;
+          for (var j = 0; j < replies.length; j++) {
+            var rm = replies[j];
+            var rFp = board[rm.from[0]][rm.from[1]];
+            var rCap = board[rm.to[0]][rm.to[1]];
+            board[rm.to[0]][rm.to[1]] = rFp;
+            board[rm.from[0]][rm.from[1]] = null;
+            var ev;
+            if (rCap && rCap.type === 'K') ev = -1000;
+            else ev = materialEval('b');
+            // undo reply
+            board[rm.from[0]][rm.from[1]] = rFp;
+            board[rm.to[0]][rm.to[1]] = rCap;
+            if (ev < worst) worst = ev;
+            if (worst <= -50) break; // already losing the king, prune
+          }
+          score = worst === Infinity ? materialEval('b') : worst;
+        }
+        // Undo
+        board[m.from[0]][m.from[1]] = fp;
+        board[m.to[0]][m.to[1]] = cap;
+        if (score > bestScore + 0.01) { bestScore = score; pool = [m]; }
+        else if (Math.abs(score - bestScore) <= 0.01) pool.push(m);
+      }
+      var pick = pool[Math.floor(Math.random() * pool.length)];
+      startAnimAndApply(pick);
+      return;
+    }
+    // Classic: greedy capture
     var bestScore = -1;
     var pool = [];
     for (var i = 0; i < moves.length; i++) {
       var m = moves[i];
       var score = 1;
       if (m.capture) score += (VALUE[m.capture.type] || 1) * 12;
-      // tiny preference for pushing pawns forward
       if (m.from && board[m.from[0]] && board[m.from[0]][m.from[1]] &&
           board[m.from[0]][m.from[1]].type === 'P' && m.to[0] > m.from[0]) score += 0.5;
       if (score > bestScore) { bestScore = score; pool = [m]; }
@@ -495,6 +573,15 @@
 
   startBtn.addEventListener('click', start);
   retryBtn.addEventListener('click', start);
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('chess-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      if (state === 'play' || state === 'over') start();
+    });
+  }
   btnNew.addEventListener('click', function () { start(); });
   btnUndo.addEventListener('click', undo);
 

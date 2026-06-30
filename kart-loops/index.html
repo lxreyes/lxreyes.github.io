@@ -240,7 +240,30 @@
   var keyGas = document.getElementById('key-gas');
 
   var ACCENT = '#ff4081';
-  var TOTAL_LAPS = 3;
+  // Plus mode: 5 laps + boost pads on track. Classic: 3 laps, no boost.
+  var plusMode = false;
+  try { plusMode = localStorage.getItem('kart-plus') === '1'; } catch (_) {}
+  var TOTAL_LAPS = plusMode ? 5 : 3;
+  var boostPads = []; // {angle, life} positioned on the track centerline
+  var boostFlash = 0; // frames of post-boost visual feedback
+  var plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'kart-loops-best-plus' : 'kart-loops-best'; }
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('kart-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      TOTAL_LAPS = plusMode ? 5 : 3;
+      // Reload best from new key
+      bestLap = null;
+      try { var bv = localStorage.getItem(bestKey()); if (bv) bestLap = parseFloat(bv); } catch (_) {}
+      if (state === 'play' || state === 'over') start();
+      else { lapEl.textContent = 'LAP 1 / ' + TOTAL_LAPS; updateMeta(); }
+    });
+  }
 
   var W = 0, H = 0;
   // Track ellipse — outer + inner radii. The race surface is the area between.
@@ -269,7 +292,7 @@
   var smoke = [];
 
   try {
-    var b = localStorage.getItem('kart-loops-best');
+    var b = localStorage.getItem(bestKey());
     if (b) bestLap = parseFloat(b);
   } catch (_) {}
   updateMeta();
@@ -384,6 +407,14 @@
     lapTimes = [];
     smoke = [];
     skids = [];
+    boostFlash = 0;
+    boostPads = [];
+    if (plusMode) {
+      // 4 boost pads evenly spaced around the track, offset from start line.
+      for (var i = 0; i < 4; i++) {
+        boostPads.push({ angle: startAngle + Math.PI / 4 + i * (Math.PI / 2) });
+      }
+    }
     lapEl.textContent = 'LAP 1 / ' + TOTAL_LAPS;
     updateMeta();
   }
@@ -497,6 +528,30 @@
     car.y = ny;
     setEngine(car.speed);
 
+    // Plus mode: hitting a boost pad gives a hard speed kick
+    if (plusMode && boostPads.length) {
+      var midRx2 = (outerRx + innerRx) / 2;
+      var midRy2 = (outerRy + innerRy) / 2;
+      for (var bi = 0; bi < boostPads.length; bi++) {
+        var bp = boostPads[bi];
+        var bpx = cx + Math.cos(bp.angle) * midRx2;
+        var bpy = cy + Math.sin(bp.angle) * midRy2;
+        var ddx = car.x - bpx, ddy = car.y - bpy;
+        var hitR = trackWidth * 0.45;
+        if (ddx * ddx + ddy * ddy < hitR * hitR) {
+          if (!bp.cooldown || bp.cooldown <= 0) {
+            car.speed = Math.min(8.6, car.speed + 3.2);
+            bp.cooldown = 120; // ~2 seconds
+            boostFlash = 24;
+            tone(880, 0.08, 'triangle', 0.18);
+            tone(1320, 0.08, 'square', 0.14);
+          }
+        }
+        if (bp.cooldown && bp.cooldown > 0) bp.cooldown--;
+      }
+    }
+    if (boostFlash > 0) boostFlash--;
+
     // Smoke when on grass at speed
     if (Math.random() < 0.5 && Math.abs(car.speed) > 1.5 && isGrass(car.x, car.y)) {
       smoke.push({
@@ -547,7 +602,7 @@
           lapTimes.push(elapsed);
           if (bestLap == null || elapsed < bestLap) {
             bestLap = elapsed;
-            try { localStorage.setItem('kart-loops-best', String(bestLap)); } catch (_) {}
+            try { localStorage.setItem(bestKey(), String(bestLap)); } catch (_) {}
           }
           tone(660, 0.1, 'triangle', 0.2);
           if (lap >= TOTAL_LAPS) {
@@ -820,6 +875,39 @@
     }
 
     renderTrack();
+
+    // Plus mode: boost pads on the track — pulsing yellow chevrons
+    if (plusMode && boostPads.length) {
+      var midRxR = (outerRx + innerRx) / 2;
+      var midRyR = (outerRy + innerRy) / 2;
+      var pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.008);
+      for (var bi = 0; bi < boostPads.length; bi++) {
+        var bp = boostPads[bi];
+        var bpx = cx + Math.cos(bp.angle) * midRxR;
+        var bpy = cy + Math.sin(bp.angle) * midRyR;
+        var ready = !bp.cooldown || bp.cooldown <= 0;
+        var a = ready ? pulse : 0.25;
+        // Tangent direction
+        var tx = -Math.sin(bp.angle), ty = Math.cos(bp.angle);
+        ctx.save();
+        ctx.translate(bpx, bpy);
+        ctx.rotate(Math.atan2(ty, tx));
+        ctx.fillStyle = 'rgba(255, 216, 80, ' + a + ')';
+        ctx.shadowColor = '#ffd850';
+        ctx.shadowBlur = ready ? 14 * pulse : 0;
+        for (var ci = 0; ci < 3; ci++) {
+          ctx.beginPath();
+          ctx.moveTo(-12 + ci * 8, -10);
+          ctx.lineTo(-4 + ci * 8, 0);
+          ctx.lineTo(-12 + ci * 8, 10);
+          ctx.lineTo(-8 + ci * 8, 0);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+    }
 
     // Smoke
     for (var i = 0; i < smoke.length; i++) {

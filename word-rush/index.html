@@ -264,8 +264,28 @@
   var particles = [];
   var stars = [];
 
-  try { best = parseInt(localStorage.getItem('word-rush-best') || '0', 10) || 0; } catch (_) {}
+  // Plus mode: longer words ONLY (7+ chars) + faster spawn cadence.
+  var plusMode = false;
+  try { plusMode = localStorage.getItem('word-rush-plus') === '1'; } catch (_) {}
+  var plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'word-rush-best-plus' : 'word-rush-best'; }
+  try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) {}
   updateMeta();
+  // Pre-compute the "hard" pool once
+  var HARD_WORDS = WORDS.filter(function (w) { return w.length >= 7; });
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('word-rush-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { best = 0; }
+      updateMeta();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function updateMeta() { metaEl.textContent = 'wpm ' + wpm + ' · best ' + best; }
   function updateHearts() {
@@ -334,7 +354,8 @@
   }
 
   function spawn() {
-    var w = WORDS[Math.floor(Math.random() * WORDS.length)].toUpperCase();
+    var pool = plusMode ? HARD_WORDS : WORDS;
+    var w = pool[Math.floor(Math.random() * pool.length)].toUpperCase();
     var pad = 40;
     var x = pad + Math.random() * Math.max(60, W - pad * 2);
     var vy = 0.45 + elapsed * 0.0009 + Math.random() * 0.25;
@@ -373,7 +394,7 @@
     state = 'over';
     if (score > best) {
       best = score;
-      try { localStorage.setItem('word-rush-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
     }
     overScoreEl.textContent = 'Score: ' + score + ' · Best: ' + best;
     overOverlay.classList.remove('is-hidden');
@@ -504,7 +525,10 @@
     if (state === 'play') {
       elapsed++;
       spawnTimer++;
-      var spawnInterval = Math.max(40, 130 - Math.floor(elapsed / 60) * 6);
+      // Plus mode: tighter spawn cadence (faster waves)
+      var baseSpawn = plusMode ? 95 : 130;
+      var minSpawn = plusMode ? 28 : 40;
+      var spawnInterval = Math.max(minSpawn, baseSpawn - Math.floor(elapsed / 60) * 6);
       if (spawnTimer >= spawnInterval) {
         spawnTimer = 0;
         spawn();

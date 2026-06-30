@@ -265,9 +265,16 @@
   var pad = document.getElementById('pad');
 
   var ACCENT = '#a1c1ff';
-  var N = 6;     // grid size (6x6)
-  var BR = 2;    // block rows
-  var BC = 3;    // block cols
+  // Plus mode: full 9x9 with 3x3 blocks + hint button. Classic: 6x6 / 2x3.
+  var plusMode = false;
+  try { plusMode = localStorage.getItem('sudoku-plus') === '1'; } catch (_) {}
+  var N = plusMode ? 9 : 6;
+  var BR = plusMode ? 3 : 2;
+  var BC = plusMode ? 3 : 3;
+  var plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'sudoku-best-plus' : 'sudoku-mini-best'; }
 
   var W = 0, H = 0;
   var cell = 50;
@@ -284,10 +291,12 @@
   var best = null;
 
   try {
-    var b = localStorage.getItem('sudoku-mini-best');
+    var b = localStorage.getItem(bestKey());
     if (b) best = parseInt(b, 10);
   } catch (_) {}
-  if (best != null) metaEl.textContent = 'mini sudoku · best ' + fmtTime(best);
+  function modeLabel() { return plusMode ? 'sudoku 9×9' : 'mini sudoku'; }
+  if (best != null) metaEl.textContent = modeLabel() + ' · best ' + fmtTime(best);
+  else metaEl.textContent = modeLabel() + ' · best —';
 
   function fmtTime(sec) {
     var m = Math.floor(sec / 60);
@@ -338,14 +347,19 @@
   // -------- Puzzle generation (6x6 with 2x3 blocks) --------
   function newSolution() {
     var s = [];
-    for (var r = 0; r < N; r++) s.push([0, 0, 0, 0, 0, 0]);
+    for (var r = 0; r < N; r++) {
+      var row = [];
+      for (var c = 0; c < N; c++) row.push(0);
+      s.push(row);
+    }
     fill(s, 0);
     return s;
   }
   function fill(s, idx) {
     if (idx >= N * N) return true;
     var r = Math.floor(idx / N), c = idx % N;
-    var nums = [1, 2, 3, 4, 5, 6];
+    var nums = [];
+    for (var k = 1; k <= N; k++) nums.push(k);
     shuffle(nums);
     for (var i = 0; i < nums.length; i++) {
       var n = nums[i];
@@ -382,12 +396,12 @@
     solution = newSolution();
     var p = [];
     for (var r = 0; r < N; r++) p.push(solution[r].slice());
-    // Remove ~18 cells (out of 36) to leave a moderate puzzle
+    // 6x6: clear ~18 of 36; 9x9: clear ~45 of 81 (moderate difficulty).
     var cells = [];
     for (var i = 0; i < N * N; i++) cells.push(i);
     shuffle(cells);
     var removed = 0;
-    var target = 18;
+    var target = plusMode ? 45 : 18;
     for (var i = 0; i < cells.length && removed < target; i++) {
       var idx = cells[i];
       var r = Math.floor(idx / N), c = idx % N;
@@ -425,12 +439,12 @@
     var newBest = false;
     if (best == null || t < best) {
       best = t;
-      try { localStorage.setItem('sudoku-mini-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
       newBest = true;
     }
     overTitleEl.textContent = newBest ? 'New Best!' : 'Solved';
     overScoreEl.textContent = 'Time: ' + fmtTime(t) + ' · Best: ' + (best != null ? fmtTime(best) : '—');
-    metaEl.textContent = 'mini sudoku · best ' + (best != null ? fmtTime(best) : '—');
+    metaEl.textContent = modeLabel() + ' · best ' + (best != null ? fmtTime(best) : '—');
     overOverlay.classList.remove('is-hidden');
     chord([523, 659, 784], 0.16, 0.16);
   }
@@ -470,27 +484,82 @@
   retryBtn.addEventListener('click', start);
   btnNew.addEventListener('click', function () { start(); });
   btnUndo.addEventListener('click', undo);
-
-  // Build numpad
-  for (var n = 1; n <= 6; n++) {
-    (function (num) {
-      var b = document.createElement('button');
-      b.textContent = String(num);
-      b.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, num);
-      });
-      pad.appendChild(b);
-    })(n);
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('sudoku-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      // Apply new grid constants
+      N = plusMode ? 9 : 6;
+      BR = plusMode ? 3 : 2;
+      BC = plusMode ? 3 : 3;
+      best = null;
+      try { var bv = localStorage.getItem(bestKey()); if (bv) best = parseInt(bv, 10); } catch (_) {}
+      metaEl.textContent = modeLabel() + ' · best ' + (best != null ? fmtTime(best) : '—');
+      buildPad();
+      resize();
+      // Either restart immediately or just rebuild the empty board
+      if (state === 'play' || state === 'won') start();
+      else { board = null; puzzle = null; given = null; solution = null; }
+    });
   }
-  var erase = document.createElement('button');
-  erase.textContent = 'Erase';
-  erase.className = 'is-erase';
-  erase.addEventListener('pointerdown', function (e) {
-    e.preventDefault();
-    if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, 0);
-  });
-  pad.appendChild(erase);
+
+  // Build numpad — 1..N. In Plus mode the grid layout grows to fit 9 + Erase + Hint.
+  function buildPad() {
+    pad.innerHTML = '';
+    var cols = plusMode ? 11 : 7; // 9 + erase + hint OR 6 + erase
+    pad.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    pad.style.width = plusMode ? 'min(620px, calc(100% - 24px))' : 'min(420px, calc(100% - 24px))';
+    for (var n = 1; n <= N; n++) {
+      (function (num) {
+        var b = document.createElement('button');
+        b.textContent = String(num);
+        b.addEventListener('pointerdown', function (e) {
+          e.preventDefault();
+          if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, num);
+        });
+        pad.appendChild(b);
+      })(n);
+    }
+    var erase = document.createElement('button');
+    erase.textContent = 'Erase';
+    erase.className = 'is-erase';
+    erase.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (state === 'play' && selected.r >= 0) setCell(selected.r, selected.c, 0);
+    });
+    pad.appendChild(erase);
+    if (plusMode) {
+      var hint = document.createElement('button');
+      hint.textContent = 'Hint';
+      hint.className = 'is-erase';
+      hint.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        if (state !== 'play') return;
+        // If a non-given empty cell is selected, fill that. Otherwise pick a
+        // random empty cell.
+        var r = selected.r, c = selected.c;
+        if (r < 0 || c < 0 || given[r][c] || board[r][c] !== 0) {
+          var empties = [];
+          for (var rr = 0; rr < N; rr++) for (var cc = 0; cc < N; cc++) {
+            if (!given[rr][cc] && board[rr][cc] === 0) empties.push([rr, cc]);
+          }
+          if (!empties.length) return;
+          var pick = empties[Math.floor(Math.random() * empties.length)];
+          r = pick[0]; c = pick[1];
+        }
+        setCell(r, c, solution[r][c]);
+        // Mark this cell so the player can see it was a hint
+        // (we encode this by promoting it to "given" so they can't undo it).
+        given[r][c] = true;
+        tone(660, 0.1, 'triangle', 0.16);
+        tone(880, 0.1, 'triangle', 0.14);
+      });
+      pad.appendChild(hint);
+    }
+  }
+  buildPad();
 
   canvas.addEventListener('pointerdown', function (e) {
     if (state !== 'play') return;
@@ -518,7 +587,7 @@
       return;
     }
     if (state !== 'play') return;
-    if (e.key >= '1' && e.key <= '6' && selected.r >= 0) {
+    if (e.key >= '1' && e.key <= String(N) && selected.r >= 0) {
       e.preventDefault();
       setCell(selected.r, selected.c, parseInt(e.key, 10));
     } else if (e.code === 'Backspace' || e.code === 'Delete' || e.code === 'Digit0') {

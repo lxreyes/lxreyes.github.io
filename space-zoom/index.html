@@ -245,8 +245,26 @@
   let particles = [];
   let stars = [];
 
-  try { best = parseInt(localStorage.getItem('space-zoom-best') || '0', 10) || 0; } catch (_) {}
+  // Plus mode: spread shot (3 bullets fan) + faster fire rate.
+  let plusMode = false;
+  try { plusMode = localStorage.getItem('space-zoom-plus') === '1'; } catch (_) {}
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'space-zoom-best-plus' : 'space-zoom-best'; }
+  try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) {}
   updateMeta();
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('space-zoom-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { best = 0; }
+      updateMeta();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function updateMeta() {
     metaEl.textContent = 'wave ' + wave + ' · best ' + best;
@@ -345,7 +363,7 @@
     state = 'over';
     if (score > best) {
       best = score;
-      try { localStorage.setItem('space-zoom-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
     }
     overScoreEl.textContent = 'Score: ' + score + ' · Wave: ' + wave;
     overOverlay.classList.remove('is-hidden');
@@ -401,7 +419,14 @@
   }
 
   function shootPlayer() {
-    bullets.push({ x: player.x, y: player.y - player.r - 2, vy: -10 });
+    if (plusMode) {
+      // Spread: 3 bullets — straight + two angled outward
+      bullets.push({ x: player.x, y: player.y - player.r - 2, vx: 0, vy: -10 });
+      bullets.push({ x: player.x - 4, y: player.y - player.r - 1, vx: -1.6, vy: -9.4 });
+      bullets.push({ x: player.x + 4, y: player.y - player.r - 1, vx: 1.6, vy: -9.4 });
+    } else {
+      bullets.push({ x: player.x, y: player.y - player.r - 2, vy: -10 });
+    }
     shootSound();
   }
 
@@ -451,9 +476,9 @@
       }
       player.x = Math.max(player.r, Math.min(W - player.r, player.x));
 
-      // Auto-fire
+      // Auto-fire — Plus mode fires faster (6 vs 8 frames between shots).
       shootTimer++;
-      const fireInterval = 8;
+      const fireInterval = plusMode ? 6 : 8;
       if (shootTimer >= fireInterval) {
         shootTimer = 0;
         shootPlayer();
@@ -471,7 +496,8 @@
       for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
         b.y += b.vy;
-        if (b.y < -20) bullets.splice(i, 1);
+        if (b.vx) b.x += b.vx;
+        if (b.y < -20 || b.x < -20 || b.x > W + 20) bullets.splice(i, 1);
       }
 
       // Update enemies

@@ -213,9 +213,18 @@
   let shakeT = 0;
 
   const player = { x: 0, y: 0, r: 18, targetX: 0 };
+  // Plus mode: smaller hitbox + goldens drop occasionally for bonus score.
+  let plusMode = false;
+  let bonusSecs = 0;
+  try { plusMode = localStorage.getItem('dodgeball-plus') === '1'; } catch (_) {}
+  if (plusMode) player.r = 12;
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'dodgeball-best-plus' : 'dodgeball-best'; }
   let keyL = false, keyR = false;
 
-  try { best = parseFloat(localStorage.getItem('dodgeball-best') || '0') || 0; } catch (_) {}
+  try { best = parseFloat(localStorage.getItem(bestKey()) || '0') || 0; } catch (_) {}
   bestEl.textContent = 'best ' + best.toFixed(1) + 's';
 
   function resize() {
@@ -279,10 +288,12 @@
     trail = [];
     particles = [];
     elapsed = 0;
+    bonusSecs = 0;
     spawnTimer = 0;
     shakeT = 0;
     player.x = W / 2;
     player.targetX = W / 2;
+    player.r = plusMode ? 12 : 18;
     scoreEl.textContent = '0.0';
   }
 
@@ -300,7 +311,7 @@
     const secs = elapsed / 60;
     if (secs > best) {
       best = secs;
-      try { localStorage.setItem('dodgeball-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
       bestEl.textContent = 'best ' + best.toFixed(1) + 's';
     }
     overScoreEl.textContent = 'Time: ' + secs.toFixed(1) + 's · Best: ' + best.toFixed(1) + 's';
@@ -320,18 +331,33 @@
     const baseAngle = Math.PI / 2; // straight down
     const angle = baseAngle + (Math.random() - 0.5) * angleSpread;
     const sp = baseSpeed + Math.random() * 1.5;
+    // Plus mode: ~10% of spawns are GOLDEN — touching them gives +5s bonus.
+    const isGold = plusMode && Math.random() < 0.10;
     balls.push({
       x, y: -r - 10,
       vx: Math.cos(angle) * sp,
       vy: Math.sin(angle) * sp,
       r,
-      hue: 14 + Math.random() * 30, // warm reds/oranges
+      hue: isGold ? 48 : 14 + Math.random() * 30,
+      gold: isGold,
       bounced: false,
     });
   }
 
   startBtn.addEventListener('click', start);
   retryBtn.addEventListener('click', start);
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('dodgeball-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      player.r = plusMode ? 12 : 18;
+      try { best = parseFloat(localStorage.getItem(bestKey()) || '0') || 0; } catch (_) { best = 0; }
+      bestEl.textContent = 'best ' + best.toFixed(1) + 's';
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   canvas.addEventListener('pointermove', (e) => {
     if (state !== 'play') return;
@@ -414,6 +440,16 @@
         const d2 = dx * dx + dy * dy;
         const r = b.r + player.r - 3;
         if (d2 < r * r) {
+          if (b.gold) {
+            // Golden: collect for time bonus
+            bonusSecs += 5;
+            elapsed += 300; // 5 seconds at 60fps
+            burst(b.x, b.y);
+            balls.splice(i, 1);
+            sound(880, 0.08, 'triangle', 0.2);
+            sound(1320, 0.1, 'sine', 0.16);
+            continue;
+          }
           burst(player.x, player.y);
           gameOver();
           return;

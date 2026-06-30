@@ -269,8 +269,26 @@
     { shape: [[1,1,0],[0,1,1]],      color: '#ff5566' }  // Z red
   ];
 
-  try { best = parseInt(localStorage.getItem('block-drop-best') || '0', 10) || 0; } catch (_) {}
+  // Plus mode: faster fall + bomb pieces (5% chance) that clear a 3x3 area
+  var plusMode = false;
+  try { plusMode = localStorage.getItem('block-drop-plus') === '1'; } catch (_) {}
+  var plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'block-drop-best-plus' : 'block-drop-best'; }
+  try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) {}
   metaEl.textContent = 'lines ' + lines + ' · best ' + best;
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('block-drop-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { best = 0; }
+      metaEl.textContent = 'lines ' + lines + ' · best ' + best;
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   function resize() {
     W = canvas.clientWidth || window.innerWidth;
@@ -312,6 +330,11 @@
   }
 
   function randomPiece() {
+    // Plus mode: 8% chance to roll a BOMB piece — a single golden cell that
+    // clears a 3x3 area around its lock position.
+    if (plusMode && Math.random() < 0.08) {
+      return { shape: [[1]], color: '#ffd86a', x: 0, y: 0, isBomb: true };
+    }
     var p = PIECES[Math.floor(Math.random() * PIECES.length)];
     var shape = [];
     for (var r = 0; r < p.shape.length; r++) shape.push(p.shape[r].slice());
@@ -351,6 +374,22 @@
   }
 
   function lockPiece() {
+    // Plus mode: BOMB pieces clear a 3x3 area centered on the lock cell.
+    if (piece.isBomb) {
+      var bx = piece.x, by = piece.y;
+      for (var dr = -1; dr <= 1; dr++) {
+        for (var dc = -1; dc <= 1; dc++) {
+          var nr = by + dr, nc = bx + dc;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) grid[nr][nc] = null;
+        }
+      }
+      score += 25;
+      scoreEl.textContent = score;
+      tone(80, 0.18, 'sawtooth', 0.22);
+      tone(220, 0.22, 'square', 0.18);
+      spawn();
+      return;
+    }
     for (var r = 0; r < piece.shape.length; r++) {
       for (var c = 0; c < piece.shape[r].length; c++) {
         if (piece.shape[r][c]) {
@@ -389,7 +428,7 @@
     var n = flashRows.length;
     score += [0, 100, 300, 500, 800][n] || 0;
     lines += n;
-    dropInterval = Math.max(8, 48 - Math.floor(lines / 8) * 4);
+    dropInterval = Math.max(8, (plusMode ? 32 : 48) - Math.floor(lines / 8) * 4);
     scoreEl.textContent = score;
     metaEl.textContent = 'lines ' + lines + ' · best ' + best;
     flashRows = [];
@@ -453,7 +492,8 @@
     score = 0;
     lines = 0;
     dropTimer = 0;
-    dropInterval = 48;
+    // Plus mode: starts faster (32 vs 48 frames per cell).
+    dropInterval = plusMode ? 32 : 48;
     flashRows = [];
     flashT = 0;
     softDrop = false;
@@ -475,7 +515,7 @@
     state = 'over';
     if (score > best) {
       best = score;
-      try { localStorage.setItem('block-drop-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
       metaEl.textContent = 'lines ' + lines + ' · best ' + best;
     }
     overScoreEl.textContent = 'Score: ' + score + ' · Lines: ' + lines;

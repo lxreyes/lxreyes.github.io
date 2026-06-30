@@ -371,8 +371,31 @@
   let rafId = 0;
   let lockTaps = false;
 
-  try { best = parseInt(localStorage.getItem('color-match-best') || '0', 10) || 0; } catch (_) {}
-  bestEl.textContent = 'best ' + best;
+  // Plus mode: 6 options on the pad AND every ~5 rounds the rule inverts
+  // (tap the WORD's meaning instead of its ink). Banner announces the switch.
+  let plusMode = false;
+  let inverted = false; // current rule for this round in plus mode
+  let nextInvertAt = 5;
+  try { plusMode = localStorage.getItem('color-match-plus') === '1'; } catch (_) {}
+  const plusToggle = document.getElementById('plus-toggle');
+  if (plusMode && plusToggle) plusToggle.setAttribute('aria-pressed', 'true');
+  if (plusMode) document.body.classList.add('is-plus');
+  function bestKey() { return plusMode ? 'color-match-best-plus' : 'color-match-best'; }
+  function loadBest() {
+    try { best = parseInt(localStorage.getItem(bestKey()) || '0', 10) || 0; } catch (_) { best = 0; }
+    bestEl.textContent = 'best ' + best;
+  }
+  loadBest();
+  if (plusToggle) {
+    plusToggle.addEventListener('click', function () {
+      plusMode = !plusMode;
+      try { localStorage.setItem('color-match-plus', plusMode ? '1' : '0'); } catch (_) {}
+      plusToggle.setAttribute('aria-pressed', plusMode ? 'true' : 'false');
+      document.body.classList.toggle('is-plus', plusMode);
+      loadBest();
+      if (state === 'play' || state === 'over') start();
+    });
+  }
 
   let audio = null;
   function ensureAudio() {
@@ -404,6 +427,15 @@
   }
 
   function newRound() {
+    // Plus mode: every 5 rounds, flip the rule. The wordEl prefix announces
+    // which question is being asked.
+    if (plusMode && score >= nextInvertAt) {
+      inverted = !inverted;
+      nextInvertAt = score + 5;
+      // Brief audible cue
+      sound(880, 0.08, 'triangle', 0.18);
+      sound(660, 0.12, 'triangle', 0.14);
+    }
     // Word color (ink) is distinct from word text most of the time
     const wordIdx = randInt(COLORS.length);
     let inkIdx;
@@ -411,16 +443,20 @@
 
     const word = COLORS[wordIdx];
     const ink = COLORS[inkIdx];
+    // In inverted mode the player taps the WORD's meaning (text), not its ink.
+    const answer = (plusMode && inverted) ? word : ink;
+    const answerIdx = (plusMode && inverted) ? wordIdx : inkIdx;
 
-    // Pick 4 options that include ink, excluding too many distractors
+    // Pick option count: plus mode = 6, classic = 4.
+    const optCount = plusMode ? Math.min(6, COLORS.length) : 4;
     const others = [];
-    while (others.length < 3) {
+    while (others.length < optCount - 1) {
       const i = randInt(COLORS.length);
-      if (i !== inkIdx && !others.includes(i)) others.push(i);
+      if (i !== answerIdx && !others.includes(i)) others.push(i);
     }
-    const optionIndices = shuffle([inkIdx, ...others]);
+    const optionIndices = shuffle([answerIdx, ...others]);
 
-    round = { word, ink, options: optionIndices.map(i => COLORS[i]) };
+    round = { word, ink, answer, options: optionIndices.map(i => COLORS[i]) };
 
     // Render word
     wordEl.textContent = word.name;
@@ -457,10 +493,10 @@
     lockTaps = true;
     // Mark all buttons
     for (const btn of optsEl.querySelectorAll('.option')) {
-      if (btn.dataset.hex === round.ink.hex) btn.classList.add('correct');
+      if (btn.dataset.hex === round.answer.hex) btn.classList.add('correct');
       else if (btn.dataset.hex === c.hex) btn.classList.add('wrong');
     }
-    if (c.hex === round.ink.hex) {
+    if (c.hex === round.answer.hex) {
       score++;
       scoreEl.textContent = score;
       sound(420 + score * 12, 0.1, 'triangle', 0.22);
@@ -478,7 +514,7 @@
     cancelAnimationFrame(rafId);
     if (score > best) {
       best = score;
-      try { localStorage.setItem('color-match-best', String(best)); } catch (_) {}
+      try { localStorage.setItem(bestKey(), String(best)); } catch (_) {}
       bestEl.textContent = 'best ' + best;
     }
     overTitleEl.textContent = title;
@@ -491,6 +527,8 @@
     if (window.Music) Music.start('color-match');
     score = 0;
     scoreEl.textContent = '0';
+    inverted = false;
+    nextInvertAt = 5;
     state = 'play';
     startOverlay.classList.add('is-hidden');
     overOverlay.classList.add('is-hidden');
@@ -509,7 +547,7 @@
       // Time out — mark correct, count as miss
       lockTaps = true;
       for (const btn of optsEl.querySelectorAll('.option')) {
-        if (btn.dataset.hex === round.ink.hex) btn.classList.add('correct');
+        if (btn.dataset.hex === round.answer.hex) btn.classList.add('correct');
       }
       sound(160, 0.32, 'sawtooth', 0.2);
       gameOver('Too slow');
