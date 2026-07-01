@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REGEX LAB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 168, 77, 0.14), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; flex-direction: column;
+    padding: 56px 24px 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .stack {
+    width: min(760px, 100%);
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0; gap: 12px;
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.24em;
+    text-transform: uppercase; margin: 0 0 4px;
+    color: #ffa84d;
+    text-shadow: 0 0 22px rgba(255, 168, 77, 0.35);
+  }
+  .pattern-row {
+    display: flex; align-items: stretch; gap: 8px;
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 4px 4px 4px 14px;
+  }
+  .pattern-row .slash {
+    display: flex; align-items: center;
+    color: rgba(232, 230, 227, 0.35);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 20px;
+  }
+  #pattern {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 14px 8px;
+    color: #ffb970;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    outline: none;
+    letter-spacing: 0.02em;
+    user-select: text; -webkit-user-select: text;
+  }
+  #flags {
+    background: transparent;
+    border: none;
+    padding: 14px 12px 14px 4px;
+    color: rgba(232, 230, 227, 0.85);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    outline: none;
+    width: 66px;
+    user-select: text; -webkit-user-select: text;
+  }
+  .error {
+    color: #ff7b7b;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    padding: 0 4px;
+    min-height: 16px;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .test-area {
+    flex: 1; min-height: 180px;
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    color: #e8e6e3;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    line-height: 1.65;
+    outline: none;
+    user-select: text; -webkit-user-select: text;
+    resize: none;
+    white-space: pre-wrap;
+    overflow: auto;
+    letter-spacing: 0.02em;
+  }
+  /* Highlight overlay */
+  .highlight-wrap {
+    position: relative;
+    flex: 1; min-height: 180px;
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .highlight-wrap.is-focus { border-color: rgba(255, 168, 77, 0.5); }
+  .highlight-backdrop, .test-area {
+    position: absolute; inset: 0;
+    padding: 16px 18px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    line-height: 1.65;
+    letter-spacing: 0.02em;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .highlight-backdrop {
+    color: transparent;
+    background: transparent;
+    pointer-events: none;
+    overflow: auto;
+  }
+  .highlight-backdrop mark {
+    background: rgba(255, 168, 77, 0.35);
+    color: transparent;
+    border-radius: 3px;
+    padding: 1px 0;
+    box-shadow: 0 0 0 1px rgba(255, 168, 77, 0.6);
+  }
+  .test-area {
+    background: transparent;
+    color: #e8e6e3;
+    border: none;
+    overflow: auto;
+    position: absolute; inset: 0;
+    caret-color: #ffa84d;
+  }
+  .stats {
+    display: flex; gap: clamp(14px, 3vw, 26px); flex-wrap: wrap;
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    padding: 4px 4px 0;
+  }
+  .stats b {
+    color: #ffa84d;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    margin-left: 6px;
+  }
+  .quick {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .quick button {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    padding: 6px 10px; border-radius: 6px;
+    background: rgba(255, 168, 77, 0.08);
+    border: 1px solid rgba(255, 168, 77, 0.28);
+    color: #ffb970; cursor: pointer;
+    user-select: text; -webkit-user-select: text;
+  }
+  .quick button:hover { background: rgba(255, 168, 77, 0.16); }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<div class="stack">
+  <h1>Regex Lab</h1>
+
+  <div class="pattern-row">
+    <span class="slash">/</span>
+    <input id="pattern" spellcheck="false" placeholder="[a-z]+@[a-z]+\.[a-z]+" value="\b\w+@\w+\.[a-z]{2,}\b">
+    <span class="slash">/</span>
+    <input id="flags" spellcheck="false" placeholder="gi" value="gi">
+  </div>
+  <div class="error" id="error">&nbsp;</div>
+
+  <div class="quick">
+    <button data-preset="\d+">digits</button>
+    <button data-preset="\b[A-Z][a-z]+\b">Capitalised</button>
+    <button data-preset="https?://\S+">URLs</button>
+    <button data-preset="\b\w+@\w+\.[a-z]{2,}\b">emails</button>
+    <button data-preset="#[0-9a-fA-F]{3,8}\b">hex colors</button>
+    <button data-preset="[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}">emails (strict)</button>
+    <button data-preset="\b\d{4}-\d{2}-\d{2}\b">ISO dates</button>
+  </div>
+
+  <div class="highlight-wrap" id="wrap">
+    <div class="highlight-backdrop" id="backdrop"></div>
+    <textarea id="test" class="test-area" spellcheck="false" placeholder="Test text — matches highlight live as you edit either side."></textarea>
+  </div>
+
+  <div class="stats">
+    <div>Matches<b id="s-count">0</b></div>
+    <div>Groups<b id="s-groups">0</b></div>
+    <div>First<b id="s-first">—</b></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var patternEl = document.getElementById('pattern');
+  var flagsEl = document.getElementById('flags');
+  var testEl = document.getElementById('test');
+  var backdrop = document.getElementById('backdrop');
+  var errorEl = document.getElementById('error');
+  var wrap = document.getElementById('wrap');
+  var sCount = document.getElementById('s-count');
+  var sGroups = document.getElementById('s-groups');
+  var sFirst = document.getElementById('s-first');
+
+  // Sample seed text
+  testEl.value =
+    "reach me at hello@example.com or foo.bar+work@sub-domain.co.uk\n" +
+    "release: 2026-06-29  build #A17F3\n" +
+    "check https://claude.ai and http://localhost:8080 for docs\n" +
+    "colors: #fff, #06060a, #4bb4ff, and #FFA84DAA";
+
+  try {
+    var saved = JSON.parse(localStorage.getItem('regex-lab') || 'null');
+    if (saved) {
+      if (saved.pattern) patternEl.value = saved.pattern;
+      if (saved.flags != null) flagsEl.value = saved.flags;
+      if (saved.test) testEl.value = saved.test;
+    }
+  } catch (_) {}
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; });
+  }
+
+  function update() {
+    var pattern = patternEl.value;
+    var flags = flagsEl.value;
+    // Always want highlights, so add 'g' if not present
+    if (!flags.includes('g')) flags = 'g' + flags;
+    var text = testEl.value;
+    try {
+      // Validate original flags first (user-typed) so we surface invalid flag errors.
+      new RegExp(pattern, flagsEl.value);
+      var re = new RegExp(pattern, flags);
+      errorEl.textContent = '';
+      var html = '';
+      var last = 0;
+      var count = 0;
+      var groups = 0;
+      var first = null;
+      var safety = 0;
+      var m;
+      while ((m = re.exec(text)) !== null) {
+        safety++; if (safety > 5000) break;
+        // Guard against zero-length matches infinite loop
+        if (m.index === re.lastIndex) re.lastIndex++;
+        var mText = m[0];
+        html += escapeHtml(text.slice(last, m.index));
+        html += '<mark>' + escapeHtml(mText || ' ') + '</mark>';
+        last = m.index + mText.length;
+        count++;
+        if (m.length - 1 > 0) groups = Math.max(groups, m.length - 1);
+        if (first === null) first = mText;
+      }
+      html += escapeHtml(text.slice(last));
+      // A trailing space to prevent overlay clipping on trailing newline
+      backdrop.innerHTML = html + '\n';
+      sCount.textContent = count;
+      sGroups.textContent = groups;
+      sFirst.textContent = first === null ? '—' : (first.length > 30 ? first.slice(0, 27) + '…' : first);
+    } catch (err) {
+      errorEl.textContent = String(err.message || err);
+      backdrop.innerHTML = escapeHtml(text);
+      sCount.textContent = 0; sGroups.textContent = 0; sFirst.textContent = '—';
+    }
+    try {
+      localStorage.setItem('regex-lab', JSON.stringify({
+        pattern: patternEl.value, flags: flagsEl.value, test: testEl.value
+      }));
+    } catch (_) {}
+  }
+
+  // Keep backdrop scroll in sync with textarea
+  testEl.addEventListener('scroll', function () {
+    backdrop.scrollTop = testEl.scrollTop;
+    backdrop.scrollLeft = testEl.scrollLeft;
+  });
+
+  patternEl.addEventListener('input', update);
+  flagsEl.addEventListener('input', update);
+  testEl.addEventListener('input', update);
+  testEl.addEventListener('focus', function () { wrap.classList.add('is-focus'); });
+  testEl.addEventListener('blur', function () { wrap.classList.remove('is-focus'); });
+
+  document.querySelectorAll('.quick button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      patternEl.value = b.dataset.preset;
+      update();
+    });
+  });
+
+  update();
+})();
+</script>
+</body>
+</html>

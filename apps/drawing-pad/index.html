@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DRAWING PAD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  canvas {
+    display: block;
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    background: #fafaf5;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(6, 6, 10, 0.75); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(6, 6, 10, 0.2);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 20;
+  }
+  .toolbar {
+    position: fixed;
+    top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(6, 6, 10, 0.1);
+    border-radius: 999px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    z-index: 20;
+  }
+  .toolbar button {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; border-radius: 999px;
+    cursor: pointer; padding: 0;
+    color: rgba(6, 6, 10, 0.6);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 16px; font-weight: 700;
+    transition: background 140ms;
+  }
+  .toolbar button:hover { background: rgba(6, 6, 10, 0.06); color: rgba(6, 6, 10, 0.9); }
+  .toolbar button.is-active { background: rgba(6, 6, 10, 0.1); color: #06060a; }
+  .toolbar .divider { width: 1px; height: 20px; background: rgba(6, 6, 10, 0.15); margin: 0 4px; }
+  .colors {
+    display: flex; gap: 4px;
+    padding: 0 2px;
+  }
+  .colors .swatch {
+    width: 22px; height: 22px; border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 120ms, border-color 120ms;
+  }
+  .colors .swatch:hover { transform: scale(1.15); }
+  .colors .swatch.is-active { border-color: #06060a; transform: scale(1.15); }
+  .size {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 4px;
+  }
+  .size input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 80px; height: 3px;
+    background: rgba(6,6,10,0.16); border-radius: 2px; outline: none;
+  }
+  .size input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #06060a; cursor: pointer;
+  }
+  .size input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; border: none;
+    background: #06060a; cursor: pointer;
+  }
+  .hint {
+    position: fixed; bottom: 14px; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(6, 6, 10, 0.35);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<div class="toolbar">
+  <button data-tool="pen" class="is-active" type="button" aria-label="Pen">✎</button>
+  <button data-tool="marker" type="button" aria-label="Marker">▮</button>
+  <button data-tool="eraser" type="button" aria-label="Eraser">◌</button>
+  <div class="divider"></div>
+  <div class="colors" id="colors">
+    <div class="swatch is-active" style="background:#06060a" data-color="#06060a"></div>
+    <div class="swatch" style="background:#e4572e" data-color="#e4572e"></div>
+    <div class="swatch" style="background:#ffa84d" data-color="#ffa84d"></div>
+    <div class="swatch" style="background:#54e08a" data-color="#54e08a"></div>
+    <div class="swatch" style="background:#4bb4ff" data-color="#4bb4ff"></div>
+    <div class="swatch" style="background:#b86fff" data-color="#b86fff"></div>
+    <div class="swatch" style="background:#ff6bc1" data-color="#ff6bc1"></div>
+    <div class="swatch" style="background:#fafaf5; border-color: rgba(6,6,10,0.2)" data-color="#fafaf5"></div>
+  </div>
+  <div class="divider"></div>
+  <div class="size">
+    <input type="range" id="size" min="1" max="40" value="4">
+  </div>
+  <div class="divider"></div>
+  <button id="undo" type="button" aria-label="Undo">↶</button>
+  <button id="clear" type="button" aria-label="Clear">🗑</button>
+  <button id="download" type="button" aria-label="Download PNG">⇩</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<div class="hint">click and drag to draw</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    // Preserve current pixels: rasterise, resize, restore
+    var snapshot = canvas.toDataURL();
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (snapshot && snapshot.length > 60) {
+      var img = new Image();
+      img.onload = function () { ctx.drawImage(img, 0, 0, W, H); };
+      img.src = snapshot;
+    } else {
+      ctx.fillStyle = '#fafaf5';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+  window.addEventListener('resize', resize);
+  // Fill background before first paint
+  canvas.width = window.innerWidth * DPR;
+  canvas.height = window.innerHeight * DPR;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#fafaf5';
+  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  W = window.innerWidth; H = window.innerHeight;
+
+  var tool = 'pen';
+  var color = '#06060a';
+  var size = 4;
+  var drawing = false;
+  var lastX = 0, lastY = 0;
+  var strokes = []; // Stack of image data snapshots for undo
+  var MAX_UNDO = 20;
+
+  function pushUndo() {
+    try {
+      strokes.push(canvas.toDataURL());
+      if (strokes.length > MAX_UNDO) strokes.shift();
+    } catch (_) {}
+  }
+  function undo() {
+    if (!strokes.length) return;
+    var d = strokes.pop();
+    var img = new Image();
+    img.onload = function () {
+      ctx.fillStyle = '#fafaf5';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(img, 0, 0, W, H);
+    };
+    img.src = d;
+  }
+  function clearAll() {
+    pushUndo();
+    ctx.fillStyle = '#fafaf5';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function toolStrokeStyle() {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (tool === 'eraser') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = '#fafaf5';
+      ctx.lineWidth = size * 2.5;
+      ctx.globalAlpha = 1;
+    } else if (tool === 'marker') {
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size * 2;
+      ctx.globalAlpha = 0.55;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function start(x, y) {
+    drawing = true;
+    lastX = x; lastY = y;
+    pushUndo();
+    // Draw a dot at click position
+    toolStrokeStyle();
+    ctx.beginPath();
+    ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
+  }
+  function move(x, y) {
+    if (!drawing) return;
+    toolStrokeStyle();
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    lastX = x; lastY = y;
+  }
+  function end() { drawing = false; }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    var r = canvas.getBoundingClientRect();
+    start(e.clientX - r.left, e.clientY - r.top);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!drawing) return;
+    var r = canvas.getBoundingClientRect();
+    move(e.clientX - r.left, e.clientY - r.top);
+  });
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+
+  document.querySelectorAll('.toolbar [data-tool]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      tool = b.dataset.tool;
+      document.querySelectorAll('.toolbar [data-tool]').forEach(function (x) { x.classList.toggle('is-active', x === b); });
+    });
+  });
+  document.querySelectorAll('.swatch').forEach(function (s) {
+    s.addEventListener('click', function () {
+      color = s.dataset.color;
+      document.querySelectorAll('.swatch').forEach(function (x) { x.classList.toggle('is-active', x === s); });
+      // Selecting a colour auto-switches away from eraser to pen
+      if (tool === 'eraser') {
+        tool = 'pen';
+        document.querySelectorAll('.toolbar [data-tool]').forEach(function (x) {
+          x.classList.toggle('is-active', x.dataset.tool === 'pen');
+        });
+      }
+    });
+  });
+  document.getElementById('size').addEventListener('input', function (e) { size = parseInt(e.target.value, 10); });
+  document.getElementById('undo').addEventListener('click', undo);
+  document.getElementById('clear').addEventListener('click', clearAll);
+  document.getElementById('download').addEventListener('click', function () {
+    var link = document.createElement('a');
+    link.download = 'drawing.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+  window.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') { e.preventDefault(); undo(); }
+    if (e.code === 'KeyE' && !e.metaKey && !e.ctrlKey) {
+      tool = tool === 'eraser' ? 'pen' : 'eraser';
+      document.querySelectorAll('.toolbar [data-tool]').forEach(function (x) { x.classList.toggle('is-active', x.dataset.tool === tool); });
+    }
+  });
+})();
+</script>
+</body>
+</html>

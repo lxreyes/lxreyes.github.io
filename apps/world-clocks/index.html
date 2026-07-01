@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WORLD CLOCKS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -20%, rgba(255, 216, 106, 0.14), transparent 55%),
+      radial-gradient(circle at 50% 120%, rgba(75, 132, 255, 0.14), transparent 55%),
+      radial-gradient(ellipse at center, #0e0e18, #06060a 78%);
+    padding: 60px 24px 24px;
+    overflow-y: auto;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  header {
+    text-align: center; margin-bottom: 24px;
+  }
+  header h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5); margin: 0 0 4px;
+  }
+  header .sub {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.35);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    width: min(940px, 100%);
+    margin: 0 auto;
+  }
+  .clock {
+    background: rgba(20, 20, 30, 0.75);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 18px 18px 14px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 200ms;
+  }
+  .clock::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, var(--tint), transparent 55%);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+  .clock:hover { transform: translateY(-1px); }
+  .clock .row {
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative; z-index: 1;
+  }
+  .clock .name {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 12px; letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.9);
+  }
+  .clock .flag {
+    font-size: 12px;
+    color: rgba(232, 230, 227, 0.4);
+    letter-spacing: 0.08em;
+  }
+  .clock .time {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 42px; letter-spacing: -0.02em;
+    color: rgba(232, 230, 227, 0.98);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin: 12px 0 4px;
+    position: relative; z-index: 1;
+  }
+  .clock .time .ap {
+    font-size: 12px;
+    color: rgba(232, 230, 227, 0.4);
+    letter-spacing: 0.16em;
+    margin-left: 4px;
+    text-transform: uppercase;
+  }
+  .clock .meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    position: relative; z-index: 1;
+  }
+  .clock .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 9px; letter-spacing: 0.14em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+  }
+  .clock .badge.day    { color: #ffd86a; background: rgba(255, 216, 106, 0.10); }
+  .clock .badge.night  { color: #7bb6ff; background: rgba(123, 182, 255, 0.10); }
+  .clock .badge.dusk   { color: #ffa14d; background: rgba(255, 161, 77, 0.10); }
+  .clock .remove {
+    background: transparent; border: none;
+    color: rgba(232, 230, 227, 0.3);
+    font-size: 14px; cursor: pointer;
+    padding: 0 4px;
+  }
+  .clock .remove:hover { color: #ff7b7b; }
+  .add {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 18px; width: min(940px, 100%);
+    margin-left: auto; margin-right: auto;
+    padding: 14px 16px;
+    background: rgba(20, 20, 30, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+  }
+  .add select, .add input {
+    background: rgba(6, 6, 10, 0.6);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #e8e6e3;
+    padding: 10px 14px; border-radius: 10px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 13px;
+    outline: none;
+    letter-spacing: 0.05em;
+  }
+  .add select { min-width: 220px; }
+  .add input { flex: 1; min-width: 100px; }
+  .add button {
+    padding: 10px 18px; border-radius: 999px; cursor: pointer;
+    background: #ffd86a; color: #06060a; border: none;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    box-shadow: 0 6px 16px rgba(255, 216, 106, 0.35);
+  }
+  .add button:hover { background: #ffe28a; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<header>
+  <h1>World Clocks</h1>
+  <div class="sub" id="local-note"></div>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<div class="add">
+  <select id="tz-picker"></select>
+  <input id="tz-label" placeholder="Label (optional)" spellcheck="false">
+  <button id="tz-add" type="button">Add</button>
+</div>
+
+<script>
+(function () {
+  var grid = document.getElementById('grid');
+  var picker = document.getElementById('tz-picker');
+  var labelInput = document.getElementById('tz-label');
+  var localNote = document.getElementById('local-note');
+
+  var DEFAULTS = [
+    { tz: 'America/Los_Angeles', label: 'San Francisco' },
+    { tz: 'America/New_York',    label: 'New York' },
+    { tz: 'Europe/London',       label: 'London' },
+    { tz: 'Europe/Berlin',       label: 'Berlin' },
+    { tz: 'Asia/Tokyo',          label: 'Tokyo' },
+    { tz: 'Australia/Sydney',    label: 'Sydney' }
+  ];
+
+  // Common zones list — subset of IANA
+  var TZS = [
+    'Pacific/Honolulu', 'America/Anchorage',
+    'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
+    'America/Toronto', 'America/Halifax', 'America/Sao_Paulo',
+    'Atlantic/Azores', 'Europe/London', 'Europe/Dublin', 'Europe/Lisbon',
+    'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome',
+    'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Warsaw', 'Europe/Athens',
+    'Europe/Istanbul', 'Europe/Moscow',
+    'Africa/Lagos', 'Africa/Cairo', 'Africa/Johannesburg',
+    'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Kathmandu',
+    'Asia/Dhaka', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Hong_Kong',
+    'Asia/Shanghai', 'Asia/Seoul', 'Asia/Tokyo',
+    'Australia/Perth', 'Australia/Adelaide', 'Australia/Sydney',
+    'Pacific/Auckland', 'Pacific/Fiji'
+  ];
+  TZS.forEach(function (z) {
+    var o = document.createElement('option');
+    o.value = z; o.textContent = z;
+    picker.appendChild(o);
+  });
+  picker.value = 'Asia/Kolkata';
+
+  var clocks = [];
+  try { clocks = JSON.parse(localStorage.getItem('world-clocks') || 'null') || DEFAULTS.slice(); } catch (_) { clocks = DEFAULTS.slice(); }
+  function save() { try { localStorage.setItem('world-clocks', JSON.stringify(clocks)); } catch (_) {} }
+
+  function labelFor(tz) {
+    return tz.split('/').pop().replace(/_/g, ' ');
+  }
+
+  function partsFor(tz, now) {
+    // Returns hours, minutes, seconds, tz offset display, and hour24 in that zone
+    var fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      weekday: 'short', day: 'numeric', month: 'short'
+    });
+    var parts = fmt.formatToParts(now);
+    var out = { hour: 0, minute: 0, second: 0, weekday: '', day: '', month: '' };
+    parts.forEach(function (p) {
+      if (p.type === 'hour') out.hour = parseInt(p.value, 10);
+      if (p.type === 'minute') out.minute = parseInt(p.value, 10);
+      if (p.type === 'second') out.second = parseInt(p.value, 10);
+      if (p.type === 'weekday') out.weekday = p.value;
+      if (p.type === 'day') out.day = p.value;
+      if (p.type === 'month') out.month = p.value;
+    });
+    // Compute offset by comparing to UTC
+    var localMinutes = out.hour * 60 + out.minute;
+    var utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    var diff = localMinutes - utcMinutes;
+    if (diff > 720) diff -= 1440;
+    if (diff < -720) diff += 1440;
+    out.offset = diff;
+    return out;
+  }
+  function fmtOffset(mins) {
+    var sign = mins >= 0 ? '+' : '-';
+    var abs = Math.abs(mins);
+    var h = Math.floor(abs / 60);
+    var m = abs % 60;
+    return 'UTC' + sign + h + (m ? ':' + (m < 10 ? '0' + m : m) : '');
+  }
+  function partOfDay(hour) {
+    if (hour < 5) return { key: 'night', label: 'night' };
+    if (hour < 7) return { key: 'dusk', label: 'dawn' };
+    if (hour < 18) return { key: 'day', label: 'day' };
+    if (hour < 20) return { key: 'dusk', label: 'dusk' };
+    return { key: 'night', label: 'night' };
+  }
+  function tintFor(hour) {
+    // Simple palette: dawn orange, day yellow-blue, dusk pink, night deep blue
+    if (hour < 5 || hour >= 21) return 'rgba(75, 132, 255, 0.45)';
+    if (hour < 7)  return 'rgba(255, 138, 61, 0.5)';
+    if (hour < 17) return 'rgba(255, 216, 106, 0.35)';
+    if (hour < 20) return 'rgba(232, 121, 178, 0.4)';
+    return 'rgba(75, 132, 255, 0.45)';
+  }
+
+  function fmt12(h, m, s) {
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    var ap = h < 12 ? 'am' : 'pm';
+    return {
+      time: (h12 < 10 ? '0' + h12 : h12) + ':' + (m < 10 ? '0' + m : m),
+      seconds: ':' + (s < 10 ? '0' + s : s),
+      ap: ap
+    };
+  }
+
+  function render() {
+    var now = new Date();
+    grid.innerHTML = '';
+    clocks.forEach(function (c, idx) {
+      var p;
+      try { p = partsFor(c.tz, now); }
+      catch (e) { return; }
+      var tod = partOfDay(p.hour);
+      var t = fmt12(p.hour, p.minute, p.second);
+      var el = document.createElement('div');
+      el.className = 'clock';
+      el.style.setProperty('--tint', tintFor(p.hour));
+      el.innerHTML =
+        '<div class="row">' +
+          '<span class="name">' + (c.label || labelFor(c.tz)) + '</span>' +
+          '<button class="remove" data-idx="' + idx + '" aria-label="Remove">&times;</button>' +
+        '</div>' +
+        '<div class="time">' + t.time + '<span class="ap">' + t.ap + t.seconds + '</span></div>' +
+        '<div class="meta">' +
+          '<span>' + p.weekday + ' ' + p.day + ' ' + p.month + ' &middot; ' + fmtOffset(p.offset) + '</span>' +
+          '<span class="badge ' + tod.key + '">' + tod.label + '</span>' +
+        '</div>';
+      grid.appendChild(el);
+    });
+    // Local note
+    var here = Intl.DateTimeFormat().resolvedOptions().timeZone || 'your zone';
+    var offset = -now.getTimezoneOffset();
+    localNote.textContent = 'You are here: ' + here + ' (' + fmtOffset(offset) + ')';
+  }
+  render();
+  setInterval(render, 1000);
+
+  document.getElementById('tz-add').addEventListener('click', function () {
+    var tz = picker.value;
+    var label = labelInput.value.trim();
+    clocks.push({ tz: tz, label: label });
+    labelInput.value = '';
+    save(); render();
+  });
+  grid.addEventListener('click', function (e) {
+    var btn = e.target.closest('.remove');
+    if (!btn) return;
+    var i = parseInt(btn.dataset.idx, 10);
+    clocks.splice(i, 1);
+    save(); render();
+  });
+})();
+</script>
+</body>
+</html>

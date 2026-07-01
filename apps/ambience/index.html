@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AMBIENCE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(120, 180, 255, 0.14), transparent 60%),
+      radial-gradient(circle at 50% 110%, rgba(140, 100, 220, 0.10), transparent 55%),
+      radial-gradient(ellipse at center, #10121c, #06060a 78%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 32px 24px;
+    gap: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5); margin: 0;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    width: min(720px, 100%);
+  }
+  .tile {
+    aspect-ratio: 1;
+    border-radius: 20px;
+    padding: 16px;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 200ms, border-color 200ms;
+  }
+  .tile:hover { transform: translateY(-2px); }
+  .tile.is-on {
+    border-color: var(--tint);
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--tint) 25%, transparent);
+  }
+  .tile.is-on::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 65%);
+    pointer-events: none;
+  }
+  .tile .icon {
+    font-size: 40px;
+    line-height: 1;
+    color: var(--tint);
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--tint) 55%, transparent));
+    align-self: flex-start;
+    position: relative; z-index: 1;
+  }
+  .tile .name {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.9);
+    font-weight: 700;
+    position: relative; z-index: 1;
+  }
+  .tile.is-on .name { color: var(--tint); }
+  .tile input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 3px;
+    background: rgba(255,255,255,0.14); border-radius: 2px; outline: none;
+    margin-top: 8px;
+    position: relative; z-index: 1;
+    opacity: 0; transition: opacity 200ms;
+  }
+  .tile.is-on input[type="range"] { opacity: 1; }
+  .tile input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--tint); cursor: pointer;
+  }
+  .tile input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; border: none;
+    background: var(--tint); cursor: pointer;
+  }
+  .hint {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.3);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<h1>Ambience</h1>
+
+<div class="grid" id="grid"></div>
+
+<div class="hint">Tap a sound to layer it in &middot; drag the slider to mix</div>
+
+<script>
+(function () {
+  var SOUNDS = [
+    { key: 'rain',    name: 'Rain',       icon: '☔', tint: '#7bb6ff' },
+    { key: 'ocean',   name: 'Ocean',      icon: '🌊', tint: '#4fd6d6' },
+    { key: 'wind',    name: 'Wind',       icon: '🍃', tint: '#a3e4a0' },
+    { key: 'fire',    name: 'Fire',       icon: '🔥', tint: '#ff8a3d' },
+    { key: 'cafe',    name: 'Cafe',       icon: '☕', tint: '#c99a63' },
+    { key: 'thunder', name: 'Thunder',    icon: '⚡', tint: '#b78dff' },
+    { key: 'crickets',name: 'Crickets',   icon: '🌙', tint: '#dce87b' },
+    { key: 'brown',   name: 'Brown Noise', icon: '◉', tint: '#8b8b8b' }
+  ];
+
+  var audio = null;
+  var master = null;
+  var noiseBuffer = null;
+  var pinkBuffer = null;
+  function ensureAudio() {
+    if (audio) return;
+    try {
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      master = audio.createGain();
+      master.gain.value = 0.6;
+      master.connect(audio.destination);
+      // Precompute 4s of white noise for looping sources
+      var sr = audio.sampleRate;
+      noiseBuffer = audio.createBuffer(1, sr * 4, sr);
+      var d = noiseBuffer.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      // Brown noise buffer (integrated white, clamped)
+      pinkBuffer = audio.createBuffer(1, sr * 4, sr);
+      var p = pinkBuffer.getChannelData(0);
+      var last = 0;
+      for (var i = 0; i < p.length; i++) {
+        last = (last + (Math.random() * 2 - 1) * 0.02) * 0.99;
+        if (last > 1) last = 1;
+        if (last < -1) last = -1;
+        p[i] = last * 3.5;
+      }
+    } catch (e) { audio = null; }
+  }
+
+  function noiseSource(buffer) {
+    var src = audio.createBufferSource();
+    src.buffer = buffer || noiseBuffer;
+    src.loop = true;
+    return src;
+  }
+
+  // Each sound builder returns { start(), stop(), setGain(g) }
+  function buildRain() {
+    // Bright filtered noise + occasional droplets
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 2400; filt.Q.value = 0.7;
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    var dropTimer = null;
+    function tick() {
+      // Occasional droplet pings
+      var t = audio.currentTime + Math.random() * 0.15;
+      var o = audio.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 1400 + Math.random() * 900;
+      var og = audio.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(g.gain.value * 0.18, t + 0.005);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      o.connect(og).connect(master);
+      o.start(t); o.stop(t + 0.07);
+    }
+    return {
+      start: function () { src.start(); dropTimer = setInterval(tick, 220); },
+      stop: function () { try { src.stop(); } catch (e) {} clearInterval(dropTimer); },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.5, audio.currentTime, 0.05); }
+    };
+  }
+  function buildOcean() {
+    // Slow LFO-modulated low-pass noise
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 500; filt.Q.value = 0.8;
+    var lfo = audio.createOscillator();
+    var lfoGain = audio.createGain();
+    lfo.frequency.value = 0.14;
+    lfoGain.gain.value = 320;
+    lfo.connect(lfoGain).connect(filt.frequency);
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    return {
+      start: function () { src.start(); lfo.start(); },
+      stop: function () { try { src.stop(); lfo.stop(); } catch (e) {} },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.85, audio.currentTime, 0.05); }
+    };
+  }
+  function buildWind() {
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 700; filt.Q.value = 0.5;
+    var lfo = audio.createOscillator();
+    var lfoGain = audio.createGain();
+    lfo.frequency.value = 0.08;
+    lfoGain.gain.value = 400;
+    lfo.connect(lfoGain).connect(filt.frequency);
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    return {
+      start: function () { src.start(); lfo.start(); },
+      stop: function () { try { src.stop(); lfo.stop(); } catch (e) {} },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.5, audio.currentTime, 0.05); }
+    };
+  }
+  function buildFire() {
+    // Warm crackle + low pop
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 900;
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    var popTimer = null;
+    function pop() {
+      var t = audio.currentTime;
+      var o = audio.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = 60 + Math.random() * 80;
+      var og = audio.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(g.gain.value * 0.25, t + 0.005);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      o.connect(og).connect(master);
+      o.start(t); o.stop(t + 0.13);
+    }
+    return {
+      start: function () { src.start(); popTimer = setInterval(pop, 340 + Math.random() * 200); },
+      stop: function () { try { src.stop(); } catch (e) {} clearInterval(popTimer); },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.55, audio.currentTime, 0.05); }
+    };
+  }
+  function buildCafe() {
+    // Filtered noise + occasional dish clinks
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 800;
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    var clinkTimer = null;
+    function clink() {
+      var t = audio.currentTime;
+      var o = audio.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 1600 + Math.random() * 800;
+      var og = audio.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(g.gain.value * 0.10, t + 0.005);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      o.connect(og).connect(master);
+      o.start(t); o.stop(t + 0.42);
+    }
+    return {
+      start: function () { src.start(); clinkTimer = setInterval(clink, 2800 + Math.random() * 3000); },
+      stop: function () { try { src.stop(); } catch (e) {} clearInterval(clinkTimer); },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.65, audio.currentTime, 0.05); }
+    };
+  }
+  function buildThunder() {
+    // Rain-ish base + occasional rumble
+    var src = noiseSource();
+    var filt = audio.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 400;
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(filt).connect(g).connect(master);
+    var timer = null;
+    function rumble() {
+      var t = audio.currentTime;
+      var o = audio.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(50 + Math.random() * 30, t);
+      o.frequency.exponentialRampToValueAtTime(30, t + 2.4);
+      var og = audio.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(g.gain.value * 0.7, t + 0.4);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+      o.connect(og).connect(master);
+      o.start(t); o.stop(t + 3.4);
+    }
+    return {
+      start: function () { src.start(); timer = setInterval(rumble, 9000 + Math.random() * 7000); },
+      stop: function () { try { src.stop(); } catch (e) {} clearInterval(timer); },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.5, audio.currentTime, 0.05); }
+    };
+  }
+  function buildCrickets() {
+    var g = audio.createGain(); g.gain.value = 0;
+    g.connect(master);
+    var timer = null;
+    function chirp() {
+      var t = audio.currentTime;
+      for (var i = 0; i < 3; i++) {
+        var o = audio.createOscillator();
+        o.type = 'square';
+        o.frequency.value = 3800 + Math.random() * 400;
+        var og = audio.createGain();
+        var startAt = t + i * 0.09;
+        og.gain.setValueAtTime(0.0001, startAt);
+        og.gain.exponentialRampToValueAtTime(g.gain.value * 0.08, startAt + 0.008);
+        og.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.04);
+        o.connect(og).connect(master);
+        o.start(startAt); o.stop(startAt + 0.05);
+      }
+    }
+    return {
+      start: function () { timer = setInterval(chirp, 320 + Math.random() * 240); },
+      stop: function () { clearInterval(timer); },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.9, audio.currentTime, 0.05); }
+    };
+  }
+  function buildBrown() {
+    var src = noiseSource(pinkBuffer);
+    var g = audio.createGain(); g.gain.value = 0;
+    src.connect(g).connect(master);
+    return {
+      start: function () { src.start(); },
+      stop: function () { try { src.stop(); } catch (e) {} },
+      setGain: function (v) { g.gain.setTargetAtTime(v * 0.55, audio.currentTime, 0.05); }
+    };
+  }
+
+  var BUILDERS = {
+    rain: buildRain, ocean: buildOcean, wind: buildWind, fire: buildFire,
+    cafe: buildCafe, thunder: buildThunder, crickets: buildCrickets, brown: buildBrown
+  };
+  var active = {}; // key → instance
+  var gains = {}; // key → 0..1
+
+  try { gains = JSON.parse(localStorage.getItem('ambience-gains') || '{}'); } catch (_) { gains = {}; }
+
+  var grid = document.getElementById('grid');
+  SOUNDS.forEach(function (s) {
+    var tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.style.setProperty('--tint', s.tint);
+    var icon = document.createElement('div'); icon.className = 'icon'; icon.textContent = s.icon;
+    var name = document.createElement('div'); name.className = 'name'; name.textContent = s.name;
+    var slider = document.createElement('input');
+    slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = Math.round((gains[s.key] || 0.5) * 100);
+    slider.addEventListener('click', function (e) { e.stopPropagation(); });
+    slider.addEventListener('input', function () {
+      var v = parseInt(slider.value, 10) / 100;
+      gains[s.key] = v;
+      try { localStorage.setItem('ambience-gains', JSON.stringify(gains)); } catch (_) {}
+      if (active[s.key]) active[s.key].setGain(v);
+    });
+    tile.appendChild(icon);
+    tile.appendChild(name);
+    tile.appendChild(slider);
+    tile.addEventListener('click', function () {
+      ensureAudio();
+      if (!audio) return;
+      if (audio.state === 'suspended') audio.resume();
+      if (active[s.key]) {
+        active[s.key].stop();
+        delete active[s.key];
+        tile.classList.remove('is-on');
+      } else {
+        var inst = BUILDERS[s.key]();
+        inst.start();
+        inst.setGain((gains[s.key] != null ? gains[s.key] : 0.5));
+        active[s.key] = inst;
+        tile.classList.add('is-on');
+      }
+    });
+    grid.appendChild(tile);
+  });
+})();
+</script>
+</body>
+</html>

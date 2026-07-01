@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>STOPWATCH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(75, 180, 255, 0.15), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+    gap: 20px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5); margin: 0; font-weight: 500;
+  }
+  .display {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(64px, 18vw, 140px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: #4bb4ff;
+    text-shadow: 0 0 30px rgba(75, 180, 255, 0.3);
+    font-variant-numeric: tabular-nums;
+  }
+  .display .ms {
+    color: rgba(75, 180, 255, 0.55);
+    font-size: 0.5em;
+    margin-left: 6px;
+  }
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  }
+  .controls button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 13px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 14px 28px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(232, 230, 227, 0.2);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(232, 230, 227, 0.85);
+    transition: background 160ms, transform 160ms;
+  }
+  .controls button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .controls button.primary {
+    background: #4bb4ff; color: #06060a; border-color: transparent;
+    box-shadow: 0 8px 22px rgba(75, 180, 255, 0.4);
+  }
+  .laps {
+    width: min(420px, 100%);
+    max-height: 200px; overflow-y: auto;
+    margin-top: 8px;
+    padding: 10px 4px;
+  }
+  .lap {
+    display: grid; grid-template-columns: 40px 1fr 1fr;
+    gap: 12px; padding: 8px 12px;
+    border-radius: 8px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(232, 230, 227, 0.75);
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 3px;
+    align-items: center;
+    letter-spacing: 0.02em;
+  }
+  .lap .n {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+  }
+  .lap .split { color: rgba(232, 230, 227, 0.55); font-size: 12px; }
+  .lap.best { color: #78dcb4; background: rgba(120, 220, 180, 0.08); }
+  .lap.worst { color: #ff8b8b; background: rgba(255, 139, 139, 0.06); }
+  .hint {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.3);
+    margin-top: 4px;
+  }
+  .hint b { color: rgba(232, 230, 227, 0.55); font-weight: 700; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<h1>Stopwatch</h1>
+<div class="display" id="display">00:00.<span class="ms">00</span></div>
+
+<div class="controls">
+  <button id="start" class="primary" type="button">Start</button>
+  <button id="lap" type="button">Lap</button>
+  <button id="reset" type="button">Reset</button>
+</div>
+
+<div class="laps" id="laps"></div>
+
+<div class="hint"><b>Space</b> start/stop &middot; <b>L</b> lap &middot; <b>R</b> reset</div>
+
+<script>
+(function () {
+  var display = document.getElementById('display');
+  var startBtn = document.getElementById('start');
+  var lapBtn = document.getElementById('lap');
+  var resetBtn = document.getElementById('reset');
+  var lapsEl = document.getElementById('laps');
+
+  var running = false;
+  var startAt = 0;
+  var elapsed = 0; // ms
+  var lastLapAt = 0;
+  var laps = []; // {n, total, split}
+  var raf = 0;
+
+  function fmt(ms) {
+    var totalSec = Math.floor(ms / 1000);
+    var m = Math.floor(totalSec / 60);
+    var s = totalSec % 60;
+    var mm = m < 10 ? '0' + m : String(m);
+    var ss = s < 10 ? '0' + s : String(s);
+    var cs = Math.floor((ms % 1000) / 10);
+    var cc = cs < 10 ? '0' + cs : String(cs);
+    return { time: mm + ':' + ss, ms: cc };
+  }
+  function render() {
+    var f = fmt(elapsed);
+    display.innerHTML = f.time + '.<span class="ms">' + f.ms + '</span>';
+  }
+  function loop() {
+    if (!running) return;
+    elapsed = performance.now() - startAt;
+    render();
+    raf = requestAnimationFrame(loop);
+  }
+  function start() {
+    if (running) {
+      // Pause
+      running = false;
+      cancelAnimationFrame(raf);
+      startBtn.textContent = 'Start';
+    } else {
+      running = true;
+      startAt = performance.now() - elapsed;
+      startBtn.textContent = 'Pause';
+      raf = requestAnimationFrame(loop);
+    }
+  }
+  function lap() {
+    if (!running && elapsed === 0) return;
+    var split = elapsed - lastLapAt;
+    lastLapAt = elapsed;
+    laps.push({ n: laps.length + 1, total: elapsed, split: split });
+    renderLaps();
+  }
+  function reset() {
+    running = false;
+    cancelAnimationFrame(raf);
+    elapsed = 0;
+    lastLapAt = 0;
+    laps = [];
+    startBtn.textContent = 'Start';
+    render();
+    renderLaps();
+  }
+  function renderLaps() {
+    lapsEl.innerHTML = '';
+    if (!laps.length) return;
+    // Determine best/worst by split (only when 2+ laps)
+    var best = -1, worst = -1;
+    if (laps.length >= 2) {
+      var minSplit = Infinity, maxSplit = -Infinity;
+      for (var i = 0; i < laps.length; i++) {
+        if (laps[i].split < minSplit) { minSplit = laps[i].split; best = i; }
+        if (laps[i].split > maxSplit) { maxSplit = laps[i].split; worst = i; }
+      }
+    }
+    // Show newest first
+    for (var i = laps.length - 1; i >= 0; i--) {
+      var l = laps[i];
+      var f = fmt(l.total); var g = fmt(l.split);
+      var div = document.createElement('div');
+      div.className = 'lap';
+      if (i === best) div.classList.add('best');
+      else if (i === worst) div.classList.add('worst');
+      div.innerHTML = '<span class="n">Lap ' + l.n + '</span>' +
+                      '<span class="split">+' + g.time + '.' + g.ms + '</span>' +
+                      '<span>' + f.time + '.' + f.ms + '</span>';
+      lapsEl.appendChild(div);
+    }
+  }
+  render(); renderLaps();
+
+  startBtn.addEventListener('click', start);
+  lapBtn.addEventListener('click', lap);
+  resetBtn.addEventListener('click', reset);
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') { e.preventDefault(); start(); }
+    if (e.code === 'KeyL') { e.preventDefault(); lap(); }
+    if (e.code === 'KeyR') { e.preventDefault(); reset(); }
+  });
+})();
+</script>
+</body>
+</html>
