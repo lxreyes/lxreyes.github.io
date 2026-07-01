@@ -524,7 +524,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('color-match');
+    if (window.Music) Music.start('color-match', { intense: plusMode });
     score = 0;
     scoreEl.textContent = '0';
     inverted = false;

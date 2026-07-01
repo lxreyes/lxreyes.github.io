@@ -423,7 +423,7 @@
   // -------- Game flow --------
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('sudoku-mini');
+    if (window.Music) Music.start('sudoku-mini', { intense: plusMode });
     makePuzzle();
     selected.r = -1; selected.c = -1;
     startTime = Date.now();

@@ -564,7 +564,7 @@
   // -------- UI input --------
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('chess-lite');
+    if (window.Music) Music.start('chess-lite', { intense: plusMode });
     setup();
     state = 'play';
     startOverlay.classList.add('is-hidden');

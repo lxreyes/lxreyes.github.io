@@ -377,7 +377,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('ninja-run');
+    if (window.Music) Music.start('ninja-run', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

@@ -421,7 +421,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('kart-loops');
+    if (window.Music) Music.start('kart-loops', { intense: plusMode });
     engineOn();
     reset();
     state = 'play';

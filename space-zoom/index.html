@@ -352,7 +352,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('space-zoom');
+    if (window.Music) Music.start('space-zoom', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

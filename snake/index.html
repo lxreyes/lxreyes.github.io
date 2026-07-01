@@ -231,7 +231,7 @@
     beatFlashTimer = setTimeout(function () { beatFlashEl.classList.remove('is-on'); }, 700);
   }
   function start() {
-    if (window.Music) Music.start('snake');
+    if (window.Music) Music.start('snake', { intense: plusMode });
     reset(); state = 'play';
     startOverlay.classList.add('is-hidden');
     overOverlay.classList.add('is-hidden');

@@ -503,7 +503,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('block-drop');
+    if (window.Music) Music.start('block-drop', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

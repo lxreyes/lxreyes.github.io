@@ -345,7 +345,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('tower-stack');
+    if (window.Music) Music.start('tower-stack', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

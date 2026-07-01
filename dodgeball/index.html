@@ -299,7 +299,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('dodgeball');
+    if (window.Music) Music.start('dodgeball', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

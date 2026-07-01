@@ -382,7 +382,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('word-rush');
+    if (window.Music) Music.start('word-rush', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

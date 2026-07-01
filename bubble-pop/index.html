@@ -310,7 +310,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('bubble-pop');
+    if (window.Music) Music.start('bubble-pop', { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');

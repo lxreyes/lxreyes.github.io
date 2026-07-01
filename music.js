@@ -384,15 +384,36 @@
     src.stop(t + 0.04);
   }
 
+  // Intense mode — Plus-mode games pass {intense:true} to Music.start() and
+  // the scheduler leans on the preset harder: louder + brighter melody, thicker
+  // bass, kick on every quarter regardless of the pattern, snare on the back
+  // beats, and hi-hat on every off-16th. The BPM bump happens in start().
+  var intense = false;
+
   function scheduleStep(s, time) {
     if (!preset) return;
+    var melVol = preset.mel.vol * (intense ? 1.5 : 1);
+    var bsVol = preset.bs.vol * (intense ? 1.5 : 1);
     var melFreq = preset.melody && preset.melody[s];
-    if (melFreq) note(melFreq, preset.mel.dur, preset.mel.type, preset.mel.vol, time);
+    if (melFreq) note(melFreq, preset.mel.dur, preset.mel.type, melVol, time);
     var bsFreq = preset.bass && preset.bass[s];
-    if (bsFreq) note(bsFreq, preset.bs.dur, preset.bs.type, preset.bs.vol, time);
-    if (preset.kick && preset.kick[s]) kick(0.22, time);
-    if (preset.snare && preset.snare[s]) snare(0.12, time);
-    if (preset.hat && preset.hat[s]) hat(0.05, time);
+    if (bsFreq) note(bsFreq, preset.bs.dur, preset.bs.type, bsVol, time);
+    // Kicks: preset pattern OR (in intense mode) every quarter note.
+    var stepsPerBeat = Math.max(1, Math.round(preset.steps / 4));
+    var kickHit = preset.kick && preset.kick[s];
+    if (intense && s % stepsPerBeat === 0) kickHit = 1;
+    if (kickHit) kick(intense ? 0.32 : 0.22, time);
+    // Snare: preset pattern OR (in intense mode) beats 2 & 4.
+    var snareHit = preset.snare && preset.snare[s];
+    if (intense && s % (stepsPerBeat * 2) === stepsPerBeat) snareHit = 1;
+    if (snareHit) snare(intense ? 0.18 : 0.12, time);
+    // Hi-hat: preset pattern OR (in intense mode) every off-8th.
+    var hatHit = preset.hat && preset.hat[s];
+    if (intense && s % Math.max(1, Math.round(stepsPerBeat / 2)) === Math.max(1, Math.round(stepsPerBeat / 2)) / 2) {
+      // Half-step within each beat
+    }
+    if (intense && s % Math.max(1, stepsPerBeat / 2) === 0 && s % stepsPerBeat !== 0) hatHit = 1;
+    if (hatHit) hat(intense ? 0.09 : 0.05, time);
   }
 
   function scheduler() {
@@ -406,7 +427,7 @@
 
   var musicStartTime = 0;
 
-  function start(name) {
+  function start(name, opts) {
     var p = PRESETS[name];
     if (!p) return;
     ensureCtx();
@@ -415,7 +436,12 @@
       try { ctx.resume(); } catch (e) {}
     }
     preset = p;
-    stepDur = (60 / preset.bpm) / 4; // 16th notes
+    // Intense mode: pump the tempo 20% and let scheduleStep() layer in extra
+    // percussion so Plus-mode gameplay has a soundtrack that matches its
+    // energy.
+    intense = !!(opts && opts.intense);
+    var effectiveBpm = preset.bpm * (intense ? 1.2 : 1);
+    stepDur = (60 / effectiveBpm) / 4; // 16th notes
     step = 0;
     nextNoteTime = ctx.currentTime + 0.05;
     musicStartTime = nextNoteTime;
@@ -424,10 +450,23 @@
     timer = setInterval(scheduler, 25);
   }
 
+  // Toggle intensity without restarting the track — useful for games that flip
+  // Plus mode mid-play.
+  function setIntense(on) {
+    if (!preset) { intense = !!on; return; }
+    intense = !!on;
+    var effectiveBpm = preset.bpm * (intense ? 1.2 : 1);
+    stepDur = (60 / effectiveBpm) / 4;
+  }
+
+  function effectiveBpm() {
+    return preset ? preset.bpm * (intense ? 1.2 : 1) : 0;
+  }
+
   // Returns position within the current beat (0..1). -1 if music hasn't started.
   function beatPhase() {
     if (!preset || !ctx) return -1;
-    var beatDur = 60 / preset.bpm;
+    var beatDur = 60 / effectiveBpm();
     var t = ((ctx.currentTime - musicStartTime) % beatDur + beatDur) % beatDur;
     return t / beatDur;
   }
@@ -436,7 +475,7 @@
   // Returns 0..1 across the whole bar; the start of the bar (downbeat) is at 0.
   function measurePhase() {
     if (!preset || !ctx) return -1;
-    var barDur = (60 / preset.bpm) * (preset.steps / 4); // steps/4 beats per bar
+    var barDur = (60 / effectiveBpm()) * (preset.steps / 4);
     var t = ((ctx.currentTime - musicStartTime) % barDur + barDur) % barDur;
     return t / barDur;
   }
@@ -447,7 +486,7 @@
   function isOnDownbeat(toleranceMs) {
     var p = measurePhase();
     if (p < 0 || !preset) return false;
-    var barDur = (60 / preset.bpm) * (preset.steps / 4);
+    var barDur = (60 / effectiveBpm()) * (preset.steps / 4);
     var tol = ((toleranceMs || 120) / 1000) / barDur;
     // Near 0 (downbeat) or near 0.5 (halfway through the bar)
     return p < tol || p > 1 - tol || Math.abs(p - 0.5) < tol;
@@ -457,7 +496,7 @@
   function isOnBeat(toleranceMs) {
     var p = beatPhase();
     if (p < 0 || !preset) return false;
-    var beatDur = 60 / preset.bpm;
+    var beatDur = 60 / effectiveBpm();
     var tol = ((toleranceMs || 120) / 1000) / beatDur;
     return p < tol || p > 1 - tol;
   }

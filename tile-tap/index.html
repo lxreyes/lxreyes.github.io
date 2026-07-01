@@ -147,11 +147,11 @@
   }
   .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
   .mute.is-muted { opacity: 0.4; }
-  /* Music picker — sits under the mute button */
+  /* Music picker — sits under the Plus toggle so it doesn't overlap */
   .music-pick {
     position: fixed;
-    top: 16px;
-    right: 60px;
+    top: 96px;
+    right: 16px;
     padding: 6px 32px 6px 14px;
     background: rgba(6, 6, 10, 0.55);
     border: 1px solid rgba(255, 107, 157, 0.32);
@@ -176,7 +176,7 @@
   }
   .music-pick:hover { border-color: rgba(255, 107, 157, 0.55); color: #fff; }
   @media (max-width: 500px) {
-    .music-pick { top: 56px; right: 16px; }
+    .music-pick { top: 96px; right: 16px; }
   }
 </style>
 <script src="../music.js" defer></script>
@@ -184,6 +184,9 @@
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <select class="music-pick" id="music-pick" aria-label="Track"></select>
 <canvas id="c"></canvas>
 <div class="hud">
@@ -312,7 +315,7 @@
 
   function start() {
     ensureAudio();
-    if (window.Music) Music.start(currentTrack);
+    if (window.Music) Music.start(currentTrack, { intense: plusMode });
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');
@@ -676,7 +679,7 @@
       try { localStorage.setItem('tile-tap-track', currentTrack); } catch (_) {}
       // Swap the music immediately if we're mid-game (or on the start screen
       // with music already going).
-      if (window.Music) window.Music.start(currentTrack);
+      if (window.Music) window.Music.start(currentTrack, { intense: plusMode });
       // Reset the beat-phase tracker so the next spawn lines up cleanly with
       // the new track's downbeat.
       prevBeatPhase = 0.5;
