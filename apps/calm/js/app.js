@@ -118,12 +118,38 @@
       });
       list.appendChild(b);
     });
-    // "Save current" tile
+    // "New playlist" tile — opens the full editor
+    const create = document.createElement("button");
+    create.className = "pl-chip pl-save";
+    create.innerHTML = `<span class="pl-icon">＋</span><span class="pl-name">New playlist</span>`;
+    create.addEventListener("click", function () { openEditor(null); });
+    list.appendChild(create);
+    // "Save current mix" — quick capture of what's playing
     const save = document.createElement("button");
     save.className = "pl-chip pl-save";
-    save.innerHTML = `<span class="pl-icon">＋</span><span class="pl-name">Save current mix</span>`;
+    save.innerHTML = `<span class="pl-icon">✎</span><span class="pl-name">Save current mix</span>`;
     save.addEventListener("click", saveCurrentMix);
     list.appendChild(save);
+    // Edit handles on custom chips (click on the icon to edit)
+    list.querySelectorAll(".pl-chip.is-custom").forEach(function (chip) {
+      // Right-clicking or long-pressing isn't discoverable — add a subtle
+      // "edit" pencil that appears on hover next to the count.
+      const pid = chip.dataset.pid;
+      const storageId = pid.replace(/^custom-/, "");
+      const editBtn = document.createElement("span");
+      editBtn.className = "pl-edit";
+      editBtn.textContent = "✎";
+      editBtn.setAttribute("aria-label", "Edit");
+      editBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const found = customPlaylists.find(function (p) { return p.id === storageId; });
+        if (found) openEditor(found);
+      });
+      // Insert before the remove handle
+      const remove = chip.querySelector(".pl-remove");
+      if (remove) chip.insertBefore(editBtn, remove);
+      else chip.appendChild(editBtn);
+    });
     refreshCards();
   }
 
@@ -262,9 +288,156 @@
     $("playToggle").querySelector(".i-pause").hidden = !playing;
   }
 
+  // ---------- Custom playlist editor ----------
+  // Opens the modal for a new playlist (existing == null) or edits an existing
+  // custom playlist (existing == { id, name, layers, scene? }).
+  let editingId = null;                  // null when creating
+  let editState = new Map();             // id -> gain (only present when checked)
+  let previewingEdit = false;
+
+  function openEditor(existing) {
+    editingId = existing ? existing.id : null;
+    editState = new Map();
+    if (existing) {
+      existing.layers.forEach(function (l) { editState.set(l.id, l.gain != null ? l.gain : 1); });
+    }
+    $("plModalTitle").textContent = existing ? "Edit playlist" : "New playlist";
+    $("plName").value = existing ? existing.name : "";
+    renderEditorLayers();
+    const modal = $("plModal");
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    setTimeout(function () { $("plName").focus(); }, 20);
+  }
+  function closeEditor() {
+    // Stop preview mix if it's still running
+    if (previewingEdit) {
+      AudioEngine.pause();
+      previewingEdit = false;
+      $("plPreview").textContent = "Preview";
+    }
+    const modal = $("plModal");
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    editingId = null;
+    editState = new Map();
+  }
+
+  function renderEditorLayers() {
+    const wrap = $("plLayers");
+    wrap.innerHTML = "";
+    SOUNDSCAPES.forEach(function (s) {
+      const active = editState.has(s.id);
+      const gain = editState.has(s.id) ? editState.get(s.id) : 1;
+      const row = document.createElement("div");
+      row.className = "pl-layer" + (active ? " is-on" : "");
+      row.innerHTML =
+        `<button class="pl-layer-toggle" data-id="${s.id}" aria-pressed="${active ? "true" : "false"}">
+           <span class="pl-layer-check">${active ? "✓" : ""}</span>
+           <span class="pl-layer-icon">${s.icon}</span>
+           <span class="pl-layer-name">${s.name}</span>
+         </button>
+         <input class="pl-layer-gain" type="range" min="0" max="100" value="${Math.round(gain * 100)}" data-id="${s.id}" ${active ? "" : "disabled"} aria-label="${s.name} volume">
+         <span class="pl-layer-gain-val" data-id="${s.id}">${Math.round(gain * 100)}%</span>`;
+      wrap.appendChild(row);
+    });
+    // Wire toggles + sliders
+    wrap.querySelectorAll(".pl-layer-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const id = btn.dataset.id;
+        if (editState.has(id)) editState.delete(id);
+        else editState.set(id, 1);
+        renderEditorLayers();
+        if (previewingEdit) refreshPreview();
+      });
+    });
+    wrap.querySelectorAll(".pl-layer-gain").forEach(function (slider) {
+      slider.addEventListener("input", function () {
+        const id = slider.dataset.id;
+        const v = parseInt(slider.value, 10) / 100;
+        editState.set(id, v);
+        const label = wrap.querySelector('.pl-layer-gain-val[data-id="' + id + '"]');
+        if (label) label.textContent = Math.round(v * 100) + "%";
+        if (previewingEdit) refreshPreview();
+      });
+    });
+  }
+
+  function currentEditorLayers() {
+    const list = [];
+    editState.forEach(function (gain, id) { list.push({ id: id, gain: gain }); });
+    return list;
+  }
+
+  function refreshPreview() {
+    const list = currentEditorLayers();
+    if (list.length === 0) {
+      AudioEngine.pause();
+      return;
+    }
+    AudioEngine.setLayers(list);
+    setPlayingUI(true);
+  }
+  function togglePreview() {
+    const list = currentEditorLayers();
+    if (list.length === 0) return;
+    if (previewingEdit) {
+      AudioEngine.pause();
+      previewingEdit = false;
+      $("plPreview").textContent = "Preview";
+      setPlayingUI(false);
+    } else {
+      previewingEdit = true;
+      $("plPreview").textContent = "Stop preview";
+      // Show a scene appropriate to the last-added layer
+      const lastId = list[list.length - 1].id;
+      PixelScene.set(lastId);
+      setNowPlaying("🎧", "Preview · " + list.length + (list.length === 1 ? " layer" : " layers"));
+      refreshPreview();
+    }
+  }
+  function saveFromEditor() {
+    const name = ($("plName").value || "").trim();
+    if (!name) { $("plName").focus(); return; }
+    const layers = currentEditorLayers();
+    if (layers.length === 0) {
+      $("plPreviewHint").textContent = "Pick at least one soundscape to save";
+      return;
+    }
+    if (editingId) {
+      const idx = customPlaylists.findIndex(function (p) { return p.id === editingId; });
+      if (idx >= 0) {
+        customPlaylists[idx].name = name.slice(0, 32);
+        customPlaylists[idx].layers = layers;
+        customPlaylists[idx].scene = layers[layers.length - 1].id;
+      }
+    } else {
+      customPlaylists.push({
+        id: String(Date.now()).slice(-8),
+        name: name.slice(0, 32),
+        layers: layers,
+        scene: layers[layers.length - 1].id
+      });
+    }
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customPlaylists)); } catch (_) {}
+    closeEditor();
+    renderPlaylistBar();
+  }
+
+  function wireEditor() {
+    document.querySelectorAll("#plModal [data-close]").forEach(function (el) {
+      el.addEventListener("click", closeEditor);
+    });
+    $("plSave").addEventListener("click", saveFromEditor);
+    $("plPreview").addEventListener("click", togglePreview);
+    document.addEventListener("keydown", function (e) {
+      if (!$("plModal").hidden && e.code === "Escape") closeEditor();
+    });
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", function () { init(); wireEditor(); });
   } else {
-    init();
+    init(); wireEditor();
   }
 })();

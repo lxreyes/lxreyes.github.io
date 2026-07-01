@@ -46,6 +46,31 @@
     <p>every sound is synthesized live in your browser — no audio files, no tracking. just noise.</p>
   </footer>
 
+  <!-- Custom playlist editor -->
+  <div class="pl-modal" id="plModal" hidden aria-hidden="true">
+    <div class="pl-modal-scrim" data-close></div>
+    <div class="pl-modal-panel" role="dialog" aria-label="Playlist editor">
+      <div class="pl-modal-head">
+        <h2 id="plModalTitle">New playlist</h2>
+        <button class="pl-modal-close" data-close aria-label="Close">×</button>
+      </div>
+      <label class="pl-field">
+        <span class="pl-field-label">Name</span>
+        <input type="text" id="plName" maxlength="32" placeholder="e.g. Late-night writing" />
+      </label>
+      <div class="pl-field-label">Layers &middot; drag to adjust volume</div>
+      <div class="pl-layers" id="plLayers"></div>
+      <div class="pl-preview-row">
+        <button class="pl-preview" id="plPreview" type="button">Preview</button>
+        <span class="pl-preview-hint" id="plPreviewHint">Try before you save</span>
+      </div>
+      <div class="pl-modal-actions">
+        <button class="pl-secondary" data-close>Cancel</button>
+        <button class="pl-primary" id="plSave" type="button">Save playlist</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/visuals.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/app.js"></script>
