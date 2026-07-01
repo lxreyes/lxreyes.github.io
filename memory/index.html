@@ -98,10 +98,14 @@
   var newBtn = document.getElementById('new');
   var muteBtn = document.getElementById('mute');
 
-  // Plus mode: 6×4 grid (12 pairs) instead of the classic 4×4 (8 pairs)
+  // Plus mode features:
+  //   1) 6×4 grid (12 pairs) instead of the classic 4×4 (8 pairs).
+  //   2) Mismatched pairs re-hide almost twice as fast (400ms vs 700ms) so
+  //      you get less time to memorise wrong picks.
   var SYMBOLS = ['🍎','🍌','🍇','🍓','🥝','🍑','🍊','🥑'];
   var SYMBOLS_PLUS = SYMBOLS.concat(['🍒','🥭','🥥','🍍']);
   function activeSymbols() { return window.plusMode ? SYMBOLS_PLUS : SYMBOLS; }
+  function mismatchDelay() { return window.plusMode ? 400 : 700; }
   var deck = [];
   var first = null;
   var lock = false;
@@ -164,7 +168,7 @@
         gridEl.querySelector('[data-i="' + f.idx + '"]').classList.remove('is-flipped');
         secondEl.classList.remove('is-flipped');
         first = null; lock = false;
-      }, 700);
+      }, mismatchDelay());
     }
   }
 

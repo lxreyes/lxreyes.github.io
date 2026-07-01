@@ -1744,7 +1744,9 @@ function getArmorDefense() {
 function damagePlayer(amount) {
   if (dead || gameMode !== 'survival') return;
   const def = getArmorDefense();
-  const taken = Math.max(1, amount - def);
+  // Plus mode: incoming damage scales 1.5× (armor still helps first).
+  const scaled = window.plusMode ? amount * 1.5 : amount;
+  const taken = Math.max(1, Math.round(scaled) - def);
   playerHP = Math.max(0, playerHP - taken);
   lastHurt = performance.now();
   sfx.playerHurt();

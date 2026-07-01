@@ -221,15 +221,40 @@
         board[r][c] = 2; finishMove(r, c); return;
       }
     }
-    // Score each move and pick best
-    var bestC = 3, bestS = -Infinity;
-    var order = [3, 4, 2, 5, 1, 6, 0];
+    // Score each move and pick best.
+    // Plus mode: 3-ply lookahead — AI weighs its move against the player's
+    // best reply and its own best follow-up. Center-first move order gives
+    // alpha-beta something to work with.
+    var mid = Math.floor(COLS / 2);
+    var order = [];
+    for (var oi = 0; oi < COLS; oi++) order.push(mid + (oi % 2 === 0 ? oi / 2 : -Math.ceil(oi / 2)));
+    order = order.filter(function (c) { return c >= 0 && c < COLS; });
+
+    var bestC = mid, bestS = -Infinity;
+    var plus = !!window.plusMode;
     for (var i = 0; i < order.length; i++) {
       var c = order[i];
       var r = dropRow(board, c);
       if (r === -1) continue;
       board[r][c] = 2;
-      var s = score(board, 2);
+      var s;
+      if (plus) {
+        // What's the best score the player can reply with?
+        var worstReply = Infinity;
+        for (var pc = 0; pc < COLS; pc++) {
+          var pr = dropRow(board, pc);
+          if (pr === -1) continue;
+          board[pr][pc] = 1;
+          var pS;
+          if (checkWin(board, 1)) pS = -1e6; // player would win here — bad for AI
+          else pS = -score(board, 1);
+          board[pr][pc] = 0;
+          if (pS < worstReply) worstReply = pS;
+        }
+        s = score(board, 2) + (worstReply === Infinity ? 0 : worstReply);
+      } else {
+        s = score(board, 2);
+      }
       board[r][c] = 0;
       if (s > bestS) { bestS = s; bestC = c; }
     }

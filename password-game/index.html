@@ -303,13 +303,16 @@
     // Determine how many rules to show:
     // Show first N+1 where N = number of consecutive passing rules from the top.
     // Already-shown rules stay shown.
+    // Plus mode: TWO new rules unlock per pass instead of one — rules pile
+    // on twice as fast.
     var shown = unlocked;
     while (shown < RULES.length) {
       var ok = true;
       for (var j = 0; j < shown; j++) if (!RULES[j].test(pwd)) { ok = false; break; }
       if (!ok) break;
-      shown++;
+      shown += window.plusMode ? 2 : 1;
     }
+    if (shown > RULES.length) shown = RULES.length;
     if (shown > unlocked) unlocked = shown;
 
     var passing = 0;
