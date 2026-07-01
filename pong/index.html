@@ -42,10 +42,27 @@
   button:hover { background: #b3e8f4; }
   .hint { color: rgba(232,230,227,0.42); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; margin-top: 18px; }
   .hint b { color: rgba(232,230,227,0.72); font-weight: 700; }
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 15; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #41d6ff; border-color: rgba(65, 214, 255,0.5); background: rgba(65, 214, 255,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #41d6ff; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
 <canvas id="c"></canvas>
@@ -95,7 +112,8 @@
     courtH = Math.min(560, H - 160);
     courtX = Math.floor((W - courtW) / 2);
     courtY = Math.max(80, Math.floor((H - courtH) / 2));
-    paddleH = Math.floor(courtH * 0.18);
+    // Plus mode: smaller paddle for a harder game.
+    paddleH = Math.floor(courtH * (window.plusMode ? 0.11 : 0.18));
     paddleW = 10;
     if (!p1) {
       p1 = { y: courtY + (courtH - paddleH) / 2, target: courtY + (courtH - paddleH) / 2 };
@@ -104,6 +122,7 @@
     }
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('plusmode', function () { resize(); });
   resize();
 
   function reset() {
@@ -115,7 +134,8 @@
     metaEl.textContent = 'first to ' + TARGET + ' wins';
   }
   function serveBall(dir) {
-    ballSpeed = 6;
+    // Plus mode starts hotter — faster serve.
+    ballSpeed = window.plusMode ? 8.5 : 6;
     ball.x = courtX + courtW/2; ball.y = courtY + courtH/2;
     var a = (Math.random() - 0.5) * 0.6;
     ball.vx = Math.cos(a) * ballSpeed * dir;
@@ -181,7 +201,7 @@
         ball.x - 8 > courtX + 24 - 10 &&
         ball.y > p1.y && ball.y < p1.y + paddleH) {
       ball.x = courtX + 24 + paddleW + 8;
-      ballSpeed = Math.min(14, ballSpeed * 1.05);
+      ballSpeed = Math.min(window.plusMode ? 17 : 14, ballSpeed * 1.05);
       var rel = ((ball.y - p1.y) / paddleH - 0.5) * 1.6;
       var nm = Math.sqrt(1 + rel*rel);
       ball.vx = Math.abs(ballSpeed / nm);
@@ -191,7 +211,7 @@
         ball.x + 8 < courtX + courtW - 24 + 10 &&
         ball.y > p2.y && ball.y < p2.y + paddleH) {
       ball.x = courtX + courtW - 24 - paddleW - 8;
-      ballSpeed = Math.min(14, ballSpeed * 1.05);
+      ballSpeed = Math.min(window.plusMode ? 17 : 14, ballSpeed * 1.05);
       var rel = ((ball.y - p2.y) / paddleH - 0.5) * 1.6;
       var nm = Math.sqrt(1 + rel*rel);
       ball.vx = -Math.abs(ballSpeed / nm);
@@ -230,6 +250,26 @@
 
   function loop() { update(); render(); requestAnimationFrame(loop); }
   loop();
+})();
+</script>
+<script>
+(function () {
+  var toggle = document.getElementById('plus-toggle');
+  if (!toggle) return;
+  var plus = false;
+  try { plus = localStorage.getItem('pong-plus') === '1'; } catch (_) {}
+  window.plusMode = plus;
+  toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+  document.body.classList.toggle('is-plus', plus);
+  window.dispatchEvent(new CustomEvent('plusready', { detail: { plus: plus } }));
+  toggle.addEventListener('click', function () {
+    plus = !plus;
+    window.plusMode = plus;
+    try { localStorage.setItem('pong-plus', plus ? '1' : '0'); } catch (_) {}
+    toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+    document.body.classList.toggle('is-plus', plus);
+    window.dispatchEvent(new CustomEvent('plusmode', { detail: { plus: plus } }));
+  });
 })();
 </script>
 </body>

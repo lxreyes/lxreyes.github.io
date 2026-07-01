@@ -32,6 +32,7 @@
     text-transform: uppercase; color: rgba(232,230,227,0.5); }
   .stats b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
+  body.is-plus .grid { grid-template-columns: repeat(6, 1fr); }
   .card { aspect-ratio: 3 / 4; position: relative; perspective: 600px; cursor: pointer; }
   .face { position: absolute; inset: 0; border-radius: 12px; display: flex; align-items: center;
     justify-content: center; font-size: clamp(28px, 8vw, 44px); transition: transform 320ms cubic-bezier(0.2,0.7,0.2,1);
@@ -51,10 +52,27 @@
   .win h2 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 20px; margin: 0 0 6px; color: #ff8a80; }
   .win p { color: rgba(232,230,227,0.72); font-size: 13px; margin: 0; }
   .win[hidden] { display: none; }
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 15; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #c48fff; border-color: rgba(196, 143, 255,0.5); background: rgba(196, 143, 255,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #c48fff; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
 <div class="wrap">
@@ -80,7 +98,10 @@
   var newBtn = document.getElementById('new');
   var muteBtn = document.getElementById('mute');
 
+  // Plus mode: 6×4 grid (12 pairs) instead of the classic 4×4 (8 pairs)
   var SYMBOLS = ['🍎','🍌','🍇','🍓','🥝','🍑','🍊','🥑'];
+  var SYMBOLS_PLUS = SYMBOLS.concat(['🍒','🥭','🥥','🍍']);
+  function activeSymbols() { return window.plusMode ? SYMBOLS_PLUS : SYMBOLS; }
   var deck = [];
   var first = null;
   var lock = false;
@@ -95,7 +116,7 @@
   function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random()*(i+1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 
   function deal() {
-    var pairs = SYMBOLS.slice();
+    var pairs = activeSymbols().slice();
     deck = shuffle(pairs.concat(pairs).map(function (s, i) { return { id: i, sym: s, flipped: false, matched: false }; }));
     moves = 0; matches = 0; first = null; lock = false; startedAt = Date.now();
     movesEl.textContent = '0'; timeEl.textContent = '0:00';
@@ -134,7 +155,7 @@
       this.classList.add('is-matched');
       first = null;
       matches++;
-      if (matches === SYMBOLS.length) winGame();
+      if (matches === activeSymbols().length) winGame();
     } else {
       lock = true;
       var f = first, secondEl = this;
@@ -166,11 +187,33 @@
   }, 500);
 
   newBtn.addEventListener('click', deal);
+  // Re-deal when the player flips Plus so the new grid size takes effect.
+  window.addEventListener('plusmode', function () { deal(); });
   if (muteBtn) {
     if (window.Music && Music.isMuted()) muteBtn.classList.add('is-muted');
     muteBtn.addEventListener('click', function () { if (window.Music) Music.toggle(); muteBtn.classList.toggle('is-muted'); });
   }
   deal();
+})();
+</script>
+<script>
+(function () {
+  var toggle = document.getElementById('plus-toggle');
+  if (!toggle) return;
+  var plus = false;
+  try { plus = localStorage.getItem('memory-plus') === '1'; } catch (_) {}
+  window.plusMode = plus;
+  toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+  document.body.classList.toggle('is-plus', plus);
+  window.dispatchEvent(new CustomEvent('plusready', { detail: { plus: plus } }));
+  toggle.addEventListener('click', function () {
+    plus = !plus;
+    window.plusMode = plus;
+    try { localStorage.setItem('memory-plus', plus ? '1' : '0'); } catch (_) {}
+    toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+    document.body.classList.toggle('is-plus', plus);
+    window.dispatchEvent(new CustomEvent('plusmode', { detail: { plus: plus } }));
+  });
 })();
 </script>
 </body>

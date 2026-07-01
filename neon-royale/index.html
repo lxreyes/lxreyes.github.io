@@ -5,8 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Arena — Team Deathmatch</title>
   <link rel="stylesheet" href="style.css" />
+<style>
+  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
+    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
+    cursor: pointer; z-index: 15; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
+  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
+    position: relative; transition: background 220ms; flex-shrink: 0; }
+  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .plus-toggle[aria-pressed="true"] { color: #00e5ff; border-color: rgba(0, 229, 255,0.5); background: rgba(0, 229, 255,0.10); }
+  .plus-toggle[aria-pressed="true"] .plus-dot { background: #00e5ff; }
+  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
+</style>
 </head>
 <body>
+<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
+  <span class="plus-dot"></span>Plus
+</button>
   <!-- The renderer's <canvas> is injected here by main.js -->
   <div id="game"></div>
 
@@ -179,5 +198,25 @@
   <script src="js/minimap.js"></script>
   <script src="js/debug.js"></script>
   <script src="js/main.js"></script>
+<script>
+(function () {
+  var toggle = document.getElementById('plus-toggle');
+  if (!toggle) return;
+  var plus = false;
+  try { plus = localStorage.getItem('nr-plus') === '1'; } catch (_) {}
+  window.plusMode = plus;
+  toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+  document.body.classList.toggle('is-plus', plus);
+  window.dispatchEvent(new CustomEvent('plusready', { detail: { plus: plus } }));
+  toggle.addEventListener('click', function () {
+    plus = !plus;
+    window.plusMode = plus;
+    try { localStorage.setItem('nr-plus', plus ? '1' : '0'); } catch (_) {}
+    toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
+    document.body.classList.toggle('is-plus', plus);
+    window.dispatchEvent(new CustomEvent('plusmode', { detail: { plus: plus } }));
+  });
+})();
+</script>
 </body>
 </html>
