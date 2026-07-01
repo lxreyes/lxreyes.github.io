@@ -95,7 +95,9 @@
   var retryBtn = document.getElementById('retry-btn');
   var muteBtn = document.getElementById('mute');
 
-  var COLS = 7, ROWS = 6;
+  // Plus mode: bigger 8×7 board (was 7×6).
+  var COLS = window.plusMode ? 8 : 7;
+  var ROWS = window.plusMode ? 7 : 6;
   var W = 0, H = 0, cell = 0, bx = 0, by = 0;
   var board = null; // 0 empty, 1 red (player), 2 yellow (AI)
   var turn = 1;
@@ -115,11 +117,17 @@
     by = Math.max(80, Math.floor((H - cell * (ROWS + 1)) / 2) + cell);
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('plusmode', function () {
+    COLS = window.plusMode ? 8 : 7;
+    ROWS = window.plusMode ? 7 : 6;
+    resize();
+    reset();
+  });
   resize();
 
   function reset() {
     board = [];
-    for (var r = 0; r < ROWS; r++) board.push([0,0,0,0,0,0,0]);
+    for (var r = 0; r < ROWS; r++) { var row = []; for (var c = 0; c < COLS; c++) row.push(0); board.push(row); }
     turn = 1;
     state = 'play';
     winningLine = null;

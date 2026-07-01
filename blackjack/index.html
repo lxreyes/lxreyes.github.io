@@ -253,12 +253,20 @@
     var pv = handValue(player), dv = handValue(dealer);
     var msg, cls;
     var payout = 0;
+    // Plus mode: doubled payouts + 5-card Charlie rule (5 cards without
+    // busting is an auto-win at 2:1)
+    var isPlus = !!window.plusMode;
+    var mult = isPlus ? 2 : 1;
     if (pv > 21) { msg = 'You bust. Dealer wins.'; cls = 'lose'; }
     else if (pv === 21 && player.length === 2 && !(dv === 21 && dealer.length === 2)) {
-      msg = 'Blackjack! 3:2 payout.'; cls = 'win'; payout = Math.floor(bet * 2.5); wins++;
+      msg = 'Blackjack! ' + (isPlus ? '2:1 Plus' : '3:2') + ' payout.'; cls = 'win';
+      payout = isPlus ? bet * 3 : Math.floor(bet * 2.5); wins++;
     }
-    else if (dv > 21) { msg = 'Dealer busts. You win.'; cls = 'win'; payout = bet * 2; wins++; }
-    else if (pv > dv) { msg = 'You win ' + pv + ' vs ' + dv + '.'; cls = 'win'; payout = bet * 2; wins++; }
+    else if (isPlus && player.length >= 5 && pv <= 21) {
+      msg = '5-card Charlie! Plus 2:1.'; cls = 'win'; payout = bet * 3; wins++;
+    }
+    else if (dv > 21) { msg = 'Dealer busts. You win.'; cls = 'win'; payout = bet * (1 + mult); wins++; }
+    else if (pv > dv) { msg = 'You win ' + pv + ' vs ' + dv + '.'; cls = 'win'; payout = bet * (1 + mult); wins++; }
     else if (pv < dv) { msg = 'Dealer wins ' + dv + ' vs ' + pv + '.'; cls = 'lose'; }
     else { msg = 'Push — both ' + pv + '.'; cls = 'push'; payout = bet; }
     chips += payout;

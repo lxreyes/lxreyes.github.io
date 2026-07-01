@@ -491,7 +491,9 @@
     enemyTimer-=dt;
     if(enemyTimer<=0){
       spawnEnemy();
-      const interval=Math.max(ENEMY_MIN_INTERVAL, ENEMY_BASE_INTERVAL - elapsed*0.02);
+      // Plus mode: 1.6× spawn rate + double-spawn 30% of the time.
+      let interval=Math.max(ENEMY_MIN_INTERVAL, ENEMY_BASE_INTERVAL - elapsed*0.02);
+      if (window.plusMode) { interval /= 1.6; if (Math.random() < 0.3) spawnEnemy(); }
       enemyTimer=interval;
     }
 

@@ -242,7 +242,8 @@
     canvas.width = W;
     canvas.height = H;
     // Pick a cell size that gives ~64 cells wide
-    cell = Math.max(8, Math.floor(W / 64));
+    // Plus mode: denser grid (more cells fit) by using a smaller cell size.
+    cell = Math.max(6, Math.floor(W / (window.plusMode ? 96 : 64)));
     cols = Math.floor(W / cell);
     rows = Math.floor(H / cell);
     var newGrid = makeGrid(cols, rows);
@@ -480,8 +481,9 @@
 
   function loop(t) {
     if (running) {
-      // Speed = ticks per second. Convert to ms between ticks.
-      var msPerTick = 1000 / speed;
+      // Plus mode: run 2× faster. Speed = ticks per second.
+      var effSpeed = speed * (window.plusMode ? 2 : 1);
+      var msPerTick = 1000 / effSpeed;
       if (t - lastTick >= msPerTick) {
         step();
         lastTick = t;

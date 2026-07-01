@@ -458,8 +458,12 @@
     updateAxes();
 
     // ---- longitudinal dynamics (scalar speed along the heading) ----
-    const thrust = state.throttle * MAX_THRUST;
-    const drag = DRAG_Q * state.speed * state.speed + DRAG_L * state.speed;
+    // Plus mode: reduce max thrust + increase drag so the plane handles like
+    // a heavy transport instead of a nimble trainer.
+    const plusThrottle = window.plusMode ? 0.78 : 1;
+    const plusDrag     = window.plusMode ? 1.6  : 1;
+    const thrust = state.throttle * MAX_THRUST * plusThrottle;
+    const drag = (DRAG_Q * state.speed * state.speed + DRAG_L * state.speed) * plusDrag;
     state.speed += (thrust - drag - GRAVITY * fwd.y) * dt;   // climbing bleeds speed, diving builds it
     if (state.onGround && keys[' ']) state.speed = Math.max(0, state.speed - 30 * dt); // brakes
     state.speed = Math.max(0, state.speed);
