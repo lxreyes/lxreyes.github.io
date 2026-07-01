@@ -260,7 +260,7 @@
     // ------- Cabin -------
     var L = cabinLayout();
     drawCabin(L, now);
-    drawDudeInWindow(L, now);
+    drawSlimeOnStep(L, now);
 
     // ------- Snowflakes (in front of cabin) -------
     for (var i = 0; i < flakes.length; i++) {
@@ -409,77 +409,177 @@
     ctx.fillRect(wx - ww, wy - wh, ww * 3, wh * 3);
   }
 
-  function drawDudeInWindow(L, now) {
-    // Little dude peers through the LEFT window.
+  function drawSlimeOnStep(L, now) {
+    // Little orange slime sits in the snow on the doorstep. Bundled up in a
+    // long striped scarf that wraps around him and trails onto the snow.
     var w = L.cabinW, h = L.cabinH;
-    var wx = L.cabinX + w * 0.18;
-    var wy = L.cabinY + h * 0.3 + h * 0.25;
-    var ww = w * 0.22, wh = h * 0.30;
-    var cx = wx + ww / 2, cy = wy + wh * 0.58;
-    var scale = L.scale;
+    var wallTop = L.cabinY + h * 0.3;
+    // Door position — matches drawCabin
+    var doorX = L.cabinX + w * 0.78;
+    var doorY = wallTop + h * 0.28;
+    var doorW = w * 0.14;
+    var doorH = h * 0.42;
+    // Sit slightly in front of the door on the snow.
+    var scale = L.scale * 1.2;
+    var cx = doorX + doorW / 2 - 18 * scale; // nudged left of the door center
+    var footY = doorY + doorH + 4 * scale;  // ground line for the slime
+    var bodyR = 26 * scale;                  // radius of the slime dome
+
+    // Little breathing bob
+    var bob = Math.sin(now * 0.0025) * 1.4;
+    var by = footY + bob;
 
     // Blink
-    if (now > dude.blinkAt) { dude.blink = 8; dude.blinkAt = now + 2200 + Math.random() * 3200; }
+    if (now > dude.blinkAt) { dude.blink = 8; dude.blinkAt = now + 2400 + Math.random() * 3400; }
     if (dude.blink > 0) dude.blink--;
-    // Wave (rarely)
-    if (now > dude.waveAt) { dude.wave = 40; dude.waveAt = now + 6000 + Math.random() * 8000; }
-    if (dude.wave > 0) dude.wave--;
 
-    // Body (rounded)
-    ctx.fillStyle = '#4b3a55';
+    // ------- Soft shadow in the snow -------
+    ctx.save();
+    ctx.fillStyle = 'rgba(20, 20, 30, 0.28)';
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 14 * scale, 20 * scale, 18 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, by + 2, bodyR * 1.05, 5, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Head
-    ctx.fillStyle = '#f0d0a8';
+    ctx.restore();
+
+    // ------- Slime body (rounded blob) -------
+    var bodyGrad = ctx.createRadialGradient(cx - bodyR * 0.35, by - bodyR * 0.9, bodyR * 0.15, cx, by - bodyR * 0.4, bodyR * 1.3);
+    bodyGrad.addColorStop(0, '#ffbd6a');
+    bodyGrad.addColorStop(0.55, '#ff8a3a');
+    bodyGrad.addColorStop(1, '#d95e1e');
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy - 4 * scale, 14 * scale, 0, Math.PI * 2);
-    ctx.fill();
-    // Hat (pom pom beanie)
-    ctx.fillStyle = '#c94b4b';
-    ctx.beginPath();
-    ctx.moveTo(cx - 15 * scale, cy - 8 * scale);
-    ctx.quadraticCurveTo(cx, cy - 22 * scale, cx + 15 * scale, cy - 8 * scale);
+    // Bell / dome shape sitting on the snow
+    ctx.moveTo(cx - bodyR, by);
+    ctx.quadraticCurveTo(cx - bodyR, by - bodyR * 1.65, cx, by - bodyR * 1.65);
+    ctx.quadraticCurveTo(cx + bodyR, by - bodyR * 1.65, cx + bodyR, by);
+    ctx.quadraticCurveTo(cx + bodyR * 0.9, by + 4, cx, by + 4);
+    ctx.quadraticCurveTo(cx - bodyR * 0.9, by + 4, cx - bodyR, by);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = '#f4ecd8';
-    ctx.beginPath(); ctx.arc(cx, cy - 22 * scale, 3.5 * scale, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#e8dcc8';
-    ctx.fillRect(cx - 15 * scale, cy - 10 * scale, 30 * scale, 3 * scale);
-    // Eyes
-    ctx.fillStyle = '#2a1a12';
-    if (dude.blink > 0) {
-      ctx.fillRect(cx - 6 * scale, cy - 5 * scale, 3 * scale, 1);
-      ctx.fillRect(cx + 3 * scale, cy - 5 * scale, 3 * scale, 1);
-    } else {
-      ctx.beginPath(); ctx.arc(cx - 4 * scale, cy - 5 * scale, 1.6 * scale, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(cx + 4 * scale, cy - 5 * scale, 1.6 * scale, 0, Math.PI * 2); ctx.fill();
-    }
-    // Rosy cheeks
-    ctx.fillStyle = 'rgba(220, 120, 130, 0.6)';
-    ctx.beginPath(); ctx.arc(cx - 7 * scale, cy - 1 * scale, 2.4 * scale, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 7 * scale, cy - 1 * scale, 2.4 * scale, 0, Math.PI * 2); ctx.fill();
-    // Smile
-    ctx.strokeStyle = '#2a1a12';
-    ctx.lineWidth = 1.4;
+
+    // Shiny highlight on the dome
+    ctx.fillStyle = 'rgba(255, 230, 190, 0.55)';
     ctx.beginPath();
-    ctx.arc(cx, cy - 1 * scale, 3 * scale, 0.15, Math.PI - 0.15);
+    ctx.ellipse(cx - bodyR * 0.35, by - bodyR * 1.05, bodyR * 0.28, bodyR * 0.16, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Tiny second highlight
+    ctx.fillStyle = 'rgba(255, 230, 190, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(cx - bodyR * 0.55, by - bodyR * 0.75, bodyR * 0.12, bodyR * 0.06, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ------- Scarf wrapped around the "neck" -------
+    // Two stripes for a cozy handmade look
+    var scarfY = by - bodyR * 0.85;
+    var scarfH = bodyR * 0.55;
+    var scarfW = bodyR * 2.15;
+    ctx.save();
+    // Main scarf band
+    ctx.fillStyle = '#c94b4b';
+    ctx.beginPath();
+    ctx.moveTo(cx - scarfW / 2, scarfY);
+    ctx.quadraticCurveTo(cx, scarfY + scarfH * 0.35, cx + scarfW / 2, scarfY);
+    ctx.quadraticCurveTo(cx + scarfW / 2 + 4, scarfY + scarfH, cx + scarfW / 2 - 6, scarfY + scarfH + 4);
+    ctx.quadraticCurveTo(cx, scarfY + scarfH + 8, cx - scarfW / 2 + 6, scarfY + scarfH + 4);
+    ctx.quadraticCurveTo(cx - scarfW / 2 - 4, scarfY + scarfH, cx - scarfW / 2, scarfY);
+    ctx.closePath();
+    ctx.fill();
+    // Cream stripes
+    ctx.strokeStyle = '#f4ecd8';
+    ctx.lineWidth = 2 * L.scale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - scarfW / 2 + 4, scarfY + scarfH * 0.25);
+    ctx.quadraticCurveTo(cx, scarfY + scarfH * 0.55, cx + scarfW / 2 - 4, scarfY + scarfH * 0.25);
     ctx.stroke();
-    // Waving hand
-    if (dude.wave > 0) {
-      var wavePhase = (dude.wave / 40) * Math.PI * 6;
-      var hx = cx + 18 * scale + Math.sin(wavePhase) * 3;
-      var hy = cy + 4 * scale;
-      ctx.strokeStyle = '#4b3a55';
-      ctx.lineWidth = 3 * scale;
-      ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - scarfW / 2 + 4, scarfY + scarfH * 0.75);
+    ctx.quadraticCurveTo(cx, scarfY + scarfH * 1.02, cx + scarfW / 2 - 4, scarfY + scarfH * 0.75);
+    ctx.stroke();
+    // Trailing tail on the right, dangling onto the snow
+    ctx.fillStyle = '#c94b4b';
+    ctx.beginPath();
+    var tailX0 = cx + scarfW / 2 - 6;
+    var tailY0 = scarfY + scarfH * 0.7;
+    var tailX1 = cx + bodyR * 1.35;
+    var tailY1 = by - 4;
+    ctx.moveTo(tailX0, tailY0);
+    ctx.quadraticCurveTo(tailX0 + 12, tailY0 + 10, tailX1, tailY1);
+    ctx.lineTo(tailX1 + 6, tailY1 + 6);
+    ctx.quadraticCurveTo(tailX0 + 16, tailY0 + 20, tailX0 + 4, tailY0 + 10);
+    ctx.closePath();
+    ctx.fill();
+    // Fringe on the tail
+    ctx.strokeStyle = '#c94b4b';
+    ctx.lineWidth = 2 * L.scale;
+    for (var fi = 0; fi < 3; fi++) {
       ctx.beginPath();
-      ctx.moveTo(cx + 15 * scale, cy + 8 * scale);
-      ctx.lineTo(hx, hy);
+      var fx = tailX1 + fi * 3 - 2;
+      var fy = tailY1 + 4;
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx + 1, fy + 6);
       ctx.stroke();
-      ctx.fillStyle = '#f0d0a8';
-      ctx.beginPath(); ctx.arc(hx, hy, 3 * scale, 0, Math.PI * 2); ctx.fill();
     }
+    // Small tail stripe
+    ctx.strokeStyle = '#f4ecd8';
+    ctx.lineWidth = 1.6 * L.scale;
+    ctx.beginPath();
+    ctx.moveTo(tailX0 + 4, tailY0 + 6);
+    ctx.quadraticCurveTo(tailX0 + 14, tailY0 + 14, tailX1 - 2, tailY1);
+    ctx.stroke();
+    ctx.restore();
+
+    // ------- Face (above the scarf) -------
+    var faceY = by - bodyR * 1.15;
+    // Rosy cheeks
+    ctx.fillStyle = 'rgba(240, 130, 90, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(cx - bodyR * 0.35, faceY + bodyR * 0.15, bodyR * 0.16, bodyR * 0.10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + bodyR * 0.35, faceY + bodyR * 0.15, bodyR * 0.16, bodyR * 0.10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#2a1206';
+    var eyeX = bodyR * 0.28;
+    if (dude.blink > 0) {
+      ctx.fillRect(cx - eyeX - 3, faceY - 1, 6, 1.5);
+      ctx.fillRect(cx + eyeX - 3, faceY - 1, 6, 1.5);
+    } else {
+      ctx.beginPath(); ctx.arc(cx - eyeX, faceY, 2.6 * L.scale, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + eyeX, faceY, 2.6 * L.scale, 0, Math.PI * 2); ctx.fill();
+      // Little eye shines
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cx - eyeX + 1, faceY - 1, 0.9 * L.scale, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + eyeX + 1, faceY - 1, 0.9 * L.scale, 0, Math.PI * 2); ctx.fill();
+    }
+    // Content smile
+    ctx.strokeStyle = '#2a1206';
+    ctx.lineWidth = 1.6 * L.scale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, faceY + bodyR * 0.18, bodyR * 0.14, 0.25, Math.PI - 0.25);
+    ctx.stroke();
+
+    // ------- A little snow settling on top of him -------
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.beginPath();
+    ctx.ellipse(cx, by - bodyR * 1.63, bodyR * 0.35, bodyR * 0.10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // A snowdrift pile on either side of him
+    ctx.fillStyle = 'rgba(232, 240, 250, 0.85)';
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyR - 4, by + 2);
+    ctx.quadraticCurveTo(cx - bodyR - 12, by - 4, cx - bodyR - 18, by + 6);
+    ctx.lineTo(cx - bodyR - 18, by + 12);
+    ctx.lineTo(cx - bodyR - 4, by + 12);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + bodyR + 4, by + 2);
+    ctx.quadraticCurveTo(cx + bodyR + 12, by - 4, cx + bodyR + 18, by + 6);
+    ctx.lineTo(cx + bodyR + 18, by + 12);
+    ctx.lineTo(cx + bodyR + 4, by + 12);
+    ctx.closePath(); ctx.fill();
   }
 
   // ---------- Loop ----------
