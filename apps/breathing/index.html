@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BREATHING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% 40%, rgba(75, 180, 255, 0.14), transparent 55%),
+      radial-gradient(ellipse at center, #0a0e1a, #050810 78%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .modes {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+    margin-bottom: 40px;
+  }
+  .modes button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(232, 230, 227, 0.7); cursor: pointer;
+    transition: background 200ms, border-color 200ms, color 200ms;
+    font-variant-numeric: tabular-nums;
+  }
+  .modes button.is-active {
+    background: rgba(75, 180, 255, 0.14);
+    border-color: rgba(75, 180, 255, 0.55);
+    color: #cfe6ff;
+  }
+  .stage {
+    position: relative;
+    width: min(70vw, 320px);
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 36px;
+  }
+  .ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(75, 180, 255, 0.35), rgba(75, 180, 255, 0.05) 70%, transparent 100%);
+    transform: scale(0.55);
+    transition: transform var(--dur, 4s) cubic-bezier(0.45, 0.05, 0.55, 0.95),
+                background var(--dur, 4s) linear;
+    box-shadow: 0 0 60px rgba(75, 180, 255, 0.28);
+  }
+  .stage.phase-hold-in .ring {
+    background: radial-gradient(circle, rgba(120, 220, 180, 0.35), rgba(120, 220, 180, 0.05) 70%, transparent 100%);
+    box-shadow: 0 0 60px rgba(120, 220, 180, 0.28);
+  }
+  .stage.phase-hold-out .ring {
+    background: radial-gradient(circle, rgba(184, 111, 255, 0.28), rgba(184, 111, 255, 0.04) 70%, transparent 100%);
+    box-shadow: 0 0 50px rgba(184, 111, 255, 0.24);
+  }
+  .stage.inhale  .ring { transform: scale(1); }
+  .stage.exhale  .ring { transform: scale(0.4); }
+  .stage.hold-in .ring, .stage.hold-out .ring { transform: scale(var(--held-scale, 1)); }
+  .label-wrap {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .label {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(22px, 5vw, 34px);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.95);
+    text-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+  }
+  .count {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(48px, 12vw, 90px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: rgba(232, 230, 227, 0.98);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pattern {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+    margin-bottom: 18px;
+  }
+  .controls {
+    display: flex; gap: 12px; align-items: center;
+    margin-top: 4px;
+  }
+  .controls button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 12px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 13px 26px; border-radius: 999px; cursor: pointer;
+    background: #4bb4ff;
+    color: #06060a;
+    border: none;
+    box-shadow: 0 8px 22px rgba(75, 180, 255, 0.35);
+  }
+  .controls button.secondary {
+    background: transparent;
+    color: rgba(232, 230, 227, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+  }
+  .cycles {
+    font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.35);
+    margin-top: 22px;
+  }
+  .cycles b { color: #cfe6ff; font-variant-numeric: tabular-nums; letter-spacing: 0.03em; margin-left: 6px; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<div class="modes" id="modes">
+  <button data-pat="4-4-4-4" class="is-active">Box · 4·4·4·4</button>
+  <button data-pat="4-7-8">4·7·8 · Relaxing</button>
+  <button data-pat="4-4-6">Calm · 4·4·6</button>
+  <button data-pat="6-2-6-2">Steady · 6·2·6·2</button>
+  <button data-pat="4-0-4">Simple · in / out</button>
+</div>
+
+<div class="pattern" id="pattern-name">Box Breathing</div>
+
+<div class="stage" id="stage">
+  <div class="ring" id="ring"></div>
+  <div class="label-wrap">
+    <div class="label" id="label">Ready</div>
+    <div class="count" id="count">—</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="start" type="button">Start</button>
+  <button id="stop" class="secondary" type="button">Stop</button>
+</div>
+
+<div class="cycles">Cycles<b id="cycles">0</b></div>
+
+<script>
+(function () {
+  // Each pattern: array of {phase, secs} where phase is one of:
+  //   inhale, hold-in, exhale, hold-out
+  var PATTERNS = {
+    '4-4-4-4': { name: 'Box Breathing',   phases: [{p:'inhale',s:4},{p:'hold-in',s:4},{p:'exhale',s:4},{p:'hold-out',s:4}] },
+    '4-7-8':   { name: '4·7·8 (Weil)',     phases: [{p:'inhale',s:4},{p:'hold-in',s:7},{p:'exhale',s:8}] },
+    '4-4-6':   { name: 'Calm 4·4·6',       phases: [{p:'inhale',s:4},{p:'hold-in',s:4},{p:'exhale',s:6}] },
+    '6-2-6-2': { name: 'Steady 6·2·6·2',   phases: [{p:'inhale',s:6},{p:'hold-in',s:2},{p:'exhale',s:6},{p:'hold-out',s:2}] },
+    '4-0-4':   { name: 'Simple In / Out',  phases: [{p:'inhale',s:4},{p:'exhale',s:4}] }
+  };
+  var LABELS = { 'inhale': 'Inhale', 'hold-in': 'Hold', 'exhale': 'Exhale', 'hold-out': 'Hold' };
+
+  var stage = document.getElementById('stage');
+  var ring = document.getElementById('ring');
+  var label = document.getElementById('label');
+  var countEl = document.getElementById('count');
+  var patNameEl = document.getElementById('pattern-name');
+  var cyclesEl = document.getElementById('cycles');
+  var startBtn = document.getElementById('start');
+  var stopBtn = document.getElementById('stop');
+  var modeBtns = document.querySelectorAll('#modes button');
+
+  var pattern = PATTERNS['4-4-4-4'];
+  var running = false;
+  var phaseIdx = 0;
+  var secsLeft = 0;
+  var tickTimer = null;
+  var cycles = 0;
+
+  function setPattern(id) {
+    pattern = PATTERNS[id];
+    patNameEl.textContent = pattern.name;
+    modeBtns.forEach(function (b) { b.classList.toggle('is-active', b.dataset.pat === id); });
+    reset();
+  }
+  function reset() {
+    running = false;
+    phaseIdx = 0;
+    secsLeft = 0;
+    cycles = 0;
+    cyclesEl.textContent = '0';
+    stage.className = 'stage';
+    ring.style.setProperty('--dur', '4s');
+    label.textContent = 'Ready';
+    countEl.textContent = '—';
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  }
+  function enterPhase(idx) {
+    var ph = pattern.phases[idx];
+    // Set CSS transition duration + "held" scale so hold phases stay put
+    ring.style.setProperty('--dur', ph.s + 's');
+    // For hold-in, keep scale at 1; for hold-out, at 0.4. Bias toward previous.
+    var heldScale = 0.55;
+    if (ph.p === 'hold-in') heldScale = 1;
+    if (ph.p === 'hold-out') heldScale = 0.4;
+    ring.style.setProperty('--held-scale', heldScale);
+    // Clear phase classes, then apply new
+    stage.className = 'stage ' + ph.p + (ph.p === 'hold-in' ? ' phase-hold-in' : (ph.p === 'hold-out' ? ' phase-hold-out' : ''));
+    label.textContent = LABELS[ph.p];
+    secsLeft = ph.s;
+    countEl.textContent = secsLeft;
+  }
+  function tick() {
+    secsLeft--;
+    if (secsLeft <= 0) {
+      phaseIdx = (phaseIdx + 1) % pattern.phases.length;
+      if (phaseIdx === 0) { cycles++; cyclesEl.textContent = cycles; }
+      enterPhase(phaseIdx);
+      return;
+    }
+    countEl.textContent = secsLeft;
+  }
+  function start() {
+    if (running) return;
+    running = true;
+    phaseIdx = 0;
+    enterPhase(0);
+    tickTimer = setInterval(tick, 1000);
+    startBtn.textContent = 'Pause';
+  }
+  function pause() {
+    running = false;
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    startBtn.textContent = 'Resume';
+  }
+
+  startBtn.addEventListener('click', function () {
+    if (running) pause();
+    else if (tickTimer === null && secsLeft > 0) {
+      // Resume without restart
+      running = true;
+      tickTimer = setInterval(tick, 1000);
+      startBtn.textContent = 'Pause';
+    } else start();
+  });
+  stopBtn.addEventListener('click', function () { reset(); startBtn.textContent = 'Start'; });
+  modeBtns.forEach(function (b) {
+    b.addEventListener('click', function () { setPattern(b.dataset.pat); startBtn.textContent = 'Start'; });
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') { e.preventDefault(); startBtn.click(); }
+    if (e.code === 'KeyR') { e.preventDefault(); stopBtn.click(); }
+  });
+})();
+</script>
+</body>
+</html>

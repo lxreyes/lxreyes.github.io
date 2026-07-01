@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BASE CONVERT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(184, 111, 255, 0.14), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .card {
+    width: min(520px, 100%);
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 22px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin: 0 0 4px;
+    color: #b86fff;
+    text-shadow: 0 0 22px rgba(184, 111, 255, 0.35);
+  }
+  .subtitle {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    margin-bottom: 22px;
+  }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .label {
+    width: 84px; flex-shrink: 0;
+    display: flex; flex-direction: column;
+    align-items: flex-start;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.7);
+  }
+  .label small {
+    font-size: 9px;
+    color: rgba(232, 230, 227, 0.35);
+    letter-spacing: 0.08em;
+    text-transform: none;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  input.b {
+    flex: 1;
+    padding: 12px 14px;
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e8e6e3;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    border-radius: 10px;
+    outline: none;
+    letter-spacing: 0.06em;
+    user-select: text; -webkit-user-select: text;
+    text-transform: uppercase;
+  }
+  input.b:focus { border-color: rgba(184, 111, 255, 0.5); }
+  input.b.invalid { border-color: rgba(255, 123, 123, 0.55); }
+  .ascii-row {
+    margin-top: 18px;
+    padding: 14px;
+    background: rgba(184, 111, 255, 0.06);
+    border: 1px solid rgba(184, 111, 255, 0.24);
+    border-radius: 10px;
+  }
+  .ascii-row .label { margin-bottom: 6px; width: auto; }
+  .ascii {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: rgba(232, 230, 227, 0.9);
+    word-break: break-all;
+    letter-spacing: 0.04em;
+    user-select: text; -webkit-user-select: text;
+    min-height: 20px;
+  }
+  .footer-hint {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.35);
+    margin-top: 14px;
+    text-align: right;
+  }
+  .footer-hint b { color: #b86fff; font-family: "JetBrains Mono", monospace; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="card">
+  <h1>Base Convert</h1>
+  <div class="subtitle">Type any base — the rest update live.</div>
+
+  <div class="row"><div class="label">Binary<small>base 2</small></div>          <input class="b" id="bin"  spellcheck="false" placeholder="10011001"></div>
+  <div class="row"><div class="label">Octal<small>base 8</small></div>           <input class="b" id="oct"  spellcheck="false" placeholder="231"></div>
+  <div class="row"><div class="label">Decimal<small>base 10</small></div>        <input class="b" id="dec"  spellcheck="false" placeholder="153" style="text-transform: none"></div>
+  <div class="row"><div class="label">Hex<small>base 16</small></div>            <input class="b" id="hex"  spellcheck="false" placeholder="99"></div>
+  <div class="row"><div class="label">Base32<small>Crockford</small></div>       <input class="b" id="b32"  spellcheck="false" placeholder="4T"></div>
+
+  <div class="ascii-row">
+    <div class="label">ASCII / Unicode<small>if the value is 0–1,114,111</small></div>
+    <div class="ascii" id="ascii"></div>
+  </div>
+
+  <div class="footer-hint" id="footer">Bits<b id="bits">—</b></div>
+</div>
+
+<script>
+(function () {
+  var bases = {
+    bin: { el: document.getElementById('bin'), base: 2,  chars: /^[01]+$/i },
+    oct: { el: document.getElementById('oct'), base: 8,  chars: /^[0-7]+$/i },
+    dec: { el: document.getElementById('dec'), base: 10, chars: /^[0-9]+$/i },
+    hex: { el: document.getElementById('hex'), base: 16, chars: /^[0-9a-f]+$/i },
+    b32: { el: document.getElementById('b32'), base: 32, chars: /^[0-9a-hjkmnp-tv-z]+$/i }
+  };
+  // Crockford base32 alphabet: 0-9, A-Z (excluding I, L, O, U)
+  var C32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  function toC32(n) {
+    if (n === 0n) return '0';
+    var out = '';
+    while (n > 0n) {
+      out = C32[Number(n % 32n)] + out;
+      n = n / 32n;
+    }
+    return out;
+  }
+  function fromC32(s) {
+    var n = 0n;
+    for (var i = 0; i < s.length; i++) {
+      var idx = C32.indexOf(s[i].toUpperCase());
+      if (idx < 0) throw new Error('bad char');
+      n = n * 32n + BigInt(idx);
+    }
+    return n;
+  }
+  var asciiEl = document.getElementById('ascii');
+  var bitsEl = document.getElementById('bits');
+
+  function updateFrom(id) {
+    var src = bases[id];
+    var raw = src.el.value.trim();
+    // Empty input = clear everything
+    if (!raw) {
+      Object.keys(bases).forEach(function (k) {
+        bases[k].el.classList.remove('invalid');
+        if (k !== id) bases[k].el.value = '';
+      });
+      asciiEl.textContent = '';
+      bitsEl.textContent = '—';
+      return;
+    }
+    // Validate chars in the source base
+    if (!src.chars.test(raw)) {
+      src.el.classList.add('invalid');
+      return;
+    }
+    src.el.classList.remove('invalid');
+    // Parse into BigInt so 128-bit numbers work
+    var n;
+    try {
+      if (id === 'b32') n = fromC32(raw);
+      else n = BigInt(parseInto(raw, src.base));
+    } catch (e) {
+      src.el.classList.add('invalid');
+      return;
+    }
+    // Write to all other bases
+    Object.keys(bases).forEach(function (k) {
+      if (k === id) return;
+      var target = bases[k];
+      target.el.classList.remove('invalid');
+      if (k === 'b32') target.el.value = toC32(n);
+      else target.el.value = n.toString(target.base).toUpperCase();
+    });
+    // ASCII if plausible
+    if (n <= 0x10FFFFn && n >= 0n) {
+      try {
+        var s = String.fromCodePoint(Number(n));
+        // Show printable rep + code
+        asciiEl.textContent = 'U+' + Number(n).toString(16).toUpperCase().padStart(4, '0') + ' · ' + (isPrintable(s) ? '"' + s + '"' : '(non-printable)');
+      } catch (e) { asciiEl.textContent = ''; }
+    } else asciiEl.textContent = '(out of Unicode range)';
+    // Bit length
+    var bits = n === 0n ? 1 : n.toString(2).length;
+    bitsEl.textContent = bits;
+  }
+  function isPrintable(s) {
+    var cp = s.codePointAt(0);
+    return cp >= 32 && cp !== 127;
+  }
+  // BigInt doesn't parse "FF" as hex on its own — need to prefix.
+  function parseInto(raw, base) {
+    var upper = raw.toUpperCase();
+    if (base === 2) return '0b' + upper;
+    if (base === 8) return '0o' + upper;
+    if (base === 10) return upper;
+    if (base === 16) return '0x' + upper;
+    throw new Error('unsupported base');
+  }
+
+  Object.keys(bases).forEach(function (id) {
+    bases[id].el.addEventListener('input', function () { updateFrom(id); });
+  });
+
+  // Seed with 153 decimal so there's something to look at
+  bases.dec.el.value = '153';
+  updateFrom('dec');
+})();
+</script>
+</body>
+</html>

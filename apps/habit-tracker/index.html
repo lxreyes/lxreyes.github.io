@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HABIT TRACKER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 138, 61, 0.15), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    padding: 60px 24px 40px;
+    min-height: 100vh;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  header {
+    text-align: center; margin-bottom: 30px;
+  }
+  header h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5); margin: 0;
+  }
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  .add-row {
+    display: flex; gap: 8px;
+    padding: 12px;
+    background: rgba(20, 20, 30, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    margin-bottom: 18px;
+  }
+  .add-row input {
+    flex: 1;
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e8e6e3;
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    outline: none;
+    letter-spacing: 0.02em;
+  }
+  .add-row input:focus { border-color: rgba(255, 138, 61, 0.5); }
+  .add-row button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 999px;
+    background: #ff8a3d;
+    color: #06060a;
+    cursor: pointer;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    font-weight: 700;
+    text-transform: uppercase;
+    box-shadow: 0 6px 18px rgba(255, 138, 61, 0.4);
+  }
+  .habits { display: flex; flex-direction: column; gap: 10px; }
+  .habit {
+    background: rgba(20, 20, 30, 0.75);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .habit-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .habit-name {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.03em;
+    color: #e8e6e3;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .habit-streak {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #ff8a3d;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .habit-streak .fire { color: #ff8a3d; }
+  .habit-remove {
+    background: transparent; border: none;
+    color: rgba(232, 230, 227, 0.35);
+    font-size: 18px; cursor: pointer;
+    padding: 0 4px;
+    transition: color 140ms;
+  }
+  .habit-remove:hover { color: #ff7b7b; }
+  .habit-grid {
+    display: grid;
+    grid-template-columns: repeat(30, 1fr);
+    gap: 3px;
+  }
+  .day {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: background 120ms, transform 100ms;
+    position: relative;
+  }
+  .day:hover { background: rgba(255, 255, 255, 0.09); }
+  .day.done {
+    background: #ff8a3d;
+    box-shadow: 0 0 8px rgba(255, 138, 61, 0.5);
+  }
+  .day.today {
+    outline: 2px solid rgba(232, 230, 227, 0.55);
+    outline-offset: 1px;
+  }
+  .day.future {
+    background: transparent;
+    border: 1px dashed rgba(255,255,255,0.06);
+    cursor: default;
+  }
+  .day.future:hover { background: transparent; }
+  .habit-days {
+    display: flex; justify-content: space-between;
+    font-size: 9px; letter-spacing: 0.16em;
+    color: rgba(232, 230, 227, 0.3);
+    text-transform: uppercase;
+    margin-top: 6px;
+    padding: 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(232, 230, 227, 0.4);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .hint {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.3);
+    text-align: center;
+    margin-top: 22px;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<header>
+  <h1>Habit Tracker</h1>
+</header>
+
+<div class="container">
+  <div class="add-row">
+    <input id="new-name" type="text" placeholder="What do you want to do daily? e.g. read 30 min" maxlength="60">
+    <button id="add">Add</button>
+  </div>
+  <div class="habits" id="habits"></div>
+  <div class="hint">Tap a square for that day. Local, no accounts.</div>
+</div>
+
+<script>
+(function () {
+  var habitsEl = document.getElementById('habits');
+  var newName = document.getElementById('new-name');
+  var STORAGE = 'habit-tracker-v1';
+
+  var habits = [];
+  try { habits = JSON.parse(localStorage.getItem(STORAGE) || '[]'); } catch (_) { habits = []; }
+
+  function save() {
+    try { localStorage.setItem(STORAGE, JSON.stringify(habits)); } catch (_) {}
+  }
+  // YYYY-MM-DD from a Date (local time)
+  function dateKey(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + dd;
+  }
+  function todayKey() { return dateKey(new Date()); }
+
+  // Streak = consecutive days ending today marked done
+  function streak(habit) {
+    var d = new Date();
+    var s = 0;
+    while (true) {
+      if (habit.done[dateKey(d)]) { s++; d.setDate(d.getDate() - 1); }
+      else break;
+    }
+    return s;
+  }
+
+  function render() {
+    habitsEl.innerHTML = '';
+    if (!habits.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No habits yet. Add one above — try "read", "walk", "no phone in bed".';
+      habitsEl.appendChild(empty);
+      return;
+    }
+    var today = new Date();
+    var days = 30;
+    var dowLabels = ['S','M','T','W','T','F','S'];
+    habits.forEach(function (h, hi) {
+      var el = document.createElement('div');
+      el.className = 'habit';
+      var head = document.createElement('div');
+      head.className = 'habit-head';
+      head.innerHTML =
+        '<div class="habit-name">' + escapeHtml(h.name) + '</div>' +
+        '<div class="habit-streak"><span class="fire">🔥</span> <b>' + streak(h) + '</b></div>' +
+        '<button class="habit-remove" data-idx="' + hi + '" aria-label="Remove">&times;</button>';
+      el.appendChild(head);
+      var grid = document.createElement('div');
+      grid.className = 'habit-grid';
+      // 30 days ending today (leftmost is 29 days ago)
+      var startD = new Date(today);
+      startD.setDate(startD.getDate() - (days - 1));
+      for (var i = 0; i < days; i++) {
+        var d = new Date(startD);
+        d.setDate(d.getDate() + i);
+        var key = dateKey(d);
+        var box = document.createElement('div');
+        box.className = 'day';
+        if (h.done[key]) box.classList.add('done');
+        if (key === todayKey()) box.classList.add('today');
+        box.title = key;
+        box.dataset.key = key;
+        box.dataset.hi = hi;
+        grid.appendChild(box);
+      }
+      el.appendChild(grid);
+      // Compact day labels beneath: show weekday letters for first/mid/last
+      var days2 = document.createElement('div');
+      days2.className = 'habit-days';
+      var s1 = new Date(startD);
+      var s2 = new Date(startD); s2.setDate(s2.getDate() + Math.floor(days/2));
+      var s3 = new Date(today);
+      days2.innerHTML =
+        '<span>' + (s1.getMonth() + 1) + '/' + s1.getDate() + '</span>' +
+        '<span>' + (s2.getMonth() + 1) + '/' + s2.getDate() + '</span>' +
+        '<span>' + (s3.getMonth() + 1) + '/' + s3.getDate() + '</span>';
+      el.appendChild(days2);
+      habitsEl.appendChild(el);
+    });
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+
+  habitsEl.addEventListener('click', function (e) {
+    var day = e.target.closest('.day');
+    if (day) {
+      var hi = parseInt(day.dataset.hi, 10);
+      var key = day.dataset.key;
+      if (isNaN(hi) || !key) return;
+      var h = habits[hi];
+      if (!h) return;
+      if (h.done[key]) delete h.done[key];
+      else h.done[key] = true;
+      save();
+      render();
+      return;
+    }
+    var rm = e.target.closest('.habit-remove');
+    if (rm) {
+      var hi = parseInt(rm.dataset.idx, 10);
+      if (isNaN(hi)) return;
+      if (confirm('Remove "' + habits[hi].name + '"? All its history goes with it.')) {
+        habits.splice(hi, 1);
+        save();
+        render();
+      }
+    }
+  });
+
+  document.getElementById('add').addEventListener('click', addNew);
+  newName.addEventListener('keydown', function (e) { if (e.code === 'Enter') addNew(); });
+  function addNew() {
+    var name = (newName.value || '').trim();
+    if (!name) return;
+    habits.push({ name: name.slice(0, 60), done: {} });
+    newName.value = '';
+    save();
+    render();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

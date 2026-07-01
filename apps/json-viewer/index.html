@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JSON VIEWER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(120, 220, 180, 0.14), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; padding: 56px 20px 20px;
+  }
+  @media (max-width: 720px) { body { grid-template-columns: 1fr; padding-top: 52px; } }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .pane {
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .head h1 {
+    margin: 0;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 12px; letter-spacing: 0.24em;
+    text-transform: uppercase; color: #78dcb4;
+    text-shadow: 0 0 22px rgba(120, 220, 180, 0.35);
+  }
+  .head .buttons { display: flex; gap: 6px; }
+  .head button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(120, 220, 180, 0.08);
+    border: 1px solid rgba(120, 220, 180, 0.28);
+    color: #d0f4df; cursor: pointer;
+    transition: background 140ms;
+  }
+  .head button:hover { background: rgba(120, 220, 180, 0.18); }
+  textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #e8e6e3;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    outline: none;
+    resize: none;
+    padding: 4px 0 0;
+    user-select: text; -webkit-user-select: text;
+    letter-spacing: 0.02em;
+  }
+  .view {
+    flex: 1;
+    overflow: auto;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding-right: 4px;
+    user-select: text; -webkit-user-select: text;
+    letter-spacing: 0.02em;
+  }
+  .view .node { position: relative; }
+  .view .toggle {
+    color: rgba(232, 230, 227, 0.5);
+    cursor: pointer;
+    display: inline-block;
+    width: 14px;
+    user-select: none;
+  }
+  .view .toggle:hover { color: #78dcb4; }
+  .view .key { color: #78dcb4; }
+  .view .str { color: #ffd86a; }
+  .view .num { color: #4bb4ff; }
+  .view .bool { color: #ff8b8b; font-weight: 700; }
+  .view .null { color: rgba(232, 230, 227, 0.35); font-style: italic; }
+  .view .comma { color: rgba(232, 230, 227, 0.35); }
+  .view .brace { color: rgba(232, 230, 227, 0.85); font-weight: 700; }
+  .view .children { padding-left: 18px; border-left: 1px dashed rgba(255,255,255,0.06); }
+  .view .node.collapsed .children { display: none; }
+  .view .node.collapsed .placeholder { display: inline; color: rgba(232, 230, 227, 0.35); }
+  .view .placeholder { display: none; }
+  .error {
+    color: #ff7b7b;
+    font-size: 12px;
+    margin-top: 6px;
+    letter-spacing: 0.02em;
+    font-family: "JetBrains Mono", monospace;
+    min-height: 16px;
+  }
+  .stats {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.35);
+    padding: 6px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 6px;
+  }
+  .stats b { color: #78dcb4; font-family: "JetBrains Mono", monospace; letter-spacing: 0.02em; margin: 0 6px; }
+  .flash {
+    position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(120, 220, 180, 0.15);
+    border: 1px solid rgba(120, 220, 180, 0.45); border-radius: 999px;
+    color: #78dcb4; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    opacity: 0; transition: opacity 200ms;
+    pointer-events: none; z-index: 30;
+  }
+  .flash.is-on { opacity: 1; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="flash" id="flash">Copied</div>
+
+<section class="pane">
+  <div class="head">
+    <h1>Input</h1>
+    <div class="buttons">
+      <button id="paste">Paste</button>
+      <button id="sample">Sample</button>
+      <button id="minify">Minify</button>
+      <button id="pretty">Pretty</button>
+    </div>
+  </div>
+  <textarea id="input" spellcheck="false" placeholder='Paste JSON here…'>{
+  "name": "portfolio",
+  "version": "2026",
+  "games": 34,
+  "apps": 24,
+  "featured": ["gauntlet", "music-studio"],
+  "meta": { "author": "Lachlan Reyes", "public": true, "tags": null }
+}</textarea>
+  <div class="error" id="error">&nbsp;</div>
+  <div class="stats" id="stats">&nbsp;</div>
+</section>
+
+<section class="pane">
+  <div class="head">
+    <h1>Tree</h1>
+    <div class="buttons">
+      <button id="expand">Expand all</button>
+      <button id="collapse">Collapse all</button>
+      <button id="copy">Copy pretty</button>
+    </div>
+  </div>
+  <div class="view" id="view"></div>
+</section>
+
+<script>
+(function () {
+  var input = document.getElementById('input');
+  var view = document.getElementById('view');
+  var errorEl = document.getElementById('error');
+  var statsEl = document.getElementById('stats');
+  var flash = document.getElementById('flash');
+
+  function pushFlash(msg) {
+    flash.textContent = msg || 'Copied';
+    flash.classList.add('is-on');
+    setTimeout(function () { flash.classList.remove('is-on'); }, 900);
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;' }[c]; });
+  }
+  function renderValue(v) {
+    if (v === null) return '<span class="null">null</span>';
+    if (typeof v === 'string') return '<span class="str">"' + esc(v) + '"</span>';
+    if (typeof v === 'number') return '<span class="num">' + v + '</span>';
+    if (typeof v === 'boolean') return '<span class="bool">' + v + '</span>';
+    return esc(String(v));
+  }
+  function renderNode(v, key, isLast) {
+    var out = '';
+    var isObj = v && typeof v === 'object' && !Array.isArray(v);
+    var isArr = Array.isArray(v);
+    var keyHtml = key !== null && key !== undefined ? '<span class="key">"' + esc(key) + '"</span>: ' : '';
+    var comma = isLast ? '' : '<span class="comma">,</span>';
+    if (!isObj && !isArr) {
+      out += '<div class="node">' + keyHtml + renderValue(v) + comma + '</div>';
+      return out;
+    }
+    var entries = isArr
+      ? v.map(function (x, i) { return [i, x]; })
+      : Object.keys(v).map(function (k) { return [k, v[k]]; });
+    var open = isArr ? '[' : '{';
+    var close = isArr ? ']' : '}';
+    var placeholder = ' ' + (entries.length + (isArr ? ' items' : ' keys')) + ' ';
+    out += '<div class="node">';
+    out += '<span class="toggle" onclick="this.parentNode.classList.toggle(\'collapsed\')">▾</span>';
+    out += keyHtml;
+    out += '<span class="brace">' + open + '</span>';
+    out += '<span class="placeholder">…' + placeholder + '</span>';
+    out += '<div class="children">';
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      out += renderNode(e[1], isArr ? null : e[0], i === entries.length - 1);
+    }
+    out += '</div>';
+    out += '<span class="brace">' + close + '</span>' + comma;
+    out += '</div>';
+    return out;
+  }
+  function countNodes(v) {
+    if (v === null || typeof v !== 'object') return 1;
+    var n = 1;
+    if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) n += countNodes(v[i]); }
+    else { for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) n += countNodes(v[k]); }
+    return n;
+  }
+  function update() {
+    var text = input.value;
+    if (!text.trim()) {
+      view.innerHTML = '<span style="color:rgba(232,230,227,0.35)">Paste JSON on the left.</span>';
+      errorEl.textContent = '';
+      statsEl.innerHTML = '&nbsp;';
+      return;
+    }
+    try {
+      var v = JSON.parse(text);
+      errorEl.textContent = '';
+      view.innerHTML = renderNode(v, null, true);
+      var size = new Blob([text]).size;
+      statsEl.innerHTML = 'Bytes<b>' + size + '</b> · Nodes<b>' + countNodes(v) + '</b> · Depth<b>' + depth(v) + '</b>';
+    } catch (err) {
+      errorEl.textContent = String(err.message || err);
+      statsEl.innerHTML = '&nbsp;';
+    }
+  }
+  function depth(v, d) {
+    d = d || 0;
+    if (v === null || typeof v !== 'object') return d;
+    var m = d;
+    if (Array.isArray(v)) for (var i = 0; i < v.length; i++) m = Math.max(m, depth(v[i], d + 1));
+    else for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) m = Math.max(m, depth(v[k], d + 1));
+    return m;
+  }
+
+  input.addEventListener('input', update);
+  update();
+
+  document.getElementById('sample').addEventListener('click', function () {
+    input.value = JSON.stringify({
+      user: {
+        id: 42,
+        name: "Ada Lovelace",
+        active: true,
+        roles: ["admin", "editor"],
+        preferences: { theme: "dark", notifications: null, retryLimit: 3 }
+      },
+      log: [
+        { at: "2026-06-01T08:15:00Z", event: "login", ip: "10.0.0.1" },
+        { at: "2026-06-01T08:22:14Z", event: "post-save", size: 4823 }
+      ]
+    }, null, 2);
+    update();
+  });
+  document.getElementById('paste').addEventListener('click', function () {
+    if (!navigator.clipboard) { pushFlash('No clipboard'); return; }
+    navigator.clipboard.readText().then(function (t) { input.value = t; update(); pushFlash('Pasted'); },
+      function () { pushFlash('Blocked'); });
+  });
+  document.getElementById('minify').addEventListener('click', function () {
+    try { input.value = JSON.stringify(JSON.parse(input.value)); update(); pushFlash('Minified'); }
+    catch (e) { pushFlash('Invalid JSON'); }
+  });
+  document.getElementById('pretty').addEventListener('click', function () {
+    try { input.value = JSON.stringify(JSON.parse(input.value), null, 2); update(); pushFlash('Prettified'); }
+    catch (e) { pushFlash('Invalid JSON'); }
+  });
+  document.getElementById('expand').addEventListener('click', function () {
+    view.querySelectorAll('.node.collapsed').forEach(function (n) { n.classList.remove('collapsed'); });
+  });
+  document.getElementById('collapse').addEventListener('click', function () {
+    view.querySelectorAll('.node').forEach(function (n) {
+      if (n.querySelector('.children')) n.classList.add('collapsed');
+    });
+  });
+  document.getElementById('copy').addEventListener('click', function () {
+    try {
+      var pretty = JSON.stringify(JSON.parse(input.value), null, 2);
+      if (navigator.clipboard) navigator.clipboard.writeText(pretty).then(function () { pushFlash('Copied'); });
+      else { input.select(); document.execCommand('copy'); pushFlash('Copied'); }
+    } catch (e) { pushFlash('Invalid JSON'); }
+  });
+})();
+</script>
+</body>
+</html>
