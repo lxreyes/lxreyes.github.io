@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TEXT TOOLS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(129, 232, 178, 0.16), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; flex-direction: column;
+    padding: 60px 24px 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .stack {
+    width: min(720px, 100%);
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0;
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.24em;
+    text-transform: uppercase; margin: 0 0 4px;
+    color: #81e8b2;
+    text-shadow: 0 0 22px rgba(129, 232, 178, 0.35);
+  }
+  .subtitle {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45); margin-bottom: 18px;
+  }
+  textarea {
+    flex: 1; min-height: 220px; resize: none;
+    padding: 18px 20px;
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    outline: none;
+    user-select: text; -webkit-user-select: text;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  textarea:focus { border-color: rgba(129, 232, 178, 0.5); }
+  .actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin: 14px 0 10px;
+  }
+  .actions button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 9px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(232, 230, 227, 0.8); cursor: pointer;
+    transition: background 160ms, border-color 160ms, color 160ms;
+  }
+  .actions button:hover {
+    background: rgba(129, 232, 178, 0.1);
+    border-color: rgba(129, 232, 178, 0.35);
+    color: #d0f4df;
+  }
+  .actions button.util {
+    background: rgba(129, 232, 178, 0.12);
+    border-color: rgba(129, 232, 178, 0.35);
+    color: #d0f4df;
+  }
+  .stats {
+    display: flex; gap: clamp(14px, 3vw, 26px); flex-wrap: wrap;
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    padding: 12px 4px 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .stats b {
+    display: block; margin-top: 3px;
+    color: rgba(232, 230, 227, 0.95);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+  }
+  .flash {
+    position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(129, 232, 178, 0.15);
+    border: 1px solid rgba(129, 232, 178, 0.45); border-radius: 999px;
+    color: #81e8b2; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    opacity: 0; transition: opacity 200ms;
+    pointer-events: none; z-index: 30;
+  }
+  .flash.is-on { opacity: 1; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="flash" id="flash">Copied</div>
+<div class="stack">
+  <h1>Text Tools</h1>
+  <div class="subtitle">Paste, transform, count.</div>
+
+  <textarea id="ta" placeholder="Paste or type text here…" spellcheck="false"></textarea>
+
+  <div class="actions">
+    <button data-t="upper">UPPER</button>
+    <button data-t="lower">lower</button>
+    <button data-t="title">Title Case</button>
+    <button data-t="sentence">Sentence case</button>
+    <button data-t="camel">camelCase</button>
+    <button data-t="kebab">kebab-case</button>
+    <button data-t="snake">snake_case</button>
+    <button data-t="reverse">Reverse</button>
+    <button data-t="trim">Trim lines</button>
+    <button data-t="dedupe">Dedupe lines</button>
+    <button data-t="sort">Sort A→Z</button>
+    <button data-t="shuffle">Shuffle lines</button>
+    <button data-t="strip">Strip HTML</button>
+    <button class="util" data-t="copy">Copy</button>
+    <button class="util" data-t="clear">Clear</button>
+  </div>
+
+  <div class="stats">
+    <div>Chars<b id="s-chars">0</b></div>
+    <div>Words<b id="s-words">0</b></div>
+    <div>Lines<b id="s-lines">0</b></div>
+    <div>Read<b id="s-read">0s</b></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ta = document.getElementById('ta');
+  var flash = document.getElementById('flash');
+  var stats = {
+    chars: document.getElementById('s-chars'),
+    words: document.getElementById('s-words'),
+    lines: document.getElementById('s-lines'),
+    read: document.getElementById('s-read')
+  };
+
+  try { ta.value = localStorage.getItem('text-tools-buf') || ''; } catch (_) {}
+
+  function pushFlash(text) {
+    flash.textContent = text || 'Copied';
+    flash.classList.add('is-on');
+    setTimeout(function () { flash.classList.remove('is-on'); }, 900);
+  }
+
+  function updateStats() {
+    var v = ta.value;
+    stats.chars.textContent = v.length;
+    var words = v.trim() ? v.trim().split(/\s+/).length : 0;
+    stats.words.textContent = words;
+    stats.lines.textContent = v ? v.split(/\n/).length : 0;
+    // Reading speed ~ 220wpm
+    var secs = Math.round((words / 220) * 60);
+    stats.read.textContent = secs < 60 ? secs + 's' : (Math.floor(secs / 60) + 'm ' + (secs % 60) + 's');
+    try { localStorage.setItem('text-tools-buf', v); } catch (_) {}
+  }
+
+  ta.addEventListener('input', updateStats);
+  updateStats();
+
+  var ACTIONS = {
+    upper: function (s) { return s.toUpperCase(); },
+    lower: function (s) { return s.toLowerCase(); },
+    title: function (s) {
+      return s.replace(/\w\S*/g, function (w) {
+        return w[0].toUpperCase() + w.slice(1).toLowerCase();
+      });
+    },
+    sentence: function (s) {
+      return s.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, function (m) { return m.toUpperCase(); });
+    },
+    camel: function (s) {
+      var parts = s.trim().split(/[\s_\-]+/).filter(Boolean);
+      return parts.map(function (p, i) {
+        return i === 0 ? p.toLowerCase() : p[0].toUpperCase() + p.slice(1).toLowerCase();
+      }).join('');
+    },
+    kebab: function (s) {
+      return s.trim()
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        .replace(/[\s_]+/g, '-')
+        .toLowerCase();
+    },
+    snake: function (s) {
+      return s.trim()
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .replace(/[\s\-]+/g, '_')
+        .toLowerCase();
+    },
+    reverse: function (s) { return s.split('').reverse().join(''); },
+    trim: function (s) { return s.split('\n').map(function (l) { return l.trim(); }).join('\n'); },
+    dedupe: function (s) {
+      var seen = {}, out = [];
+      s.split('\n').forEach(function (l) {
+        if (!seen[l]) { seen[l] = true; out.push(l); }
+      });
+      return out.join('\n');
+    },
+    sort: function (s) { return s.split('\n').sort().join('\n'); },
+    shuffle: function (s) {
+      var a = s.split('\n');
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a.join('\n');
+    },
+    strip: function (s) { return s.replace(/<[^>]*>/g, ''); }
+  };
+
+  document.querySelectorAll('.actions button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.t;
+      if (t === 'copy') {
+        var text = ta.value;
+        if (!text) return;
+        if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { pushFlash('Copied'); });
+        else {
+          ta.select(); document.execCommand('copy'); pushFlash('Copied');
+        }
+        return;
+      }
+      if (t === 'clear') {
+        ta.value = ''; updateStats();
+        return;
+      }
+      if (!ACTIONS[t]) return;
+      ta.value = ACTIONS[t](ta.value);
+      updateStats();
+    });
+  });
+})();
+</script>
+</body>
+</html>

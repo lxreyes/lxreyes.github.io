@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COLOR LAB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background: radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .card {
+    width: min(760px, 100%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-height: min(88vh, 640px);
+  }
+  @media (max-width: 640px) { .card { grid-template-columns: 1fr; } }
+  .swatch {
+    border-radius: 20px;
+    min-height: 260px;
+    display: flex; align-items: flex-end; padding: 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+    position: relative;
+    overflow: hidden;
+  }
+  .swatch::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 55%);
+    pointer-events: none;
+  }
+  .swatch .hex {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 24px; font-weight: 700;
+    letter-spacing: 0.05em;
+    color: rgba(0, 0, 0, 0.72);
+    background: rgba(255, 255, 255, 0.85);
+    padding: 6px 12px; border-radius: 8px;
+    user-select: text; -webkit-user-select: text;
+  }
+  .swatch.on-dark .hex { color: rgba(255,255,255,0.95); background: rgba(0,0,0,0.55); }
+  .panel {
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 22px;
+    overflow: auto;
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 20px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin: 0 0 16px;
+    color: #f0c1ff;
+    text-shadow: 0 0 22px rgba(240, 193, 255, 0.35);
+  }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    margin-bottom: 6px;
+  }
+  .field input[type="color"] {
+    width: 100%; height: 42px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    padding: 4px;
+  }
+  .field input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .field input[type="color"]::-webkit-color-swatch { border: none; border-radius: 8px; }
+  .code-row {
+    display: flex; gap: 8px; align-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    padding: 10px 12px; border-radius: 10px;
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 8px;
+    user-select: text; -webkit-user-select: text;
+  }
+  .code-row .k { color: rgba(240, 193, 255, 0.8); min-width: 42px; font-weight: 700; letter-spacing: 0.06em; }
+  .code-row .v { flex: 1; color: #e8e6e3; letter-spacing: 0.02em; }
+  .code-row button {
+    background: rgba(240, 193, 255, 0.1);
+    border: 1px solid rgba(240, 193, 255, 0.3);
+    color: #f0c1ff;
+    padding: 3px 8px; border-radius: 6px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 9px; letter-spacing: 0.14em;
+    cursor: pointer; text-transform: uppercase;
+  }
+  .code-row button:hover { background: rgba(240, 193, 255, 0.2); }
+  .palette {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 6px; margin-top: 14px;
+  }
+  .palette .p {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .palette .p::after {
+    content: attr(data-hex);
+    position: absolute; bottom: 4px; left: 4px; right: 4px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; text-align: center;
+    color: rgba(255,255,255,0.7);
+    background: rgba(0,0,0,0.4);
+    padding: 2px 4px; border-radius: 4px;
+  }
+  .schemes { display: flex; gap: 6px; margin: 12px 0 6px; flex-wrap: wrap; }
+  .schemes button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 6px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(232, 230, 227, 0.7);
+    cursor: pointer;
+  }
+  .schemes button.is-active {
+    background: rgba(240, 193, 255, 0.14);
+    border-color: rgba(240, 193, 255, 0.5);
+    color: #f0c1ff;
+  }
+  .flash {
+    position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(240, 193, 255, 0.15);
+    border: 1px solid rgba(240, 193, 255, 0.45); border-radius: 999px;
+    color: #f0c1ff; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    opacity: 0; transition: opacity 200ms;
+    pointer-events: none; z-index: 30;
+  }
+  .flash.is-on { opacity: 1; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="flash" id="flash">Copied</div>
+<div class="card">
+  <div class="swatch" id="swatch">
+    <div class="hex" id="hex-label">#c46bff</div>
+  </div>
+  <div class="panel">
+    <h1>Color Lab</h1>
+    <div class="field">
+      <label>Pick</label>
+      <input type="color" id="picker" value="#c46bff">
+    </div>
+    <div class="code-row"><span class="k">HEX</span><span class="v" id="v-hex">#c46bff</span><button data-copy="hex">Copy</button></div>
+    <div class="code-row"><span class="k">RGB</span><span class="v" id="v-rgb">rgb(196, 107, 255)</span><button data-copy="rgb">Copy</button></div>
+    <div class="code-row"><span class="k">HSL</span><span class="v" id="v-hsl">hsl(280, 100%, 71%)</span><button data-copy="hsl">Copy</button></div>
+
+    <label style="display:block; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232,230,227,0.45); margin-top: 16px;">Palette</label>
+    <div class="schemes" id="schemes">
+      <button data-scheme="analogous" class="is-active">Analogous</button>
+      <button data-scheme="complementary">Complement</button>
+      <button data-scheme="triadic">Triadic</button>
+      <button data-scheme="mono">Mono</button>
+    </div>
+    <div class="palette" id="palette"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var picker = document.getElementById('picker');
+  var swatch = document.getElementById('swatch');
+  var hexLabel = document.getElementById('hex-label');
+  var vHex = document.getElementById('v-hex');
+  var vRgb = document.getElementById('v-rgb');
+  var vHsl = document.getElementById('v-hsl');
+  var palette = document.getElementById('palette');
+  var flash = document.getElementById('flash');
+  var schemeBtns = document.querySelectorAll('.schemes button');
+  var scheme = 'analogous';
+
+  function hexToRgb(h) {
+    var s = h.replace('#', '');
+    return { r: parseInt(s.slice(0, 2), 16), g: parseInt(s.slice(2, 4), 16), b: parseInt(s.slice(4, 6), 16) };
+  }
+  function rgbToHex(r, g, b) {
+    function h(n) { return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0'); }
+    return '#' + h(r) + h(g) + h(b);
+  }
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h, s, l = (max + min) / 2;
+    if (max === min) { h = 0; s = 0; }
+    else {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        default: h = (r - g) / d + 4;
+      }
+      h *= 60;
+    }
+    return { h: h, s: s * 100, l: l * 100 };
+  }
+  function hslToRgb(h, s, l) {
+    s /= 100; l /= 100; h = ((h % 360) + 360) % 360;
+    var c = (1 - Math.abs(2 * l - 1)) * s;
+    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    var m = l - c / 2;
+    var r, g, b;
+    if (h < 60)      { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else              { r = c; g = 0; b = x; }
+    return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+  }
+  function luminance(r, g, b) {
+    // For deciding light-on-dark vs dark-on-light labels
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function schemeColors(h, s, l) {
+    var out = [];
+    if (scheme === 'analogous') {
+      for (var i = -2; i <= 2; i++) out.push({ h: h + i * 20, s: s, l: l });
+    } else if (scheme === 'complementary') {
+      out.push({ h: h, s: s, l: l });
+      out.push({ h: h, s: s, l: Math.min(90, l + 15) });
+      out.push({ h: h + 180, s: s, l: l });
+      out.push({ h: h + 180, s: s, l: Math.min(90, l + 15) });
+      out.push({ h: h + 180, s: Math.max(20, s - 20), l: Math.max(20, l - 20) });
+    } else if (scheme === 'triadic') {
+      out.push({ h: h, s: s, l: l });
+      out.push({ h: h + 120, s: s, l: l });
+      out.push({ h: h + 240, s: s, l: l });
+      out.push({ h: h, s: Math.max(30, s - 20), l: Math.min(85, l + 12) });
+      out.push({ h: h + 120, s: Math.max(30, s - 20), l: Math.min(85, l + 12) });
+    } else {
+      // Mono — same hue, varying lightness
+      var steps = [-30, -15, 0, 15, 30];
+      for (var i = 0; i < 5; i++) out.push({ h: h, s: s, l: Math.max(10, Math.min(92, l + steps[i])) });
+    }
+    return out;
+  }
+
+  function render(hex) {
+    var rgb = hexToRgb(hex);
+    var hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    swatch.style.background = hex;
+    swatch.classList.toggle('on-dark', luminance(rgb.r, rgb.g, rgb.b) < 128);
+    hexLabel.textContent = hex.toUpperCase();
+    vHex.textContent = hex.toUpperCase();
+    vRgb.textContent = 'rgb(' + Math.round(rgb.r) + ', ' + Math.round(rgb.g) + ', ' + Math.round(rgb.b) + ')';
+    vHsl.textContent = 'hsl(' + Math.round(hsl.h) + ', ' + Math.round(hsl.s) + '%, ' + Math.round(hsl.l) + '%)';
+    palette.innerHTML = '';
+    var cols = schemeColors(hsl.h, hsl.s, hsl.l);
+    cols.forEach(function (c) {
+      var rgb = hslToRgb(c.h, c.s, c.l);
+      var h = rgbToHex(rgb.r, rgb.g, rgb.b);
+      var d = document.createElement('div');
+      d.className = 'p';
+      d.style.background = h;
+      d.dataset.hex = h.toUpperCase();
+      d.addEventListener('click', function () {
+        picker.value = h;
+        render(h);
+      });
+      palette.appendChild(d);
+    });
+  }
+
+  picker.addEventListener('input', function () { render(picker.value); });
+  schemeBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      scheme = b.dataset.scheme;
+      schemeBtns.forEach(function (x) { x.classList.toggle('is-active', x === b); });
+      render(picker.value);
+    });
+  });
+  document.querySelectorAll('.code-row button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var text = document.getElementById('v-' + b.dataset.copy).textContent;
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+      else {
+        var ta = document.createElement('textarea'); ta.value = text;
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      flash.classList.add('is-on');
+      setTimeout(function () { flash.classList.remove('is-on'); }, 900);
+    });
+  });
+  render(picker.value);
+})();
+</script>
+</body>
+</html>

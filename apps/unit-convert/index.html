@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UNIT CONVERT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(75, 180, 255, 0.14), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 10;
+  }
+  .card {
+    width: min(560px, 100%);
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+    padding: 26px 28px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 22px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin: 0 0 4px;
+    color: #4bb4ff;
+    text-shadow: 0 0 22px rgba(75, 180, 255, 0.35);
+  }
+  .subtitle {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    margin-bottom: 22px;
+  }
+  .cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 22px; }
+  .cats button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(232, 230, 227, 0.7); cursor: pointer;
+    transition: background 160ms, border-color 160ms, color 160ms;
+  }
+  .cats button.is-active {
+    background: rgba(75, 180, 255, 0.16);
+    border-color: rgba(75, 180, 255, 0.55);
+    color: #cfe6ff;
+  }
+  .row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px; }
+  .row input, .row select {
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e8e6e3;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: 20px;
+    outline: none;
+    letter-spacing: 0.02em;
+  }
+  .row input {
+    flex: 1;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    user-select: text; -webkit-user-select: text;
+  }
+  .row input:focus { border-color: rgba(75, 180, 255, 0.55); }
+  .row select {
+    background-image: none;
+    padding: 14px 40px 14px 16px;
+    width: 130px;
+    -webkit-appearance: none; appearance: none;
+    cursor: pointer;
+    background:
+      linear-gradient(45deg, transparent 50%, rgba(232, 230, 227, 0.55) 50%),
+      linear-gradient(-45deg, transparent 50%, rgba(232, 230, 227, 0.55) 50%),
+      rgba(6, 6, 10, 0.55);
+    background-position: right 20px center, right 15px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+  .swap {
+    width: 46px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(75, 180, 255, 0.1);
+    border: 1px solid rgba(75, 180, 255, 0.28);
+    color: #cfe6ff; border-radius: 12px; cursor: pointer;
+    font-size: 20px;
+    transition: transform 160ms, background 160ms;
+  }
+  .swap:hover { background: rgba(75, 180, 255, 0.2); }
+  .swap:active { transform: rotate(180deg); }
+  .separator {
+    text-align: center; font-size: 22px;
+    color: rgba(232, 230, 227, 0.35);
+    letter-spacing: 0.3em; padding: 6px 0;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="card">
+  <h1>Unit Convert</h1>
+  <div class="subtitle">Live conversion across seven categories.</div>
+
+  <div class="cats" id="cats">
+    <button data-cat="length" class="is-active">Length</button>
+    <button data-cat="weight">Weight</button>
+    <button data-cat="temp">Temperature</button>
+    <button data-cat="volume">Volume</button>
+    <button data-cat="area">Area</button>
+    <button data-cat="speed">Speed</button>
+    <button data-cat="data">Data</button>
+  </div>
+
+  <div class="row">
+    <input type="number" id="from-val" value="1" step="any">
+    <select id="from-unit"></select>
+  </div>
+  <div class="separator">↕</div>
+  <div class="row">
+    <input type="number" id="to-val" step="any">
+    <select id="to-unit"></select>
+    <button class="swap" id="swap" type="button" aria-label="Swap">⇅</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Each category: units keyed by base ratio (multiplier to base unit).
+  // Temperature is special (formula-based).
+  var CATS = {
+    length: {
+      base: 'm',
+      units: {
+        'mm': 0.001, 'cm': 0.01, 'm': 1, 'km': 1000,
+        'in': 0.0254, 'ft': 0.3048, 'yd': 0.9144, 'mi': 1609.344,
+        'nm': 1e-9, 'μm': 1e-6
+      }
+    },
+    weight: {
+      base: 'kg',
+      units: {
+        'mg': 0.000001, 'g': 0.001, 'kg': 1, 't': 1000,
+        'oz': 0.0283495, 'lb': 0.453592, 'st': 6.35029
+      }
+    },
+    volume: {
+      base: 'L',
+      units: {
+        'mL': 0.001, 'L': 1, 'm³': 1000,
+        'tsp': 0.00492892, 'tbsp': 0.0147868, 'fl oz': 0.0295735,
+        'cup': 0.24, 'pt': 0.473176, 'qt': 0.946353, 'gal (US)': 3.78541
+      }
+    },
+    area: {
+      base: 'm²',
+      units: {
+        'cm²': 0.0001, 'm²': 1, 'km²': 1000000, 'ha': 10000,
+        'in²': 0.00064516, 'ft²': 0.092903, 'yd²': 0.836127, 'ac': 4046.86, 'mi²': 2589988
+      }
+    },
+    speed: {
+      base: 'm/s',
+      units: {
+        'm/s': 1, 'km/h': 0.277778, 'mph': 0.44704, 'kn': 0.514444, 'ft/s': 0.3048
+      }
+    },
+    data: {
+      base: 'B',
+      units: {
+        'b': 0.125, 'B': 1, 'KB': 1000, 'MB': 1e6, 'GB': 1e9, 'TB': 1e12,
+        'KiB': 1024, 'MiB': 1048576, 'GiB': 1073741824, 'TiB': 1.0995e12
+      }
+    },
+    temp: { base: 'C', units: { '°C': 1, '°F': 1, 'K': 1 } }
+  };
+
+  var cats = document.getElementById('cats');
+  var fromVal = document.getElementById('from-val');
+  var fromUnit = document.getElementById('from-unit');
+  var toVal = document.getElementById('to-val');
+  var toUnit = document.getElementById('to-unit');
+  var swap = document.getElementById('swap');
+  var current = 'length';
+
+  function fillUnits() {
+    var opts = CATS[current].units;
+    fromUnit.innerHTML = ''; toUnit.innerHTML = '';
+    Object.keys(opts).forEach(function (k) {
+      var o1 = document.createElement('option'); o1.value = k; o1.textContent = k; fromUnit.appendChild(o1);
+      var o2 = document.createElement('option'); o2.value = k; o2.textContent = k; toUnit.appendChild(o2);
+    });
+    var keys = Object.keys(opts);
+    fromUnit.value = keys[0];
+    toUnit.value = keys[Math.min(1, keys.length - 1)];
+  }
+
+  function convert(v, from, to) {
+    if (isNaN(v)) return NaN;
+    if (current === 'temp') {
+      // Normalize to Celsius first
+      var c;
+      if (from === '°C') c = v;
+      else if (from === '°F') c = (v - 32) * 5 / 9;
+      else if (from === 'K') c = v - 273.15;
+      if (to === '°C') return c;
+      if (to === '°F') return c * 9 / 5 + 32;
+      if (to === 'K') return c + 273.15;
+    }
+    var units = CATS[current].units;
+    return v * units[from] / units[to];
+  }
+
+  function fmt(n) {
+    if (isNaN(n) || !isFinite(n)) return '';
+    // 6 sig figs, trim trailing zeros
+    var s = Math.abs(n) >= 1e12 ? n.toExponential(4)
+      : Math.abs(n) < 1e-4 && n !== 0 ? n.toExponential(4)
+      : parseFloat(n.toPrecision(8)).toString();
+    return s;
+  }
+
+  function recalc(fromField) {
+    if (fromField === 'from') {
+      var v = parseFloat(fromVal.value);
+      var r = convert(v, fromUnit.value, toUnit.value);
+      toVal.value = fmt(r);
+    } else {
+      var v = parseFloat(toVal.value);
+      var r = convert(v, toUnit.value, fromUnit.value);
+      fromVal.value = fmt(r);
+    }
+  }
+
+  cats.querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      current = b.dataset.cat;
+      cats.querySelectorAll('button').forEach(function (x) { x.classList.toggle('is-active', x === b); });
+      fillUnits();
+      // Reset to a sane default value
+      fromVal.value = 1;
+      recalc('from');
+    });
+  });
+  fromVal.addEventListener('input', function () { recalc('from'); });
+  toVal.addEventListener('input', function () { recalc('to'); });
+  fromUnit.addEventListener('change', function () { recalc('from'); });
+  toUnit.addEventListener('change', function () { recalc('from'); });
+  swap.addEventListener('click', function () {
+    var a = fromUnit.value; fromUnit.value = toUnit.value; toUnit.value = a;
+    recalc('from');
+  });
+
+  fillUnits();
+  recalc('from');
+})();
+</script>
+</body>
+</html>

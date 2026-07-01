@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MUSIC STUDIO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="../../music.js" defer></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #05050a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 10% -10%, rgba(255, 138, 61, 0.16), transparent 55%),
+      radial-gradient(circle at 90% 100%, rgba(75, 180, 255, 0.18), transparent 55%),
+      radial-gradient(ellipse at center, #14141a, #05050a 78%);
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 0;
+    height: 100vh;
+  }
+  @media (max-width: 780px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    .library { max-height: 190px; overflow-y: auto; }
+  }
+  .back {
+    position: fixed; top: 12px; left: 12px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.6); text-decoration: none;
+    padding: 6px 10px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5); z-index: 30;
+  }
+  .back:hover { color: #fff; }
+  header {
+    grid-column: 1 / -1;
+    padding: 42px 20px 12px;
+    text-align: center;
+  }
+  header h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 16px; letter-spacing: 0.32em;
+    text-transform: uppercase; margin: 0;
+    color: #ff8a3d;
+    text-shadow: 0 0 22px rgba(255, 138, 61, 0.35);
+  }
+  header p {
+    font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4); margin: 4px 0 0;
+  }
+  aside.library {
+    padding: 6px 14px 14px;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    overflow-y: auto;
+  }
+  @media (max-width: 780px) { aside.library { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); } }
+  .side-title {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+    padding: 8px 4px 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .side-title::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #ff8a3d; box-shadow: 0 0 8px #ff8a3d;
+  }
+  .library ul { list-style: none; padding: 0; margin: 0; }
+  .library li {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-radius: 8px; margin-bottom: 2px;
+    font-size: 12px; letter-spacing: 0.06em;
+    cursor: pointer;
+    color: rgba(232, 230, 227, 0.8);
+    transition: background 140ms, color 140ms;
+  }
+  .library li:hover { background: rgba(255, 138, 61, 0.08); color: #fff; }
+  .library li.is-playing {
+    background: rgba(255, 138, 61, 0.18);
+    color: #ffb789;
+  }
+  .library li.is-playing::after {
+    content: '►';
+    color: #ff8a3d;
+    font-size: 10px;
+    margin-left: 8px;
+  }
+  .library li .bpm {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: rgba(232, 230, 227, 0.35);
+    letter-spacing: 0;
+  }
+  main.studio {
+    padding: 6px 16px 8px;
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .track-list {
+    display: flex; flex-direction: column;
+    gap: 3px;
+    padding-bottom: 8px;
+  }
+  .track {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 6px;
+    align-items: center;
+  }
+  .track-label {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 700;
+  }
+  .track.drums .track-label { color: #ffa84d; background: rgba(255, 168, 77, 0.08); }
+  .track.bass .track-label  { color: #5b8def; background: rgba(91, 141, 239, 0.08); }
+  .track.lead .track-label  { color: #78dcb4; background: rgba(120, 220, 180, 0.08); }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: 3px;
+  }
+  .cell {
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 100ms, transform 80ms, box-shadow 80ms;
+    padding: 0;
+  }
+  .cell:hover { background: rgba(255, 255, 255, 0.08); }
+  .cell.beat { background: rgba(255, 255, 255, 0.06); }
+  .cell.playhead { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6); }
+  .cell.on {
+    background: #78dcb4;
+    border-color: transparent;
+    box-shadow: 0 0 8px rgba(120, 220, 180, 0.55);
+  }
+  .track.drums .cell.on { background: #ff8a3d; box-shadow: 0 0 8px rgba(255, 138, 61, 0.55); }
+  .track.bass .cell.on  { background: #5b8def; box-shadow: 0 0 8px rgba(91, 141, 239, 0.55); }
+  .cell.on.playhead { box-shadow: 0 0 14px currentColor, inset 0 0 0 2px rgba(255,255,255,0.9); }
+
+  footer.transport {
+    grid-column: 1 / -1;
+    padding: 12px 16px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; gap: 10px; align-items: center;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .transport button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 10px 16px; border-radius: 999px; cursor: pointer;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: rgba(232, 230, 227, 0.8);
+  }
+  .transport button:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .transport button.primary {
+    background: #ff8a3d; color: #06060a; border-color: transparent;
+    box-shadow: 0 6px 18px rgba(255, 138, 61, 0.4);
+  }
+  .transport button.primary:hover { background: #ff9d5c; }
+  .transport .slot {
+    background: rgba(120, 220, 180, 0.08);
+    border-color: rgba(120, 220, 180, 0.3);
+    color: #d0f4df;
+  }
+  .transport .slot:hover { background: rgba(120, 220, 180, 0.18); }
+  .transport .bpm {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+  }
+  .transport .bpm label {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+  }
+  .transport input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 120px; height: 3px;
+    background: rgba(255,255,255,0.16);
+    border-radius: 2px; outline: none;
+  }
+  .transport input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #ff8a3d; cursor: pointer;
+  }
+  .transport input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; border: none;
+    background: #ff8a3d; cursor: pointer;
+  }
+  .transport .bpm-val {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px; color: #ff8a3d;
+    min-width: 28px; text-align: right;
+    font-variant-numeric: tabular-nums; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<header>
+  <h1>Music Studio</h1>
+  <p>Sequencer + library · 9 tracks × 16 steps</p>
+</header>
+
+<aside class="library">
+  <div class="side-title">Library</div>
+  <ul id="library-list"></ul>
+</aside>
+
+<main class="studio">
+  <div class="track-list" id="tracks"></div>
+</main>
+
+<footer class="transport">
+  <button id="play" class="primary" type="button">Play</button>
+  <button id="stop" type="button">Stop</button>
+  <button id="clear" type="button">Clear</button>
+  <div class="bpm">
+    <label>BPM</label>
+    <input type="range" id="bpm" min="60" max="180" value="112">
+    <span class="bpm-val" id="bpm-val">112</span>
+  </div>
+  <button class="slot" data-slot="A" data-op="save" type="button">Save A</button>
+  <button class="slot" data-slot="A" data-op="load" type="button">Load A</button>
+  <button class="slot" data-slot="B" data-op="save" type="button">Save B</button>
+  <button class="slot" data-slot="B" data-op="load" type="button">Load B</button>
+  <button class="slot" data-slot="C" data-op="save" type="button">Save C</button>
+  <button class="slot" data-slot="C" data-op="load" type="button">Load C</button>
+</footer>
+
+<script>
+(function () {
+  // ---------- Track model ----------
+  // 9 tracks × 16 steps. Rows 0..4 are the pentatonic lead (C5..A4..G4..E4..D4).
+  // Row 5 is the bass (A2 by default). Rows 6..8 are hat, snare, kick.
+  var TRACKS = [
+    { key: 'lead-c5', label: 'C5', kind: 'lead', freq: 523.25 },
+    { key: 'lead-a4', label: 'A4', kind: 'lead', freq: 440.00 },
+    { key: 'lead-g4', label: 'G4', kind: 'lead', freq: 391.99 },
+    { key: 'lead-e4', label: 'E4', kind: 'lead', freq: 329.63 },
+    { key: 'lead-d4', label: 'D4', kind: 'lead', freq: 293.66 },
+    { key: 'bass',    label: 'BASS', kind: 'bass', freq: 110.00 },
+    { key: 'hat',     label: 'HAT',   kind: 'drums', drum: 'hat' },
+    { key: 'snare',   label: 'SNARE', kind: 'drums', drum: 'snare' },
+    { key: 'kick',    label: 'KICK',  kind: 'drums', drum: 'kick' }
+  ];
+  var STEPS = 16;
+
+  // Pattern: TRACKS.length × STEPS booleans
+  function emptyPattern() {
+    var p = [];
+    for (var t = 0; t < TRACKS.length; t++) {
+      var row = new Array(STEPS);
+      for (var s = 0; s < STEPS; s++) row[s] = false;
+      p.push(row);
+    }
+    return p;
+  }
+  function defaultPattern() {
+    var p = emptyPattern();
+    // A pleasant default so it's not empty on load
+    // KICK on 0/4/8/12; HAT on 2/6/10/14; SNARE on 4/12
+    p[8][0] = p[8][4] = p[8][8] = p[8][12] = true; // kick
+    p[7][4] = p[7][12] = true;                     // snare
+    p[6][2] = p[6][6] = p[6][10] = p[6][14] = true; // hat
+    p[5][0] = p[5][8] = true;                      // bass
+    p[0][0] = p[0][8] = true;                      // lead C5
+    p[2][4] = p[2][12] = true;                     // lead G4
+    return p;
+  }
+
+  var pattern = defaultPattern();
+  try {
+    var saved = JSON.parse(localStorage.getItem('music-studio-last') || 'null');
+    if (saved && Array.isArray(saved) && saved.length === TRACKS.length) pattern = saved;
+  } catch (_) {}
+
+  // ---------- DOM: build sequencer ----------
+  var tracksEl = document.getElementById('tracks');
+  function buildSequencer() {
+    tracksEl.innerHTML = '';
+    for (var t = 0; t < TRACKS.length; t++) {
+      var track = TRACKS[t];
+      var trackDiv = document.createElement('div');
+      trackDiv.className = 'track ' + track.kind;
+      var label = document.createElement('div');
+      label.className = 'track-label';
+      label.textContent = track.label;
+      trackDiv.appendChild(label);
+      var stepsDiv = document.createElement('div');
+      stepsDiv.className = 'steps';
+      for (var s = 0; s < STEPS; s++) {
+        (function (t, s) {
+          var cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'cell' + (s % 4 === 0 ? ' beat' : '') + (pattern[t][s] ? ' on' : '');
+          cell.dataset.t = t;
+          cell.dataset.s = s;
+          cell.addEventListener('click', function () {
+            pattern[t][s] = !pattern[t][s];
+            cell.classList.toggle('on', pattern[t][s]);
+            saveCurrent();
+            // Preview
+            ensureAudio();
+            if (pattern[t][s]) playStep(t, audio.currentTime);
+          });
+          stepsDiv.appendChild(cell);
+        })(t, s);
+      }
+      trackDiv.appendChild(stepsDiv);
+      tracksEl.appendChild(trackDiv);
+    }
+  }
+  function cellAt(t, s) { return tracksEl.querySelector('.cell[data-t="' + t + '"][data-s="' + s + '"]'); }
+  function saveCurrent() {
+    try { localStorage.setItem('music-studio-last', JSON.stringify(pattern)); } catch (_) {}
+  }
+
+  // ---------- Audio engine ----------
+  var audio = null, masterGain = null;
+  function ensureAudio() {
+    if (audio) return;
+    try {
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audio.createGain();
+      masterGain.gain.value = 0.85;
+      masterGain.connect(audio.destination);
+    } catch (e) { audio = null; }
+  }
+  function playNote(freq, dur, type, vol, time) {
+    if (!audio) return;
+    var t = time || audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.frequency.value = freq;
+    o.type = type || 'sine';
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(masterGain);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function playKick(time) {
+    if (!audio) return;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, time);
+    o.frequency.exponentialRampToValueAtTime(45, time + 0.14);
+    g.gain.setValueAtTime(0.55, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.28);
+    o.connect(g).connect(masterGain);
+    o.start(time); o.stop(time + 0.32);
+  }
+  function playSnare(time) {
+    if (!audio) return;
+    var bufSize = audio.sampleRate * 0.16;
+    var buf = audio.createBuffer(1, bufSize, audio.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2.5);
+    var src = audio.createBufferSource(); src.buffer = buf;
+    var filt = audio.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 1600;
+    var g = audio.createGain();
+    g.gain.setValueAtTime(0.35, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+    src.connect(filt).connect(g).connect(masterGain);
+    src.start(time); src.stop(time + 0.18);
+  }
+  function playHat(time) {
+    if (!audio) return;
+    var bufSize = audio.sampleRate * 0.05;
+    var buf = audio.createBuffer(1, bufSize, audio.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3);
+    var src = audio.createBufferSource(); src.buffer = buf;
+    var filt = audio.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 6000;
+    var g = audio.createGain();
+    g.gain.setValueAtTime(0.16, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    src.connect(filt).connect(g).connect(masterGain);
+    src.start(time); src.stop(time + 0.06);
+  }
+  function playStep(trackIdx, time) {
+    var tr = TRACKS[trackIdx];
+    if (tr.kind === 'drums') {
+      if (tr.drum === 'kick') playKick(time);
+      else if (tr.drum === 'snare') playSnare(time);
+      else playHat(time);
+    } else if (tr.kind === 'bass') {
+      playNote(tr.freq, 0.55, 'triangle', 0.22, time);
+    } else {
+      playNote(tr.freq, 0.28, 'square', 0.14, time);
+    }
+  }
+
+  // ---------- Look-ahead scheduler ----------
+  var bpm = 112;
+  try { var b = parseInt(localStorage.getItem('music-studio-bpm') || '112', 10); if (b >= 60 && b <= 180) bpm = b; } catch (_) {}
+  var stepDur = 60 / bpm / 4; // 16th notes
+  var running = false;
+  var currentStep = 0;
+  var nextStepTime = 0;
+  var schedTimer = null;
+  var displayQueue = [];
+  var displayTimer = null;
+
+  function updateStepDur() { stepDur = 60 / bpm / 4; }
+
+  function scheduler() {
+    if (!running || !audio) return;
+    while (nextStepTime < audio.currentTime + 0.12) {
+      // Schedule audio for every ON cell in this step
+      for (var t = 0; t < TRACKS.length; t++) {
+        if (pattern[t][currentStep]) playStep(t, nextStepTime);
+      }
+      displayQueue.push({ step: currentStep, at: nextStepTime });
+      nextStepTime += stepDur;
+      currentStep = (currentStep + 1) % STEPS;
+    }
+  }
+  function tickDisplay() {
+    if (!audio) return;
+    while (displayQueue.length && displayQueue[0].at <= audio.currentTime + 0.008) {
+      var entry = displayQueue.shift();
+      var s = entry.step;
+      // Clear old playhead
+      tracksEl.querySelectorAll('.cell.playhead').forEach(function (c) { c.classList.remove('playhead'); });
+      // Set new playhead across all rows
+      for (var t = 0; t < TRACKS.length; t++) {
+        var c = cellAt(t, s);
+        if (c) c.classList.add('playhead');
+      }
+    }
+  }
+
+  function play() {
+    ensureAudio();
+    if (!audio) return;
+    if (audio.state === 'suspended') audio.resume();
+    stopLibraryPlayback();
+    running = true;
+    currentStep = 0;
+    updateStepDur();
+    nextStepTime = audio.currentTime + 0.05;
+    displayQueue = [];
+    if (schedTimer) clearInterval(schedTimer);
+    if (displayTimer) clearInterval(displayTimer);
+    schedTimer = setInterval(scheduler, 25);
+    displayTimer = setInterval(tickDisplay, 16);
+    scheduler();
+    playBtn.textContent = 'Pause';
+  }
+  function stop() {
+    running = false;
+    if (schedTimer) clearInterval(schedTimer);
+    if (displayTimer) clearInterval(displayTimer);
+    schedTimer = null; displayTimer = null;
+    displayQueue = [];
+    tracksEl.querySelectorAll('.cell.playhead').forEach(function (c) { c.classList.remove('playhead'); });
+    playBtn.textContent = 'Play';
+  }
+  function clearPattern() {
+    stop();
+    pattern = emptyPattern();
+    tracksEl.querySelectorAll('.cell').forEach(function (c) { c.classList.remove('on'); });
+    saveCurrent();
+  }
+
+  // ---------- Controls ----------
+  var playBtn = document.getElementById('play');
+  var stopBtn = document.getElementById('stop');
+  var clearBtn = document.getElementById('clear');
+  var bpmSlider = document.getElementById('bpm');
+  var bpmVal = document.getElementById('bpm-val');
+  bpmSlider.value = bpm;
+  bpmVal.textContent = bpm;
+
+  playBtn.addEventListener('click', function () { running ? stop() : play(); });
+  stopBtn.addEventListener('click', stop);
+  clearBtn.addEventListener('click', clearPattern);
+  bpmSlider.addEventListener('input', function () {
+    bpm = parseInt(bpmSlider.value, 10);
+    bpmVal.textContent = bpm;
+    updateStepDur();
+    try { localStorage.setItem('music-studio-bpm', String(bpm)); } catch (_) {}
+  });
+
+  document.querySelectorAll('.slot').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var slot = b.dataset.slot;
+      var op = b.dataset.op;
+      var key = 'music-studio-slot-' + slot;
+      if (op === 'save') {
+        try {
+          localStorage.setItem(key, JSON.stringify({ pattern: pattern, bpm: bpm }));
+          b.textContent = 'Saved!';
+          setTimeout(function () { b.textContent = 'Save ' + slot; }, 900);
+        } catch (_) {}
+      } else {
+        try {
+          var raw = localStorage.getItem(key);
+          if (!raw) { b.textContent = 'Empty'; setTimeout(function () { b.textContent = 'Load ' + slot; }, 900); return; }
+          var loaded = JSON.parse(raw);
+          if (loaded && loaded.pattern && loaded.pattern.length === TRACKS.length) {
+            pattern = loaded.pattern;
+            if (loaded.bpm) {
+              bpm = loaded.bpm;
+              bpmSlider.value = bpm;
+              bpmVal.textContent = bpm;
+              updateStepDur();
+            }
+            saveCurrent();
+            buildSequencer();
+          }
+        } catch (_) {}
+      }
+    });
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault(); running ? stop() : play();
+    }
+  });
+
+  // ---------- Library (game presets via music.js) ----------
+  // music.js is loaded with `defer` so it'll be ready by the time this DOMContentLoaded flow finishes.
+  // But this script executes inline BEFORE deferred scripts. Wait for load.
+  var libraryList = document.getElementById('library-list');
+  var currentLibraryEntry = null;
+
+  var LIBRARY = [
+    { key: 'portfolio',    name: 'Portfolio Ambient',    bpm: 80 },
+    { key: 'snake',        name: 'Snake',                bpm: 122 },
+    { key: 'pong',         name: 'Pong',                 bpm: 100 },
+    { key: 'memory',       name: 'Memory',               bpm: 76 },
+    { key: 'blackjack',    name: 'Blackjack',            bpm: 80 },
+    { key: 'cozy-cabin',   name: 'Cozy Cabin',           bpm: 62 },
+    { key: 'kart-loops',   name: 'Kart Loops',           bpm: 138 },
+    { key: 'space-zoom',   name: 'Space Zoom',           bpm: 128 },
+    { key: 'ninja-run',    name: 'Ninja Run',            bpm: 130 },
+    { key: 'block-drop',   name: 'Block Drop',           bpm: 118 },
+    { key: 'tile-tap',     name: 'Tile Tap',             bpm: 124 },
+    { key: 'bubble-pop',   name: 'Bubble Pop',           bpm: 96 },
+    { key: 'dodgeball',    name: 'Dodgeball',            bpm: 128 },
+    { key: 'color-match',  name: 'Color Match',          bpm: 108 },
+    { key: 'tower-stack',  name: 'Tower Stack',          bpm: 92 },
+    { key: 'sudoku-mini',  name: 'Sudoku Mini',          bpm: 68 },
+    { key: 'word-rush',    name: 'Word Rush',            bpm: 115 },
+    { key: 'chess-lite',   name: 'Chess Lite',           bpm: 72 },
+    { key: 'connect-four', name: 'Connect Four',         bpm: 90 },
+    { key: 'twenty-48',    name: '2048',                 bpm: 108 }
+  ];
+
+  function stopLibraryPlayback() {
+    if (currentLibraryEntry && window.Music) {
+      window.Music.stop();
+    }
+    if (currentLibraryEntry) {
+      currentLibraryEntry.classList.remove('is-playing');
+      currentLibraryEntry = null;
+    }
+  }
+
+  function renderLibrary() {
+    libraryList.innerHTML = '';
+    LIBRARY.forEach(function (p) {
+      var li = document.createElement('li');
+      li.dataset.key = p.key;
+      var name = document.createElement('span');
+      name.textContent = p.name;
+      var bpm = document.createElement('span');
+      bpm.className = 'bpm';
+      bpm.textContent = p.bpm + ' bpm';
+      li.appendChild(name); li.appendChild(bpm);
+      li.addEventListener('click', function () {
+        if (!window.Music) return;
+        // Stop sequencer if playing
+        if (running) stop();
+        if (currentLibraryEntry === li) {
+          stopLibraryPlayback();
+          return;
+        }
+        stopLibraryPlayback();
+        // Ensure not muted
+        if (window.Music.isMuted && window.Music.isMuted()) window.Music.setMuted(false);
+        window.Music.start(p.key);
+        li.classList.add('is-playing');
+        currentLibraryEntry = li;
+      });
+      libraryList.appendChild(li);
+    });
+  }
+  renderLibrary();
+  buildSequencer();
+})();
+</script>
+</body>
+</html>
