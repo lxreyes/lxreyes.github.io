@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>POMODORO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255, 82, 82, 0.16), transparent 60%),
+      radial-gradient(circle at 50% 110%, rgba(84, 224, 138, 0.12), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px;
+    text-align: center;
+    transition: background 500ms ease;
+  }
+  body.is-break {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(84, 224, 138, 0.16), transparent 60%),
+      radial-gradient(circle at 50% 110%, rgba(75, 180, 255, 0.10), transparent 60%),
+      radial-gradient(ellipse at center, #101a14, #050a06 75%);
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5);
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
+  .phase {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: #ff5252; margin-bottom: 16px;
+    transition: color 400ms;
+  }
+  body.is-break .phase { color: #54e08a; }
+  .ring-wrap {
+    position: relative;
+    width: min(340px, 78vw); height: min(340px, 78vw);
+    margin-bottom: 26px;
+  }
+  svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+  .ring-fg {
+    fill: none; stroke: #ff5252; stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 900ms linear, stroke 400ms;
+    filter: drop-shadow(0 0 12px rgba(255, 82, 82, 0.4));
+  }
+  body.is-break .ring-fg {
+    stroke: #54e08a;
+    filter: drop-shadow(0 0 12px rgba(84, 224, 138, 0.4));
+  }
+  .time {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .time .digits {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(52px, 12vw, 92px);
+    letter-spacing: 0.02em;
+    color: rgba(232, 230, 227, 0.98);
+  }
+  .time .sub {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+    margin-top: 4px;
+  }
+  .controls {
+    display: flex; gap: 12px; margin-bottom: 22px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .controls button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 13px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 12px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    border: 1px solid rgba(232, 230, 227, 0.22);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(232, 230, 227, 0.85);
+    transition: background 160ms, transform 160ms, color 160ms, border-color 160ms;
+  }
+  .controls button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(232, 230, 227, 0.98);
+    border-color: rgba(232, 230, 227, 0.4);
+  }
+  .controls button.primary {
+    background: #ff5252; color: #06060a; border-color: transparent;
+    box-shadow: 0 8px 22px rgba(255, 82, 82, 0.4);
+  }
+  body.is-break .controls button.primary {
+    background: #54e08a; box-shadow: 0 8px 22px rgba(84, 224, 138, 0.4);
+  }
+  .controls button.primary:hover { transform: translateY(-2px); }
+  .rounds {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .dots { display: flex; gap: 4px; }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .dot.is-done { background: #ff5252; box-shadow: 0 0 8px rgba(255, 82, 82, 0.55); }
+  body.is-break .dot.is-done { background: #54e08a; box-shadow: 0 0 8px rgba(84, 224, 138, 0.55); }
+  .config {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; align-items: center;
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    flex-wrap: wrap; justify-content: center;
+  }
+  .config .field { display: flex; align-items: center; gap: 8px; }
+  .config input {
+    width: 44px; padding: 6px 8px; border-radius: 8px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(232, 230, 227, 0.9); font-size: 13px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<div class="phase" id="phase">Focus</div>
+<div class="ring-wrap">
+  <svg viewBox="0 0 200 200">
+    <circle class="ring-bg" cx="100" cy="100" r="92"/>
+    <circle class="ring-fg" id="ring" cx="100" cy="100" r="92" stroke-dasharray="577.8" stroke-dashoffset="0"/>
+  </svg>
+  <div class="time">
+    <div class="digits" id="digits">25:00</div>
+    <div class="sub" id="sub">tap start</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="start" class="primary" type="button">Start</button>
+  <button id="skip" type="button">Skip</button>
+  <button id="reset" type="button">Reset</button>
+</div>
+
+<div class="rounds">
+  <span>Round</span>
+  <div class="dots" id="dots"></div>
+</div>
+
+<div class="config">
+  <div class="field"><span>Focus</span><input id="cfg-focus" type="number" min="1" max="90" value="25"></div>
+  <div class="field"><span>Break</span><input id="cfg-break" type="number" min="1" max="30" value="5"></div>
+  <div class="field"><span>Long break</span><input id="cfg-long" type="number" min="5" max="60" value="15"></div>
+</div>
+
+<script>
+(function () {
+  var digits = document.getElementById('digits');
+  var sub = document.getElementById('sub');
+  var phaseEl = document.getElementById('phase');
+  var ring = document.getElementById('ring');
+  var dotsEl = document.getElementById('dots');
+  var startBtn = document.getElementById('start');
+  var skipBtn = document.getElementById('skip');
+  var resetBtn = document.getElementById('reset');
+  var cfgFocus = document.getElementById('cfg-focus');
+  var cfgBreak = document.getElementById('cfg-break');
+  var cfgLong = document.getElementById('cfg-long');
+
+  var CIRC = 2 * Math.PI * 92; // matches r=92 in SVG
+  ring.setAttribute('stroke-dasharray', CIRC);
+
+  var state = 'idle'; // idle | run | paused
+  var phase = 'focus'; // focus | short | long
+  var totalSec = 25 * 60;
+  var remainingSec = totalSec;
+  var round = 0;      // completed focus rounds
+  var lastTick = 0;
+  var raf = 0;
+
+  try {
+    var saved = JSON.parse(localStorage.getItem('pomodoro-cfg') || '{}');
+    if (saved.focus) cfgFocus.value = saved.focus;
+    if (saved.break) cfgBreak.value = saved.break;
+    if (saved.long) cfgLong.value = saved.long;
+  } catch (_) {}
+
+  function saveCfg() {
+    try {
+      localStorage.setItem('pomodoro-cfg', JSON.stringify({
+        focus: cfgFocus.value, break: cfgBreak.value, long: cfgLong.value
+      }));
+    } catch (_) {}
+  }
+  [cfgFocus, cfgBreak, cfgLong].forEach(function (i) {
+    i.addEventListener('change', function () {
+      saveCfg();
+      if (state === 'idle') { resetPhase(); render(); }
+    });
+  });
+
+  function resetPhase() {
+    var mins;
+    if (phase === 'focus') mins = parseInt(cfgFocus.value, 10) || 25;
+    else if (phase === 'long') mins = parseInt(cfgLong.value, 10) || 15;
+    else mins = parseInt(cfgBreak.value, 10) || 5;
+    totalSec = mins * 60;
+    remainingSec = totalSec;
+  }
+
+  function fmt(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function renderDots() {
+    dotsEl.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement('div');
+      d.className = 'dot' + (i < (round % 4) ? ' is-done' : '');
+      dotsEl.appendChild(d);
+    }
+  }
+
+  function render() {
+    digits.textContent = fmt(remainingSec);
+    var progress = totalSec > 0 ? 1 - (remainingSec / totalSec) : 0;
+    ring.setAttribute('stroke-dashoffset', String(CIRC * progress));
+    document.body.classList.toggle('is-break', phase !== 'focus');
+    phaseEl.textContent = phase === 'focus' ? 'Focus' : (phase === 'long' ? 'Long break' : 'Break');
+    sub.textContent = state === 'run' ? (phase === 'focus' ? 'stay with it' : 'step away') : (state === 'paused' ? 'paused' : 'tap start');
+    startBtn.textContent = state === 'run' ? 'Pause' : (state === 'paused' ? 'Resume' : 'Start');
+    renderDots();
+    // Update tab title while running
+    document.title = state === 'run' ? fmt(remainingSec) + ' · Pomodoro' : 'POMODORO';
+  }
+
+  // Simple ping via WebAudio, no dependency on music.js
+  var audio = null;
+  function ensureAudio() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }
+  function ping(freqs) {
+    if (!audio) return;
+    var t = audio.currentTime;
+    for (var i = 0; i < freqs.length; i++) {
+      var o = audio.createOscillator();
+      var g = audio.createGain();
+      o.type = 'sine';
+      o.frequency.value = freqs[i];
+      g.gain.setValueAtTime(0.14, t + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.5);
+      o.connect(g).connect(audio.destination);
+      o.start(t + i * 0.18);
+      o.stop(t + i * 0.18 + 0.55);
+    }
+  }
+
+  function advancePhase() {
+    if (phase === 'focus') {
+      round++;
+      // Every 4th focus round earns a long break
+      phase = (round % 4 === 0) ? 'long' : 'short';
+      ping([880, 1100, 1320]);
+    } else {
+      phase = 'focus';
+      ping([660, 880]);
+    }
+    resetPhase();
+  }
+
+  function tick(now) {
+    if (state !== 'run') return;
+    var dt = (now - lastTick) / 1000;
+    lastTick = now;
+    remainingSec -= dt;
+    if (remainingSec <= 0) {
+      remainingSec = 0;
+      render();
+      advancePhase();
+      // Auto-continue into the next phase
+      state = 'run';
+      lastTick = now;
+      raf = requestAnimationFrame(tick);
+      render();
+      return;
+    }
+    render();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function toggleStart() {
+    ensureAudio();
+    if (state === 'run') {
+      state = 'paused';
+      cancelAnimationFrame(raf);
+    } else {
+      state = 'run';
+      lastTick = performance.now();
+      raf = requestAnimationFrame(tick);
+    }
+    render();
+  }
+  function skip() {
+    advancePhase();
+    render();
+  }
+  function reset() {
+    cancelAnimationFrame(raf);
+    state = 'idle';
+    phase = 'focus';
+    round = 0;
+    resetPhase();
+    render();
+  }
+
+  startBtn.addEventListener('click', toggleStart);
+  skipBtn.addEventListener('click', skip);
+  resetBtn.addEventListener('click', reset);
+  window.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); toggleStart(); }
+    if (e.code === 'KeyR') { e.preventDefault(); reset(); }
+    if (e.code === 'KeyS') { e.preventDefault(); skip(); }
+  });
+
+  resetPhase();
+  render();
+})();
+</script>
+</body>
+</html>

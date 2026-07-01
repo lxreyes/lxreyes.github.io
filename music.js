@@ -258,6 +258,16 @@
       bs:  { type: 'triangle', vol: 0.07, dur: 0.7 }
     },
 
+    // 23. COZY CABIN — warm, slow lullaby with sparse notes
+    'cozy-cabin': {
+      bpm: 62,
+      steps: 16,
+      melody: [N.C5, 0, 0, 0, N.E5, 0, 0, 0, N.G4, 0, 0, 0, N.A4, 0, 0, 0],
+      bass:   [N.C3, 0, 0, 0, 0, 0, 0, 0, N.G2, 0, 0, 0, 0, 0, 0, 0],
+      mel: { type: 'sine', vol: 0.04, dur: 1.1 },
+      bs:  { type: 'sine', vol: 0.06, dur: 2.0 }
+    },
+
     // 22. PORTFOLIO — chill ambient lobby, slow and airy
     'portfolio': {
       bpm: 80,

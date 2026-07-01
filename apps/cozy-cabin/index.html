@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COZY CABIN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<script src="../../music.js" defer></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0a0810; color: #f4ecd8;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% 90%, rgba(255, 158, 84, 0.14), transparent 60%),
+      radial-gradient(circle at 50% -10%, rgba(60, 40, 100, 0.4), transparent 70%),
+      linear-gradient(180deg, #0f0d1c 0%, #06050a 100%);
+  }
+  canvas {
+    display: block;
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(244, 236, 216, 0.6); text-decoration: none;
+    z-index: 10; background: rgba(10, 8, 16, 0.6);
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(244, 236, 216, 0.18);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .back:hover { color: rgba(244, 236, 216, 0.95); border-color: rgba(244, 236, 216, 0.45); }
+  .mute {
+    position: fixed; top: 16px; right: 16px;
+    font-size: 14px; width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(244, 236, 216, 0.6);
+    background: rgba(10, 8, 16, 0.6);
+    border: 1px solid rgba(244, 236, 216, 0.18);
+    border-radius: 50%; cursor: pointer; z-index: 11; padding: 0;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .mute:hover { color: rgba(244, 236, 216, 0.95); border-color: rgba(244, 236, 216, 0.45); }
+  .mute.is-muted { opacity: 0.4; }
+
+  /* Bubble that shows the little dude's message */
+  .bubble {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 22%;
+    max-width: min(420px, 82vw);
+    padding: 22px 28px 24px;
+    background: linear-gradient(180deg, rgba(255, 245, 225, 0.98), rgba(250, 235, 205, 0.98));
+    color: #3a2a1a;
+    border-radius: 26px;
+    font-family: "Caveat", "Space Grotesk", cursive;
+    font-size: clamp(20px, 3.4vw, 26px);
+    line-height: 1.4;
+    text-align: center;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5),
+                0 0 30px rgba(255, 190, 130, 0.25);
+    z-index: 8;
+    opacity: 0;
+    transition: opacity 700ms ease, transform 500ms ease;
+    letter-spacing: 0.01em;
+    pointer-events: none;
+  }
+  .bubble.is-visible { opacity: 1; }
+  .bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -18px; left: 50%;
+    transform: translateX(-50%);
+    width: 26px; height: 22px;
+    background: linear-gradient(180deg, rgba(250, 235, 205, 0.98), rgba(240, 220, 180, 0.98));
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  .hint {
+    position: fixed; bottom: 22px; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(244, 236, 216, 0.35);
+    pointer-events: none;
+    z-index: 6;
+  }
+  .hint b { color: rgba(244, 236, 216, 0.65); font-weight: 700; }
+
+  /* Small floaty snowflake bits over UI for continuity */
+  .site-mute::before { content: ""; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+
+<canvas id="c"></canvas>
+
+<div class="bubble" id="bubble">welcome home.</div>
+
+<div class="hint"><b>tap</b> the cabin for a new note &middot; the fire keeps going on its own</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var bubble = document.getElementById('bubble');
+  var muteBtn = document.getElementById('mute');
+  var W = 0, H = 0;
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // ---------- Nice things the little dude says ----------
+  var LINES = [
+    "you're doing great.",
+    "the fire's warm. glad you're here.",
+    "one thing at a time. no rush.",
+    "you don't have to earn rest. you just take it.",
+    "hey — proud of you.",
+    "little wins count. every one.",
+    "the world can wait five minutes.",
+    "you carried a lot today. put it down.",
+    "if it's hard, that's because it is. not because you're weak.",
+    "no notifications in here. just marshmallows.",
+    "hey, breathe with me. in… and out.",
+    "your best is different every day. that's fine.",
+    "past-you would be impressed by right-now you.",
+    "the snow doesn't have anywhere to be, and neither do you.",
+    "one deep breath. good. one more.",
+    "you can start again tomorrow. or in ten minutes.",
+    "warm socks. warm tea. warm you.",
+    "we can just sit for a while.",
+    "there's cocoa if you want some.",
+    "the storm outside doesn't get a vote in here.",
+    "you're allowed to not know yet.",
+    "small steady steps beat one big leap.",
+    "you belong here.",
+    "kindness counts, especially the kind you give yourself.",
+    "the fire's got this. rest.",
+    "your feelings are receipts, not signs.",
+    "put the phone down for a minute. i'll wait.",
+    "log off. the internet will survive.",
+    "grateful you stopped by.",
+    "the good stuff is quieter than the anxious stuff. listen for it."
+  ];
+  var lastLineIdx = -1;
+  var bubbleTimer = null;
+  function showLine(text) {
+    bubble.textContent = text;
+    bubble.classList.add('is-visible');
+    if (bubbleTimer) clearTimeout(bubbleTimer);
+    bubbleTimer = setTimeout(function () {
+      bubble.classList.remove('is-visible');
+    }, 5200);
+  }
+  function nextLine() {
+    var idx;
+    do { idx = Math.floor(Math.random() * LINES.length); } while (idx === lastLineIdx && LINES.length > 1);
+    lastLineIdx = idx;
+    showLine(LINES[idx]);
+  }
+
+  // ---------- Snowflakes ----------
+  var flakes = [];
+  var flakeCount = 90;
+  function initFlakes() {
+    flakes = [];
+    for (var i = 0; i < flakeCount; i++) {
+      flakes.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.8 + Math.random() * 2.2,
+        vy: 0.35 + Math.random() * 0.9,
+        vx: -0.15 + Math.random() * 0.3,
+        drift: Math.random() * Math.PI * 2,
+        alpha: 0.4 + Math.random() * 0.6
+      });
+    }
+  }
+  initFlakes();
+  window.addEventListener('resize', initFlakes);
+
+  // ---------- Cabin geometry ----------
+  function cabinLayout() {
+    // Position cabin roughly bottom-center. Scale to a base size but capped.
+    var scale = Math.min(1, W / 900);
+    var cabinW = 320 * scale;
+    var cabinH = 180 * scale;
+    var cx = W / 2;
+    var groundY = H * 0.82;
+    var cabinX = cx - cabinW / 2;
+    var cabinY = groundY - cabinH;
+    return { cx: cx, cabinX: cabinX, cabinY: cabinY, cabinW: cabinW, cabinH: cabinH, groundY: groundY, scale: scale };
+  }
+
+  // ---------- Little dude ----------
+  var dude = { blink: 0, blinkAt: 0, wave: 0, waveAt: 0 };
+
+  function drawScene(now) {
+    // ------- Sky gradient -------
+    var sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#1a1530');
+    sky.addColorStop(0.6, '#0d0b1a');
+    sky.addColorStop(1, '#06050a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // Distant moon glow
+    ctx.save();
+    var moonX = W * 0.78, moonY = H * 0.18;
+    var glow = ctx.createRadialGradient(moonX, moonY, 6, moonX, moonY, 120);
+    glow.addColorStop(0, 'rgba(220, 220, 240, 0.7)');
+    glow.addColorStop(0.5, 'rgba(180, 180, 220, 0.12)');
+    glow.addColorStop(1, 'rgba(180, 180, 220, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(moonX, moonY, 120, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e8e6f0';
+    ctx.beginPath(); ctx.arc(moonX, moonY, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // ------- Pine tree silhouettes -------
+    ctx.fillStyle = '#0b1418';
+    var trees = [
+      { x: W * 0.08, y: H * 0.85, h: 260 },
+      { x: W * 0.18, y: H * 0.87, h: 200 },
+      { x: W * 0.86, y: H * 0.86, h: 220 },
+      { x: W * 0.95, y: H * 0.88, h: 180 }
+    ];
+    for (var i = 0; i < trees.length; i++) drawTree(trees[i]);
+
+    // ------- Snowdrift ground -------
+    ctx.fillStyle = '#e6ecf5';
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.86);
+    ctx.quadraticCurveTo(W * 0.3, H * 0.78, W * 0.6, H * 0.84);
+    ctx.quadraticCurveTo(W * 0.8, H * 0.9, W, H * 0.82);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(210, 220, 235, 0.6)';
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.88);
+    ctx.quadraticCurveTo(W * 0.5, H * 0.83, W, H * 0.9);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fill();
+
+    // ------- Cabin -------
+    var L = cabinLayout();
+    drawCabin(L, now);
+    drawDudeInWindow(L, now);
+
+    // ------- Snowflakes (in front of cabin) -------
+    for (var i = 0; i < flakes.length; i++) {
+      var f = flakes[i];
+      f.y += f.vy;
+      f.drift += 0.02;
+      f.x += f.vx + Math.sin(f.drift) * 0.4;
+      if (f.y > H + 4) { f.y = -4; f.x = Math.random() * W; }
+      if (f.x < -4) f.x = W + 4;
+      else if (f.x > W + 4) f.x = -4;
+      ctx.fillStyle = 'rgba(255, 255, 255, ' + f.alpha + ')';
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ------- Warm vignette from the cabin windows -------
+    var vg = ctx.createRadialGradient(L.cx, L.cabinY + L.cabinH * 0.5, L.cabinW * 0.4, L.cx, L.cabinY + L.cabinH * 0.5, L.cabinW * 1.6);
+    vg.addColorStop(0, 'rgba(255, 158, 84, 0.06)');
+    vg.addColorStop(1, 'rgba(255, 158, 84, 0)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawTree(t) {
+    var w = t.h * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(t.x - w * 0.4, t.y);
+    ctx.lineTo(t.x + w * 0.4, t.y);
+    ctx.lineTo(t.x + w * 0.24, t.y - t.h * 0.15);
+    ctx.lineTo(t.x + w * 0.35, t.y - t.h * 0.35);
+    ctx.lineTo(t.x + w * 0.18, t.y - t.h * 0.42);
+    ctx.lineTo(t.x + w * 0.28, t.y - t.h * 0.65);
+    ctx.lineTo(t.x + w * 0.12, t.y - t.h * 0.7);
+    ctx.lineTo(t.x, t.y - t.h);
+    ctx.lineTo(t.x - w * 0.12, t.y - t.h * 0.7);
+    ctx.lineTo(t.x - w * 0.28, t.y - t.h * 0.65);
+    ctx.lineTo(t.x - w * 0.18, t.y - t.h * 0.42);
+    ctx.lineTo(t.x - w * 0.35, t.y - t.h * 0.35);
+    ctx.lineTo(t.x - w * 0.24, t.y - t.h * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    // snow on tree
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.beginPath();
+    ctx.moveTo(t.x, t.y - t.h);
+    ctx.lineTo(t.x - w * 0.06, t.y - t.h * 0.86);
+    ctx.lineTo(t.x + w * 0.06, t.y - t.h * 0.86);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#0b1418';
+  }
+
+  function drawCabin(L, now) {
+    var x = L.cabinX, y = L.cabinY, w = L.cabinW, h = L.cabinH;
+    var wallTop = y + h * 0.3;
+    // Walls (logs)
+    var logs = 8;
+    var logH = (h * 0.7) / logs;
+    for (var i = 0; i < logs; i++) {
+      var shade = i % 2 === 0 ? '#5b3b25' : '#6a4530';
+      ctx.fillStyle = shade;
+      ctx.fillRect(x, wallTop + i * logH, w, logH);
+      ctx.strokeStyle = '#3a2415';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, wallTop + i * logH);
+      ctx.lineTo(x + w, wallTop + i * logH);
+      ctx.stroke();
+    }
+    // Roof (triangle)
+    ctx.fillStyle = '#2a1a12';
+    ctx.beginPath();
+    ctx.moveTo(x - 20, wallTop);
+    ctx.lineTo(x + w / 2, y);
+    ctx.lineTo(x + w + 20, wallTop);
+    ctx.closePath(); ctx.fill();
+    // Snow on roof
+    ctx.fillStyle = '#f2f5fa';
+    ctx.beginPath();
+    ctx.moveTo(x - 20, wallTop);
+    ctx.lineTo(x + w / 2, y);
+    ctx.lineTo(x + w + 20, wallTop);
+    ctx.quadraticCurveTo(x + w * 0.7, wallTop - 10, x + w / 2, wallTop - 16);
+    ctx.quadraticCurveTo(x + w * 0.3, wallTop - 12, x - 20, wallTop);
+    ctx.closePath(); ctx.fill();
+    // Chimney
+    var chimX = x + w * 0.72, chimW = 22 * L.scale, chimH = 42 * L.scale;
+    ctx.fillStyle = '#4a352a';
+    ctx.fillRect(chimX, wallTop - chimH * 0.7, chimW, chimH);
+    ctx.fillStyle = '#f2f5fa';
+    ctx.fillRect(chimX - 2, wallTop - chimH * 0.7 - 4, chimW + 4, 6);
+    // Smoke
+    for (var s = 0; s < 4; s++) {
+      var t = ((now / 1000) + s * 0.7) % 3.5;
+      var sy = wallTop - chimH * 0.7 - 6 - t * 40;
+      var sx = chimX + chimW / 2 + Math.sin(t * 2) * (8 + t * 4);
+      var alpha = Math.max(0, 1 - t / 3.5) * 0.35;
+      var r = 8 + t * 8;
+      ctx.fillStyle = 'rgba(200, 200, 210, ' + alpha + ')';
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Warm window glow — main window on left, small window on right
+    drawWindow(x + w * 0.18, wallTop + h * 0.25, w * 0.22, h * 0.30, now);
+    drawWindow(x + w * 0.58, wallTop + h * 0.30, w * 0.14, h * 0.22, now);
+    // Door (right side)
+    var doorX = x + w * 0.78, doorY = wallTop + h * 0.28, doorW = w * 0.14, doorH = h * 0.42;
+    ctx.fillStyle = '#3a251a';
+    ctx.fillRect(doorX, doorY, doorW, doorH);
+    ctx.fillStyle = '#ffcf70';
+    ctx.beginPath(); ctx.arc(doorX + doorW * 0.82, doorY + doorH * 0.55, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Warm door light spilling on snow
+    ctx.save();
+    var spill = ctx.createLinearGradient(doorX + doorW / 2, doorY + doorH, doorX + doorW / 2, doorY + doorH + 60);
+    spill.addColorStop(0, 'rgba(255, 180, 90, 0.30)');
+    spill.addColorStop(1, 'rgba(255, 180, 90, 0)');
+    ctx.fillStyle = spill;
+    ctx.beginPath();
+    ctx.moveTo(doorX - 10, doorY + doorH);
+    ctx.lineTo(doorX + doorW + 10, doorY + doorH);
+    ctx.lineTo(doorX + doorW + 40, doorY + doorH + 70);
+    ctx.lineTo(doorX - 40, doorY + doorH + 70);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWindow(wx, wy, ww, wh, now) {
+    // Warm interior flicker
+    var flicker = 0.85 + 0.15 * Math.sin(now * 0.006) + 0.05 * Math.sin(now * 0.019);
+    var glow = ctx.createLinearGradient(wx, wy, wx, wy + wh);
+    glow.addColorStop(0, 'rgba(255, 180, 100, ' + (0.9 * flicker) + ')');
+    glow.addColorStop(1, 'rgba(255, 130, 60, ' + (0.75 * flicker) + ')');
+    ctx.fillStyle = glow;
+    ctx.fillRect(wx, wy, ww, wh);
+    // Cross frame
+    ctx.strokeStyle = '#3a251a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(wx, wy, ww, wh);
+    ctx.beginPath();
+    ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh);
+    ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2);
+    ctx.stroke();
+    // External glow onto snow
+    var haze = ctx.createRadialGradient(wx + ww / 2, wy + wh / 2, 4, wx + ww / 2, wy + wh / 2, ww * 2);
+    haze.addColorStop(0, 'rgba(255, 170, 90, 0.15)');
+    haze.addColorStop(1, 'rgba(255, 170, 90, 0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(wx - ww, wy - wh, ww * 3, wh * 3);
+  }
+
+  function drawDudeInWindow(L, now) {
+    // Little dude peers through the LEFT window.
+    var w = L.cabinW, h = L.cabinH;
+    var wx = L.cabinX + w * 0.18;
+    var wy = L.cabinY + h * 0.3 + h * 0.25;
+    var ww = w * 0.22, wh = h * 0.30;
+    var cx = wx + ww / 2, cy = wy + wh * 0.58;
+    var scale = L.scale;
+
+    // Blink
+    if (now > dude.blinkAt) { dude.blink = 8; dude.blinkAt = now + 2200 + Math.random() * 3200; }
+    if (dude.blink > 0) dude.blink--;
+    // Wave (rarely)
+    if (now > dude.waveAt) { dude.wave = 40; dude.waveAt = now + 6000 + Math.random() * 8000; }
+    if (dude.wave > 0) dude.wave--;
+
+    // Body (rounded)
+    ctx.fillStyle = '#4b3a55';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 14 * scale, 20 * scale, 18 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = '#f0d0a8';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 4 * scale, 14 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    // Hat (pom pom beanie)
+    ctx.fillStyle = '#c94b4b';
+    ctx.beginPath();
+    ctx.moveTo(cx - 15 * scale, cy - 8 * scale);
+    ctx.quadraticCurveTo(cx, cy - 22 * scale, cx + 15 * scale, cy - 8 * scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f4ecd8';
+    ctx.beginPath(); ctx.arc(cx, cy - 22 * scale, 3.5 * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#e8dcc8';
+    ctx.fillRect(cx - 15 * scale, cy - 10 * scale, 30 * scale, 3 * scale);
+    // Eyes
+    ctx.fillStyle = '#2a1a12';
+    if (dude.blink > 0) {
+      ctx.fillRect(cx - 6 * scale, cy - 5 * scale, 3 * scale, 1);
+      ctx.fillRect(cx + 3 * scale, cy - 5 * scale, 3 * scale, 1);
+    } else {
+      ctx.beginPath(); ctx.arc(cx - 4 * scale, cy - 5 * scale, 1.6 * scale, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 4 * scale, cy - 5 * scale, 1.6 * scale, 0, Math.PI * 2); ctx.fill();
+    }
+    // Rosy cheeks
+    ctx.fillStyle = 'rgba(220, 120, 130, 0.6)';
+    ctx.beginPath(); ctx.arc(cx - 7 * scale, cy - 1 * scale, 2.4 * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 7 * scale, cy - 1 * scale, 2.4 * scale, 0, Math.PI * 2); ctx.fill();
+    // Smile
+    ctx.strokeStyle = '#2a1a12';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 1 * scale, 3 * scale, 0.15, Math.PI - 0.15);
+    ctx.stroke();
+    // Waving hand
+    if (dude.wave > 0) {
+      var wavePhase = (dude.wave / 40) * Math.PI * 6;
+      var hx = cx + 18 * scale + Math.sin(wavePhase) * 3;
+      var hy = cy + 4 * scale;
+      ctx.strokeStyle = '#4b3a55';
+      ctx.lineWidth = 3 * scale;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx + 15 * scale, cy + 8 * scale);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+      ctx.fillStyle = '#f0d0a8';
+      ctx.beginPath(); ctx.arc(hx, hy, 3 * scale, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // ---------- Loop ----------
+  function loop() {
+    var now = performance.now();
+    drawScene(now);
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  // ---------- Interaction ----------
+  canvas.addEventListener('pointerdown', function () { nextLine(); });
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); nextLine(); }
+  });
+  // Show the first line shortly after load
+  setTimeout(nextLine, 900);
+  // Rotate to a new line every ~14 seconds even without input
+  setInterval(function () { if (!bubble.classList.contains('is-visible')) nextLine(); }, 14000);
+
+  // ---------- Music ----------
+  if (window.Music && muteBtn) {
+    if (window.Music.isMuted()) muteBtn.classList.add('is-muted');
+    muteBtn.addEventListener('click', function () {
+      if (!window.Music) return;
+      // Start on first click if not started
+      window.Music.start('cozy-cabin');
+      window.Music.toggle();
+      muteBtn.classList.toggle('is-muted');
+    });
+    // Start softly on first interaction
+    var started = false;
+    function startMusic() {
+      if (started) return;
+      started = true;
+      window.Music.start('cozy-cabin');
+    }
+    window.addEventListener('pointerdown', startMusic, { once: true });
+    window.addEventListener('keydown', startMusic, { once: true });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PASSWORD FORGE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(120, 220, 180, 0.16), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5);
+  }
+  .back:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
+  .card {
+    width: min(560px, 100%);
+    background: rgba(20, 20, 28, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+    padding: 26px 28px 28px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 26px; letter-spacing: 0.18em;
+    text-transform: uppercase; margin: 0 0 4px;
+    color: #78dcb4;
+    text-shadow: 0 0 22px rgba(120, 220, 180, 0.35);
+  }
+  .subtitle {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.5);
+    margin-bottom: 22px;
+  }
+  .out-wrap {
+    display: flex; gap: 8px; margin-bottom: 8px;
+    user-select: text; -webkit-user-select: text;
+  }
+  .out {
+    flex: 1;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: clamp(16px, 3.2vw, 22px);
+    padding: 14px 16px;
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(120, 220, 180, 0.28);
+    border-radius: 12px;
+    color: #e8e6e3;
+    word-break: break-all;
+    line-height: 1.4;
+    min-height: 54px;
+    letter-spacing: 0.04em;
+    user-select: text; -webkit-user-select: text;
+  }
+  .icon-btn {
+    flex-shrink: 0;
+    width: 54px; height: 54px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(120, 220, 180, 0.12);
+    border: 1px solid rgba(120, 220, 180, 0.35);
+    color: #78dcb4;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: background 160ms, transform 160ms;
+  }
+  .icon-btn:hover { background: rgba(120, 220, 180, 0.22); }
+  .icon-btn:active { transform: scale(0.96); }
+  .strength {
+    display: flex; gap: 6px; margin: 12px 0 20px;
+  }
+  .strength .bar {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    transition: background 200ms;
+  }
+  .strength.is-1 .bar:nth-child(-n+1) { background: #ff6f7a; }
+  .strength.is-2 .bar:nth-child(-n+2) { background: #ffb84d; }
+  .strength.is-3 .bar:nth-child(-n+3) { background: #ffd86a; }
+  .strength.is-4 .bar:nth-child(-n+4) { background: #78dcb4; }
+  .strength.is-5 .bar:nth-child(-n+5) { background: #4cc466; }
+  .strength-label {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.6);
+    margin-bottom: 20px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .row:first-of-type { border-top: none; }
+  .row label {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.75);
+  }
+  .row .val {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: #78dcb4;
+    min-width: 40px; text-align: right;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 200px; height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    outline: none;
+    accent-color: #78dcb4;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #78dcb4; cursor: pointer;
+    box-shadow: 0 0 12px rgba(120, 220, 180, 0.55);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #78dcb4; cursor: pointer; border: none;
+    box-shadow: 0 0 12px rgba(120, 220, 180, 0.55);
+  }
+  .toggle-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 14px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .chip {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: rgba(232, 230, 227, 0.65);
+    cursor: pointer;
+    transition: background 160ms, border-color 160ms, color 160ms;
+  }
+  .chip.is-on {
+    background: rgba(120, 220, 180, 0.16);
+    border-color: rgba(120, 220, 180, 0.55);
+    color: #d8f2e5;
+  }
+  .flash {
+    position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+    padding: 10px 18px; background: rgba(120, 220, 180, 0.15);
+    border: 1px solid rgba(120, 220, 180, 0.45); border-radius: 999px;
+    color: #78dcb4; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    opacity: 0; transition: opacity 200ms;
+    pointer-events: none; z-index: 30;
+  }
+  .flash.is-on { opacity: 1; }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+<div class="flash" id="flash">Copied</div>
+
+<div class="card">
+  <h1>Password Forge</h1>
+  <div class="subtitle">Local, cryptographically random, never leaves the browser.</div>
+
+  <div class="out-wrap">
+    <div class="out" id="output">click new to forge</div>
+    <button class="icon-btn" id="copy" type="button" aria-label="Copy">Copy</button>
+    <button class="icon-btn" id="regen" type="button" aria-label="Generate new">New</button>
+  </div>
+  <div class="strength" id="strength"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+  <div class="strength-label" id="strength-label">&nbsp;</div>
+
+  <div class="row">
+    <label for="len">Length</label>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <input type="range" id="len" min="6" max="48" value="20">
+      <span class="val" id="len-val">20</span>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <button class="chip is-on" data-key="lower">a–z</button>
+    <button class="chip is-on" data-key="upper">A–Z</button>
+    <button class="chip is-on" data-key="digit">0–9</button>
+    <button class="chip is-on" data-key="symbol">!@#$</button>
+    <button class="chip" data-key="ambig">Skip lookalikes (0/O/l/1)</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOWER = 'abcdefghijklmnopqrstuvwxyz';
+  var UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var DIGIT = '0123456789';
+  var SYMBOL = '!@#$%^&*()-_=+[]{};:,.<>?/';
+  var AMBIG = /[0O1lI|]/g;
+
+  var output = document.getElementById('output');
+  var lenSlider = document.getElementById('len');
+  var lenVal = document.getElementById('len-val');
+  var strengthEl = document.getElementById('strength');
+  var strengthLabel = document.getElementById('strength-label');
+  var flash = document.getElementById('flash');
+  var chips = document.querySelectorAll('.chip');
+
+  var state = { lower: true, upper: true, digit: true, symbol: true, ambig: false, length: 20 };
+
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      c.classList.toggle('is-on');
+      state[c.dataset.key] = c.classList.contains('is-on');
+      generate();
+    });
+  });
+  lenSlider.addEventListener('input', function () {
+    state.length = parseInt(lenSlider.value, 10);
+    lenVal.textContent = state.length;
+    generate();
+  });
+
+  function randInt(max) {
+    // Uniformly random integer in [0, max) using crypto if available.
+    if (window.crypto && window.crypto.getRandomValues) {
+      var buf = new Uint32Array(1);
+      // Rejection sample to avoid modulo bias
+      var limit = Math.floor(0xFFFFFFFF / max) * max;
+      while (true) {
+        window.crypto.getRandomValues(buf);
+        if (buf[0] < limit) return buf[0] % max;
+      }
+    }
+    return Math.floor(Math.random() * max);
+  }
+
+  function pickOne(str) { return str[randInt(str.length)]; }
+
+  function generate() {
+    var alphabet = '';
+    var mustHave = [];
+    if (state.lower) { alphabet += LOWER; mustHave.push(pickOne(LOWER)); }
+    if (state.upper) { alphabet += UPPER; mustHave.push(pickOne(UPPER)); }
+    if (state.digit) { alphabet += DIGIT; mustHave.push(pickOne(DIGIT)); }
+    if (state.symbol) { alphabet += SYMBOL; mustHave.push(pickOne(SYMBOL)); }
+    if (state.ambig) {
+      alphabet = alphabet.replace(AMBIG, '');
+      mustHave = mustHave.filter(function (c) { return !AMBIG.test(c); });
+    }
+    if (!alphabet) {
+      output.textContent = '(pick at least one character type)';
+      setStrength(0, 'None');
+      return;
+    }
+    var n = state.length;
+    var out = '';
+    // Include at least one of each selected type by design
+    for (var i = 0; i < mustHave.length && i < n; i++) out += mustHave[i];
+    for (var i = out.length; i < n; i++) out += alphabet[randInt(alphabet.length)];
+    // Shuffle to avoid predictable prefix
+    var arr = out.split('');
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = randInt(i + 1);
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    var pw = arr.join('');
+    output.textContent = pw;
+    // Entropy estimate: log2(alphabet^length)
+    var bits = Math.round(Math.log2(alphabet.length) * n);
+    setStrength(bitsToScore(bits), bits + ' bits · ' + strengthLabelText(bits));
+  }
+  function bitsToScore(b) {
+    if (b < 28) return 1;
+    if (b < 40) return 2;
+    if (b < 60) return 3;
+    if (b < 90) return 4;
+    return 5;
+  }
+  function strengthLabelText(b) {
+    if (b < 28) return 'weak';
+    if (b < 40) return 'okay';
+    if (b < 60) return 'strong';
+    if (b < 90) return 'very strong';
+    return 'excellent';
+  }
+  function setStrength(score, label) {
+    strengthEl.className = 'strength is-' + score;
+    strengthLabel.textContent = label;
+  }
+
+  document.getElementById('regen').addEventListener('click', generate);
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = output.textContent;
+    if (!text || text.startsWith('(') || text.startsWith('click')) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(function () {
+        flash.classList.add('is-on');
+        setTimeout(function () { flash.classList.remove('is-on'); }, 1000);
+      });
+    } else {
+      // Fallback: temp textarea
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      flash.classList.add('is-on');
+      setTimeout(function () { flash.classList.remove('is-on'); }, 1000);
+    }
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); generate(); }
+    if (e.code === 'KeyC' && (e.metaKey || e.ctrlKey)) {
+      // Let default behaviour happen if user has highlighted text
+      // Otherwise copy for them
+      var sel = window.getSelection().toString();
+      if (!sel) {
+        e.preventDefault();
+        document.getElementById('copy').click();
+      }
+    }
+  });
+  generate();
+})();
+</script>
+</body>
+</html>
