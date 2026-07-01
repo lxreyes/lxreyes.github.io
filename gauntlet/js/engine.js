@@ -11,7 +11,11 @@
 const { AVATARS, CONTESTANTS, WHEEL, HOST, SLIDES, START } = window.GameData;
 
 const SAVE_KEY = "gauntlet_slides_v1";
-const START_LIVES = 3;
+// Plus mode: harder run — start with 1 life instead of 3 and 4 rivals
+// instead of 3. Reload when toggled so the new run starts fresh.
+const START_LIVES = window.plusMode ? 1 : 3;
+const RIVAL_COUNT = window.plusMode ? 4 : 3;
+window.addEventListener('plusmode', function () { location.reload(); });
 
 function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
 function randPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -21,7 +25,7 @@ const Game = {
   state: null,
 
   newGame(name, avatar) {
-    const rivals = shuffle(CONTESTANTS.slice()).slice(0, 3).map((c) => ({ name: c.name, avatar: c.avatar, alive: true, you: false }));
+    const rivals = shuffle(CONTESTANTS.slice()).slice(0, RIVAL_COUNT).map((c) => ({ name: c.name, avatar: c.avatar, alive: true, you: false }));
     const you = { name: name || "You", avatar: avatar || AVATARS[0], lives: START_LIVES, suffering: 0, coins: 0, alive: true, you: true };
     this.state = { contestants: [you, ...rivals], slideId: START, visited: { [START]: true }, flags: {}, over: false, won: false };
     this.save();

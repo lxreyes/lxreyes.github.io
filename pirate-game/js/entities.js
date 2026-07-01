@@ -27,7 +27,9 @@ class Ship {
     this.width = 22;
     this.radius = 22;       // collision radius
 
-    this.maxHealth = this.isPlayer ? 100 : 60;
+    // Plus mode: player hull -25% (glass cannon), enemies +50% hull (tougher).
+    const plus = !!window.plusMode;
+    this.maxHealth = this.isPlayer ? (plus ? 75 : 100) : (plus ? 90 : 60);
     this.health = this.maxHealth;
     this.dead = false;
 

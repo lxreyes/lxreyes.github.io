@@ -177,6 +177,14 @@
     },
   };
 
+  // Plus mode: 40% more HP on every boss and one extra tile of movement.
+  if (window.plusMode) {
+    BOSSES.forEach(function (b) {
+      b.hp = Math.round(b.hp * 1.4);
+      b.move = (b.move || 1) + 1;
+    });
+  }
+  window.addEventListener('plusmode', function () { location.reload(); });
   window.BOSSES = BOSSES;
   window.Boss = Boss;
 })();

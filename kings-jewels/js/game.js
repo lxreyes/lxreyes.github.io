@@ -23,8 +23,11 @@
   const ROWS = 8;
   const TILE = 64;
   const PAD = TILE * 0.14;
-  const NUM_TYPES = 4;
-  const BASE_MOVES = 25;
+  // Plus mode: 5 jewel colours instead of 4 (harder matches) + tighter move
+  // budget (18 vs 25). Reload wipes the board when toggled.
+  const NUM_TYPES = window.plusMode ? 5 : 4;
+  const BASE_MOVES = window.plusMode ? 18 : 25;
+  window.addEventListener('plusmode', function () { location.reload(); });
   const MAX_HEARTS = 5;
   const SAVE_KEY = "kings-jewels-progress";
 
@@ -33,6 +36,7 @@
     { color: "#f5b81a", glow: "#ffd94d", shape: "diamond" },  // yellow topaz
     { color: "#25b965", glow: "#6ef0a0", shape: "rounded" },  // green emerald
     { color: "#3a8ee6", glow: "#79b8ff", shape: "triangle" }, // blue sapphire
+    { color: "#a56bff", glow: "#cea6ff", shape: "circle" },   // purple amethyst (Plus only)
   ];
 
   // ---- Canvas --------------------------------------------------------------

@@ -9,9 +9,13 @@
    ============================================================ */
 
 /* ---------- Config ---------- */
-const TOTAL_ROUNDS = 8;
-const PLACE_POINTS = [100, 60, 35, 15];   // points by finishing place (4 racers)
-const WRONG_PENALTY = 0.6;                // seconds added for a wrong full combo
+// Plus mode: 12 rounds instead of 8 (longer race) and stiffer wrong-combo
+// penalty. Bots are also faster (see BOT_SPEED_MULT below).
+const TOTAL_ROUNDS = window.plusMode ? 12 : 8;
+const PLACE_POINTS = [100, 60, 35, 15];
+const WRONG_PENALTY = window.plusMode ? 1.2 : 0.6;
+const BOT_SPEED_MULT = window.plusMode ? 1.35 : 1;
+window.addEventListener('plusmode', function () { location.reload(); });
 const CHAOS_NAMES = {
   shuffle: "Shuffling Shelves! 🔀",
   rush: "Rush Hour! ⚡ bots sped up",
@@ -126,7 +130,7 @@ function startRound() {
   const base = clamp(6.4 - G.round * 0.42, 2.6, 6.4);
   for (const r of G.racers) {
     if (r.you) { r.finishTime = null; r.finished = false; r.progress = 0; }
-    else { r.finishTime = base * r.skill * rand(0.85, 1.15) + need.length * 0.22; r.finished = false; r.progress = 0; }
+    else { r.finishTime = (base * r.skill * rand(0.85, 1.15) + need.length * 0.22) / BOT_SPEED_MULT; r.finished = false; r.progress = 0; }
   }
 
   setText("round-num", G.round);

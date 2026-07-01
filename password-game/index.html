@@ -278,6 +278,20 @@
     { text: 'Your password must include <b>🐔</b>.', test: function (p) { return p.indexOf('🐔') !== -1; } },
     { text: 'Your password must include <b>the answer to 7 × 8</b>.', test: function (p) { return p.indexOf('56') !== -1; } }
   ];
+  // Plus mode: four extra rules on top of the classic set.
+  var PLUS_RULES = [
+    { text: 'Your password must include a <b>day of the week</b>.', test: function (p) {
+        var u = p.toUpperCase(); var days = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+        for (var i = 0; i < days.length; i++) if (u.indexOf(days[i]) !== -1) return true; return false; } },
+    { text: 'Your password must include the <b>current year</b>.', test: function (p) { return p.indexOf('2026') !== -1; } },
+    { text: 'The <b>count of lowercase letters</b> in your password must equal the <b>count of digits</b>.', test: function (p) {
+        var lo = (p.match(/[a-z]/g) || []).length; var d = (p.match(/\d/g) || []).length; return lo === d && lo > 0; } },
+    { text: 'Your password must include the <b>Greek letter</b> α, β, γ, or π.', test: function (p) { return /[αβγπ]/.test(p); } }
+  ];
+  if (window.plusMode) {
+    for (var pi = 0; pi < PLUS_RULES.length; pi++) RULES.push(PLUS_RULES[pi]);
+  }
+  window.addEventListener('plusmode', function () { location.reload(); });
 
   totalEl.textContent = RULES.length;
   var unlocked = 1;

@@ -58,6 +58,7 @@ class Game {
 
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    window.addEventListener("plusmode", () => location.reload());
 
     // Left-click the sea to sail there; right-click to fire the broadside
     // that bears on the cursor. The minimap doubles as a navigation chart.

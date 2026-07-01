@@ -321,9 +321,12 @@ const state = {
 };
 state.landedOn = state.platforms[0];
 
-const MAX_CHARGE_TIME = 0.8;   // seconds of hold to reach full draw
-const LAUNCH_VX_MIN  = 2.0;    // tap-release fires weak
-const LAUNCH_VX_MAX  = 8.0;    // full draw fires hot
+// Plus mode: half the charge window (0.4s to full draw) and a wider velocity
+// range — misfires more punishing, full-draw shots hotter.
+const MAX_CHARGE_TIME = window.plusMode ? 0.4 : 0.8;
+const LAUNCH_VX_MIN  = window.plusMode ? 1.5 : 2.0;
+const LAUNCH_VX_MAX  = window.plusMode ? 10.0 : 8.0;
+window.addEventListener('plusmode', function () { location.reload(); });
 
 // ---------- Input ----------
 const input = { spacePressed: false, spaceJustPressed: false };

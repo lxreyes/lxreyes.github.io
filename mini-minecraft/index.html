@@ -1629,7 +1629,10 @@ scene.add(crackMesh);
 // ============================================================
 // Day / night cycle
 // ============================================================
-const DAY_LENGTH = 300; // 5 minutes per full day-night cycle
+// Plus mode: 2× faster day/night cycle — nights (and hostile-mob spawns)
+// arrive twice as often.
+const DAY_LENGTH = window.plusMode ? 150 : 300;
+window.addEventListener('plusmode', function () { location.reload(); });
 let worldTime = 60;     // seconds into day; start at morning
 
 const SKY_DAY    = new THREE.Color(0x88c8ff);

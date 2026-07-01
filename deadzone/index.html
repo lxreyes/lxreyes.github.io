@@ -783,13 +783,16 @@ const SFX_PICKUPS = {
 
 // ---------- Player ----------
 const SPAWN = { x: 90, y: H / 2 };
+// Plus mode: hero starts glass-cannon — 60hp cap and 15 damage per shot.
+const PLUS_ON = !!window.plusMode;
+window.addEventListener('plusmode', function () { location.reload(); });
 const player = {
   x: SPAWN.x, y: SPAWN.y,
   r: 11,
-  hp: 100, maxHp: 100,
+  hp: PLUS_ON ? 60 : 100, maxHp: PLUS_ON ? 60 : 100,
   money: 0,
-  speed: 220,           // px/s
-  damage: 10,
+  speed: PLUS_ON ? 240 : 220,           // px/s
+  damage: PLUS_ON ? 15 : 10,
   fireRate: 4,          // shots/s
   bulletSpeed: 700,
   pierce: 0,

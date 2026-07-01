@@ -313,6 +313,37 @@
       right: { action: 'Do nothing (stay on Track B)', detail: '5 proofs left forever incomplete.', kills: 5 }
     }
   ];
+  // Plus mode: five extra scenarios and a mercy 10x kill inflation on the
+  // classic ones. Higher stakes, more moral gymnastics.
+  var PLUS_PROBLEMS = [
+    { scenario: 'The trolley is heading toward 100 tourists. On Track A stands the CEO who invented the tourist trap.',
+      left:  { action: 'Pull the lever (divert to Track A)', detail: '1 shareholder value briefly declines.', kills: 1 },
+      right: { action: 'Do nothing', detail: '100 tourists take one final selfie.', kills: 100 } },
+    { scenario: 'The trolley is heading toward 5 people. On Track A is a lifetime supply of ice cream.',
+      left:  { action: 'Pull the lever (divert to the ice cream)', detail: 'The ice cream is obliterated. Immortal regret.', kills: 0 },
+      right: { action: 'Do nothing (5 people gone)', detail: '5 people die. The ice cream keeps for another 500 years.', kills: 5 } },
+    { scenario: 'The trolley will hit 1 person. But if you pull the lever, the trolley loops around and hits nobody, forever.',
+      left:  { action: 'Pull the lever (infinite loop)', detail: 'Nobody dies. The trolley circles until the sun burns out.', kills: 0 },
+      right: { action: 'Do nothing (hit the 1)', detail: '1 person dies. The trolley reaches its destination.', kills: 1 } },
+    { scenario: 'On Track B: 20 people. On Track A: 1 person who has already been hit by a trolley twice this year.',
+      left:  { action: 'Pull the lever (three\'s the charm)', detail: 'The unluckiest person alive is finally at peace.', kills: 1 },
+      right: { action: 'Do nothing', detail: '20 people die. The unlucky one goes on to be hit a fourth time.', kills: 20 } },
+    { scenario: 'The trolley is empty and heading toward nothing. There is nothing on either track. Nothing at stake.',
+      left:  { action: 'Pull the lever (change tracks)', detail: 'The trolley continues to nothing.', kills: 0 },
+      right: { action: 'Do nothing', detail: 'The trolley continues to nothing.', kills: 0 } }
+  ];
+  if (window.plusMode) {
+    // In Plus, every classic kill count multiplies by 10 (10:100 stakes) and
+    // the five extra scenarios join the pool.
+    PROBLEMS = PROBLEMS.map(function (p) {
+      return {
+        scenario: p.scenario,
+        left:  { action: p.left.action,  detail: p.left.detail,  kills: p.left.kills  * 10 },
+        right: { action: p.right.action, detail: p.right.detail, kills: p.right.kills * 10 }
+      };
+    }).concat(PLUS_PROBLEMS);
+  }
+  window.addEventListener('plusmode', function () { location.reload(); });
 
   totalEl.textContent = PROBLEMS.length;
   var idx = 0;
