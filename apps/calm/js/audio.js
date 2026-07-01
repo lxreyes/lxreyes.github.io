@@ -11,7 +11,7 @@
 
   let ctx = null;
   let master = null;       // master gain -> destination
-  let current = null;      // { stop() } for the playing soundscape
+  let layers = new Map();  // id -> { stop(), gain (0..1 layer-relative) }
   let userVol = 0.7;       // 0..1 from the slider
   let muted = true;        // start "paused"
 
@@ -367,27 +367,79 @@
   // =========================================================================
   //  PUBLIC API
   // =========================================================================
+  function stopAll() {
+    layers.forEach(function (l) { l.stop(); });
+    layers.clear();
+  }
+
+  function addLayer(id, layerVol) {
+    if (!Sounds[id]) return;
+    ensureCtx();
+    if (ctx.state === "suspended") ctx.resume();
+    // If it's already layered, no-op (but update volume if provided).
+    if (layers.has(id)) {
+      if (layerVol != null && layers.get(id).outGain) {
+        layers.get(id).outGain.gain.setTargetAtTime(layerVol, ctx.currentTime, 0.15);
+        layers.get(id).gain = layerVol;
+      }
+      return;
+    }
+    // Give each layer its own gain node so mixes stay balanced with 5+ sounds.
+    const outGain = ctx.createGain();
+    outGain.gain.value = layerVol != null ? layerVol : 1;
+    outGain.connect(master);
+    const inst = Sounds[id](outGain);
+    layers.set(id, {
+      gain: layerVol != null ? layerVol : 1,
+      outGain: outGain,
+      stop: function () {
+        try { inst.stop(); } catch (e) {}
+        try { outGain.disconnect(); } catch (e) {}
+      }
+    });
+  }
+  function removeLayer(id) {
+    if (!layers.has(id)) return;
+    layers.get(id).stop();
+    layers.delete(id);
+  }
+
   window.AudioEngine = {
-    // start (or switch to) a soundscape and unmute
+    // Solo mode: replace whatever's playing with a single soundscape.
     select(id) {
-      if (!Sounds[id]) return;
-      ensureCtx();
-      if (ctx.state === "suspended") ctx.resume();
-      if (current) { current.stop(); current = null; }
-      current = Sounds[id](master);
+      stopAll();
+      addLayer(id, 1);
       muted = false;
       applyMaster();
     },
+    // Playlist mode: replace everything with a specific list of soundscapes.
+    // Accepts an array of strings OR of { id, gain } for per-layer weighting.
+    setLayers(list) {
+      stopAll();
+      (list || []).forEach(function (item) {
+        if (typeof item === "string") addLayer(item, 1);
+        else if (item && item.id) addLayer(item.id, item.gain != null ? item.gain : 1);
+      });
+      muted = false;
+      applyMaster();
+    },
+    // Additive mix — add or remove a soundscape from the current layered mix.
+    toggleLayer(id) {
+      if (layers.has(id)) removeLayer(id);
+      else { addLayer(id, 1); muted = false; applyMaster(); }
+    },
+    activeLayers() { return Array.from(layers.keys()); },
+    isLayered(id) { return layers.has(id); },
     pause() { muted = true; applyMaster(); },
     resume() {
-      if (!current) return false;
+      if (layers.size === 0) return false;
       ensureCtx();
       if (ctx.state === "suspended") ctx.resume();
       muted = false; applyMaster();
       return true;
     },
-    isPlaying() { return !!current && !muted; },
-    hasSelection() { return !!current; },
+    isPlaying() { return layers.size > 0 && !muted; },
+    hasSelection() { return layers.size > 0; },
     setVolume(v) { userVol = Math.max(0, Math.min(1, v)); if (!muted) applyMaster(); },
   };
 })();

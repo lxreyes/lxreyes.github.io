@@ -600,25 +600,108 @@
   // Rotate to a new line every ~14 seconds even without input
   setInterval(function () { if (!bubble.classList.contains('is-visible')) nextLine(); }, 14000);
 
-  // ---------- Music ----------
+  // ---------- Music + snow noise ----------
+  // Snow noise = a soft breath of wind — filtered brown noise with a slow LFO
+  // on the cutoff so it swells like weather outside the cabin. Independent
+  // from the music.js engine so we can start/stop it alongside the tune.
+  var snowAudio = null;
+  var snowMaster = null;
+  var snowRunning = false;
+  var snowNodes = [];
+  function initSnowAudio() {
+    if (snowAudio) return;
+    try {
+      snowAudio = new (window.AudioContext || window.webkitAudioContext)();
+      snowMaster = snowAudio.createGain();
+      snowMaster.gain.value = 0;
+      snowMaster.connect(snowAudio.destination);
+    } catch (e) { snowAudio = null; }
+  }
+  function startSnowNoise() {
+    if (!snowAudio || snowRunning) return;
+    // Brown noise via integrated random walk (calmer than white noise)
+    var sr = snowAudio.sampleRate;
+    var buf = snowAudio.createBuffer(1, sr * 4, sr);
+    var d = buf.getChannelData(0);
+    var last = 0;
+    for (var i = 0; i < d.length; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.02) * 0.995;
+      if (last > 1) last = 1; else if (last < -1) last = -1;
+      d[i] = last * 3.2;
+    }
+    var src = snowAudio.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    // Very soft low-pass so it reads as "breath outside the window"
+    var filt = snowAudio.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 380;
+    filt.Q.value = 0.7;
+    // Slow LFO on the cutoff so it feels like wind gusts
+    var lfo = snowAudio.createOscillator();
+    var lfoGain = snowAudio.createGain();
+    lfo.frequency.value = 0.09;
+    lfoGain.gain.value = 180;
+    lfo.connect(lfoGain).connect(filt.frequency);
+    src.connect(filt).connect(snowMaster);
+    src.start(); lfo.start();
+    snowNodes = [src, lfo];
+    snowRunning = true;
+    // Fade in to avoid a click
+    var t = snowAudio.currentTime;
+    snowMaster.gain.cancelScheduledValues(t);
+    snowMaster.gain.setValueAtTime(0.0001, t);
+    snowMaster.gain.exponentialRampToValueAtTime(0.35, t + 2.2);
+  }
+  function stopSnowNoise() {
+    if (!snowAudio || !snowRunning) return;
+    var t = snowAudio.currentTime;
+    snowMaster.gain.cancelScheduledValues(t);
+    snowMaster.gain.setValueAtTime(snowMaster.gain.value, t);
+    snowMaster.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    setTimeout(function () {
+      snowNodes.forEach(function (n) { try { n.stop(); } catch (e) {} });
+      snowNodes = [];
+      snowRunning = false;
+    }, 700);
+  }
+  function setSnowMuted(muted) {
+    if (!snowAudio) return;
+    var t = snowAudio.currentTime;
+    snowMaster.gain.cancelScheduledValues(t);
+    snowMaster.gain.setTargetAtTime(muted ? 0.0001 : 0.35, t, 0.15);
+  }
+
   if (window.Music && muteBtn) {
     if (window.Music.isMuted()) muteBtn.classList.add('is-muted');
     muteBtn.addEventListener('click', function () {
       if (!window.Music) return;
-      // Start on first click if not started
+      initSnowAudio();
+      // If snow context is suspended (autoplay policy), resume on the click.
+      if (snowAudio && snowAudio.state === 'suspended') snowAudio.resume();
+      // Start music on first click if it's not already going.
       window.Music.start('cozy-cabin');
       window.Music.toggle();
-      muteBtn.classList.toggle('is-muted');
+      var muted = window.Music.isMuted();
+      muteBtn.classList.toggle('is-muted', muted);
+      // Snow follows the same mute state so the whole scene goes quiet.
+      if (muted) setSnowMuted(true);
+      else {
+        if (!snowRunning) startSnowNoise();
+        else setSnowMuted(false);
+      }
     });
-    // Start softly on first interaction
+    // Auto-start both on first interaction (respecting mute preference).
     var started = false;
-    function startMusic() {
+    function startAll() {
       if (started) return;
       started = true;
+      initSnowAudio();
+      if (snowAudio && snowAudio.state === 'suspended') snowAudio.resume();
       window.Music.start('cozy-cabin');
+      if (!window.Music.isMuted()) startSnowNoise();
     }
-    window.addEventListener('pointerdown', startMusic, { once: true });
-    window.addEventListener('keydown', startMusic, { once: true });
+    window.addEventListener('pointerdown', startAll, { once: true });
+    window.addEventListener('keydown', startAll, { once: true });
   }
 })();
 </script>
