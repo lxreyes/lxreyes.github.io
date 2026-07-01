@@ -198,6 +198,12 @@ main {
     display: flex;
     align-items: baseline;
     gap: 16px;
+    /* The heading is a direct child of the .projects grid — force it to
+       take the whole first row and land before the featured tile (which
+       is order: -1). Otherwise it gets auto-placed into a single grid
+       cell next to the 2×2 featured tile, leaving a visible gap. */
+    grid-column: 1 / -1;
+    order: -2;
 }
 
 .section-heading__index {

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DICE ROLLER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #06060a; color: #e8e6e3;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  body {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(216, 122, 232, 0.16), transparent 60%),
+      radial-gradient(ellipse at center, #14141a, #06060a 75%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+  }
+  .back {
+    position: fixed; top: 16px; left: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); text-decoration: none;
+    padding: 8px 12px; border-radius: 999px;
+    border: 1px solid rgba(232, 230, 227, 0.18);
+    background: rgba(6, 6, 10, 0.5);
+  }
+  h1 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55); margin: 0 0 12px;
+  }
+  .picker {
+    display: flex; gap: 8px; margin-bottom: 26px; flex-wrap: wrap; justify-content: center;
+  }
+  .picker button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(232, 230, 227, 0.7); cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .picker button.is-active {
+    background: rgba(216, 122, 232, 0.14);
+    border-color: rgba(216, 122, 232, 0.55);
+    color: #f1cff5;
+  }
+  .stage {
+    display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
+    min-height: 140px; align-items: center; margin-bottom: 24px;
+    max-width: 640px;
+  }
+  .die {
+    width: 96px; height: 96px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, #201d2b, #14121a);
+    border: 1px solid rgba(216, 122, 232, 0.28);
+    border-radius: 16px;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 40px;
+    letter-spacing: -0.02em;
+    color: #f1cff5;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+    position: relative;
+    font-variant-numeric: tabular-nums;
+    transition: transform 200ms;
+  }
+  .die.d6 { border-radius: 16px; }
+  .die.d20 {
+    border-radius: 50%;
+    clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  }
+  .die.d4 { clip-path: polygon(50% 6%, 96% 94%, 4% 94%); align-items: flex-end; padding-bottom: 8px; font-size: 32px; }
+  .die.d8 { clip-path: polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%); font-size: 34px; }
+  .die.d10 { clip-path: polygon(50% 2%, 98% 40%, 76% 98%, 24% 98%, 2% 40%); font-size: 34px; }
+  .die.d12 { clip-path: polygon(50% 2%, 96% 30%, 88% 92%, 12% 92%, 4% 30%); font-size: 34px; }
+  .die.d100 { border-radius: 50%; font-size: 30px; }
+  .die.d2 { border-radius: 20px; font-size: 22px; letter-spacing: 0.05em; padding: 0 8px; text-align: center; line-height: 1.05; }
+  .die.rolling { animation: shake 0.5s ease-in-out; }
+  @keyframes shake {
+    0%,100% { transform: rotate(0deg); }
+    25% { transform: rotate(-15deg) scale(1.08); }
+    50% { transform: rotate(12deg) scale(1.05); }
+    75% { transform: rotate(-6deg) scale(1.02); }
+  }
+  .total {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(46px, 10vw, 82px);
+    line-height: 1;
+    color: rgba(232, 230, 227, 0.96);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+    min-height: 82px;
+  }
+  .total-label {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.45);
+    margin-bottom: 24px;
+  }
+  .count-row {
+    display: flex; gap: 10px; margin-bottom: 20px; align-items: center;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.55);
+  }
+  .count-row button {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 14px;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(232, 230, 227, 0.85); cursor: pointer;
+  }
+  .count-row .n {
+    font-size: 18px; color: #f1cff5;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; min-width: 24px;
+    font-variant-numeric: tabular-nums; letter-spacing: 0;
+  }
+  .roll-btn {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700; font-size: 13px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 14px 30px; border-radius: 999px; cursor: pointer;
+    border: none; color: #06060a;
+    background: #d87ae8;
+    box-shadow: 0 10px 26px rgba(216, 122, 232, 0.45);
+  }
+  .roll-btn:hover { background: #e394f0; transform: translateY(-2px); transition: transform 160ms, background 160ms; }
+  .history {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 230, 227, 0.4);
+    max-width: 92vw;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .history .h {
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">&larr; back</a>
+
+<h1>Dice Roller</h1>
+<div class="picker" id="picker">
+  <button data-die="2">Coin</button>
+  <button data-die="4">d4</button>
+  <button data-die="6" class="is-active">d6</button>
+  <button data-die="8">d8</button>
+  <button data-die="10">d10</button>
+  <button data-die="12">d12</button>
+  <button data-die="20">d20</button>
+  <button data-die="100">d100</button>
+</div>
+
+<div class="stage" id="stage"></div>
+<div class="total" id="total">&mdash;</div>
+<div class="total-label" id="total-label">Roll something</div>
+
+<div class="count-row">
+  <span>How many</span>
+  <button id="count-down" type="button">-</button>
+  <span class="n" id="count">1</span>
+  <button id="count-up" type="button">+</button>
+</div>
+
+<button class="roll-btn" id="roll" type="button">Roll</button>
+
+<div class="history" id="history"></div>
+
+<script>
+(function () {
+  var pickerBtns = document.querySelectorAll('.picker button');
+  var stage = document.getElementById('stage');
+  var totalEl = document.getElementById('total');
+  var totalLabel = document.getElementById('total-label');
+  var countEl = document.getElementById('count');
+  var historyEl = document.getElementById('history');
+  var rollBtn = document.getElementById('roll');
+
+  var sides = 6;
+  var count = 1;
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('dice-history') || '[]'); } catch (_) {}
+  renderHistory();
+
+  pickerBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      sides = parseInt(b.dataset.die, 10);
+      pickerBtns.forEach(function (x) { x.classList.toggle('is-active', x === b); });
+    });
+  });
+
+  document.getElementById('count-up').addEventListener('click', function () {
+    if (count < 12) count++; countEl.textContent = count;
+  });
+  document.getElementById('count-down').addEventListener('click', function () {
+    if (count > 1) count--; countEl.textContent = count;
+  });
+
+  function rand(max) {
+    if (window.crypto && window.crypto.getRandomValues) {
+      var buf = new Uint32Array(1);
+      var limit = Math.floor(0xFFFFFFFF / max) * max;
+      while (true) {
+        window.crypto.getRandomValues(buf);
+        if (buf[0] < limit) return buf[0] % max;
+      }
+    }
+    return Math.floor(Math.random() * max);
+  }
+
+  // Tiny click via WebAudio for feedback
+  var audio = null;
+  function ensureAudio() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }
+  function clack() {
+    if (!audio) return;
+    var t = audio.currentTime;
+    var o = audio.createOscillator();
+    var g = audio.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(180 + rand(60), t);
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.connect(g).connect(audio.destination);
+    o.start(t); o.stop(t + 0.06);
+  }
+
+  function dieClass() {
+    return 'd' + sides;
+  }
+  function faceLabel(sides, roll) {
+    if (sides === 2) return roll === 1 ? 'H' : 'T';
+    return String(roll);
+  }
+
+  function roll() {
+    ensureAudio();
+    stage.innerHTML = '';
+    var results = [];
+    var total = 0;
+    for (var i = 0; i < count; i++) {
+      var r = rand(sides) + 1;
+      results.push(r);
+      total += r;
+      var d = document.createElement('div');
+      d.className = 'die ' + dieClass() + ' rolling';
+      d.textContent = faceLabel(sides, r);
+      stage.appendChild(d);
+      (function (i) {
+        setTimeout(clack, i * 40);
+      })(i);
+    }
+    // Reveal after animation
+    setTimeout(function () {
+      stage.querySelectorAll('.die').forEach(function (d) { d.classList.remove('rolling'); });
+      if (sides === 2 && count === 1) {
+        totalEl.textContent = faceLabel(2, results[0]);
+        totalLabel.textContent = results[0] === 1 ? 'Heads' : 'Tails';
+      } else {
+        totalEl.textContent = String(total);
+        totalLabel.textContent = count > 1
+          ? count + '× d' + sides + ' · ' + results.join(' + ')
+          : '1× d' + sides;
+      }
+      pushHistory(sides, count, results, total);
+    }, 520);
+  }
+
+  function pushHistory(sides, count, results, total) {
+    var label;
+    if (sides === 2 && count === 1) label = results[0] === 1 ? 'H' : 'T';
+    else if (count === 1) label = 'd' + sides + ' → ' + results[0];
+    else label = count + 'd' + sides + ' → ' + total;
+    history.unshift(label);
+    if (history.length > 10) history = history.slice(0, 10);
+    try { localStorage.setItem('dice-history', JSON.stringify(history)); } catch (_) {}
+    renderHistory();
+  }
+  function renderHistory() {
+    historyEl.innerHTML = '';
+    for (var i = 0; i < history.length; i++) {
+      var s = document.createElement('div');
+      s.className = 'h';
+      s.textContent = history[i];
+      historyEl.appendChild(s);
+    }
+  }
+
+  rollBtn.addEventListener('click', roll);
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+      e.preventDefault(); roll();
+    }
+  });
+})();
+</script>
+</body>
+</html>
