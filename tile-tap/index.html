@@ -147,12 +147,44 @@
   }
   .mute:hover { color: rgba(232, 230, 227, 0.95); border-color: rgba(232, 230, 227, 0.45); }
   .mute.is-muted { opacity: 0.4; }
+  /* Music picker — sits under the mute button */
+  .music-pick {
+    position: fixed;
+    top: 16px;
+    right: 60px;
+    padding: 6px 32px 6px 14px;
+    background: rgba(6, 6, 10, 0.55);
+    border: 1px solid rgba(255, 107, 157, 0.32);
+    border-radius: 999px;
+    color: rgba(232, 230, 227, 0.9);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    outline: none;
+    cursor: pointer;
+    z-index: 12;
+    -webkit-appearance: none; appearance: none;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(255, 107, 157, 0.75) 50%),
+      linear-gradient(-45deg, transparent 50%, rgba(255, 107, 157, 0.75) 50%);
+    background-position: right 14px center, right 9px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    background-color: rgba(6, 6, 10, 0.55);
+  }
+  .music-pick:hover { border-color: rgba(255, 107, 157, 0.55); color: #fff; }
+  @media (max-width: 500px) {
+    .music-pick { top: 56px; right: 16px; }
+  }
 </style>
 <script src="../music.js" defer></script>
 </head>
 <body>
 <a href="../index.html" class="back">&larr; back</a>
 <button class="mute" id="mute" type="button" aria-label="Toggle music">♪</button>
+<select class="music-pick" id="music-pick" aria-label="Track"></select>
 <canvas id="c"></canvas>
 <div class="hud">
   <div class="score" id="score">0</div>
@@ -270,9 +302,17 @@
     scoreEl.textContent = '0';
   }
 
+  // Which soundtrack is loaded — user picks from the dropdown; classic mode
+  // uses whichever is selected, defaults to 'tile-tap'.
+  let currentTrack = 'tile-tap';
+  try {
+    var t = localStorage.getItem('tile-tap-track');
+    if (t) currentTrack = t;
+  } catch (_) {}
+
   function start() {
     ensureAudio();
-    if (window.Music) Music.start('tile-tap');
+    if (window.Music) Music.start(currentTrack);
     reset();
     state = 'play';
     startOverlay.classList.add('is-hidden');
@@ -384,12 +424,34 @@
     }
   });
 
+  // Beat-driven spawn: watch Music.beatPhase() and fire a tile on the leading
+  // edge of every beat (phase wraps 1→0). Falls back to the timer if the music
+  // engine isn't playing yet (e.g. muted).
+  let prevBeatPhase = 0.5;
+  function beatSpawn() {
+    if (!window.Music || !window.Music.beatPhase) return false;
+    var p = window.Music.beatPhase();
+    if (p < 0) return false;
+    // Wrap: previous was late in beat (near 1), now near 0 → we crossed a beat
+    var crossed = p < prevBeatPhase && prevBeatPhase > 0.6;
+    prevBeatPhase = p;
+    if (crossed) { spawnTile(); return true; }
+    return false;
+  }
+
   function update() {
     if (state === 'play') {
-      spawnTimer++;
-      if (spawnTimer >= spawnInterval) {
+      // Try beat-driven spawn first; fall back to the timer if the music
+      // engine hasn't produced a beat this frame.
+      var spawned = beatSpawn();
+      if (!spawned) {
+        spawnTimer++;
+        if (spawnTimer >= spawnInterval) {
+          spawnTimer = 0;
+          spawnTile();
+        }
+      } else {
         spawnTimer = 0;
-        spawnTile();
       }
       const th = tileHeight();
       for (const t of tiles) {
@@ -575,6 +637,49 @@
     muteBtn.addEventListener('click', function () {
       Music.toggle();
       muteBtn.classList.toggle('is-muted');
+    });
+  }
+
+  // Music picker — swap between soundtracks from other games. Highlights come
+  // from the music.js presets so they're actually different genres/tempos.
+  var TRACKS = [
+    { key: 'tile-tap',    name: 'Tile Tap · 124 BPM (default)' },
+    { key: 'snake',       name: 'Snake · 122 BPM' },
+    { key: 'kart-loops',  name: 'Kart Loops · 138 BPM' },
+    { key: 'space-zoom',  name: 'Space Zoom · 128 BPM' },
+    { key: 'ninja-run',   name: 'Ninja Run · 130 BPM' },
+    { key: 'dodgeball',   name: 'Dodgeball · 128 BPM' },
+    { key: 'block-drop',  name: 'Block Drop · 118 BPM' },
+    { key: 'color-match', name: 'Color Match · 108 BPM' },
+    { key: 'word-rush',   name: 'Word Rush · 115 BPM' },
+    { key: 'tower-stack', name: 'Tower Stack · 92 BPM' },
+    { key: 'bubble-pop',  name: 'Bubble Pop · 96 BPM' },
+    { key: 'connect-four',name: 'Connect Four · 90 BPM' },
+    { key: 'twenty-48',   name: '2048 · 108 BPM' },
+    { key: 'pong',        name: 'Pong · 100 BPM' },
+    { key: 'blackjack',   name: 'Blackjack · 80 BPM' },
+    { key: 'memory',      name: 'Memory · 76 BPM' },
+    { key: 'chess-lite',  name: 'Chess Lite · 72 BPM' },
+    { key: 'sudoku-mini', name: 'Sudoku · 68 BPM' },
+    { key: 'cozy-cabin',  name: 'Cozy Cabin · 62 BPM (slow)' }
+  ];
+  var musicPick = document.getElementById('music-pick');
+  if (musicPick) {
+    TRACKS.forEach(function (t) {
+      var o = document.createElement('option');
+      o.value = t.key; o.textContent = t.name;
+      musicPick.appendChild(o);
+    });
+    musicPick.value = currentTrack;
+    musicPick.addEventListener('change', function () {
+      currentTrack = musicPick.value;
+      try { localStorage.setItem('tile-tap-track', currentTrack); } catch (_) {}
+      // Swap the music immediately if we're mid-game (or on the start screen
+      // with music already going).
+      if (window.Music) window.Music.start(currentTrack);
+      // Reset the beat-phase tracker so the next spawn lines up cleanly with
+      // the new track's downbeat.
+      prevBeatPhase = 0.5;
     });
   }
 })();
