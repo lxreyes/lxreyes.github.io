@@ -181,45 +181,72 @@
   ta.addEventListener('input', updateStats);
   updateStats();
 
+  // Split a string into "words" for case transforms. Handles:
+  //   - whitespace / underscore / hyphen boundaries
+  //   - camelCase boundaries (lower→Upper)
+  //   - ACRONYM→Word boundaries (UPPER→UpperLower)
+  //   - runs of digits vs letters
+  function splitWords(s) {
+    if (!s) return [];
+    return s
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .replace(/([a-zA-Z])(\d)/g, '$1 $2')
+      .replace(/(\d)([a-zA-Z])/g, '$1 $2')
+      .split(/[\s_\-]+/)
+      .filter(Boolean);
+  }
+  function titleWord(w) { return w[0].toUpperCase() + w.slice(1).toLowerCase(); }
+
+  // Decode common HTML entities as part of strip.
+  function decodeEntities(s) {
+    var ta = document.createElement('textarea');
+    ta.innerHTML = s;
+    return ta.value;
+  }
+
   var ACTIONS = {
     upper: function (s) { return s.toUpperCase(); },
     lower: function (s) { return s.toLowerCase(); },
     title: function (s) {
-      return s.replace(/\w\S*/g, function (w) {
-        return w[0].toUpperCase() + w.slice(1).toLowerCase();
-      });
+      // Title-case each word, preserving separators (spaces, hyphens,
+      // apostrophes, newlines). Walk char-by-char instead of regex-replacing
+      // so hyphenated compounds like "hello-world" become "Hello-World".
+      return s.replace(/([a-zA-Z]+)/g, function (w) { return titleWord(w); });
     },
     sentence: function (s) {
-      return s.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, function (m) { return m.toUpperCase(); });
+      // Lowercase everything, then uppercase the first letter after each
+      // sentence terminator OR a newline OR the very start of the string.
+      var out = s.toLowerCase();
+      return out.replace(/(^|[.!?]\s+|\n\s*)([a-z])/g, function (_, pre, letter) {
+        return pre + letter.toUpperCase();
+      });
     },
     camel: function (s) {
-      var parts = s.trim().split(/[\s_\-]+/).filter(Boolean);
+      var parts = splitWords(s);
+      if (!parts.length) return '';
       return parts.map(function (p, i) {
-        return i === 0 ? p.toLowerCase() : p[0].toUpperCase() + p.slice(1).toLowerCase();
+        return i === 0 ? p.toLowerCase() : titleWord(p);
       }).join('');
     },
     kebab: function (s) {
-      return s.trim()
-        .replace(/([a-z])([A-Z])/g, '$1-$2')
-        .replace(/[\s_]+/g, '-')
-        .toLowerCase();
+      return splitWords(s).map(function (p) { return p.toLowerCase(); }).join('-');
     },
     snake: function (s) {
-      return s.trim()
-        .replace(/([a-z])([A-Z])/g, '$1_$2')
-        .replace(/[\s\-]+/g, '_')
-        .toLowerCase();
+      return splitWords(s).map(function (p) { return p.toLowerCase(); }).join('_');
     },
-    reverse: function (s) { return s.split('').reverse().join(''); },
+    reverse: function (s) { return Array.from(s).reverse().join(''); },
     trim: function (s) { return s.split('\n').map(function (l) { return l.trim(); }).join('\n'); },
     dedupe: function (s) {
       var seen = {}, out = [];
       s.split('\n').forEach(function (l) {
-        if (!seen[l]) { seen[l] = true; out.push(l); }
+        if (!seen.hasOwnProperty(l)) { seen[l] = true; out.push(l); }
       });
       return out.join('\n');
     },
-    sort: function (s) { return s.split('\n').sort().join('\n'); },
+    sort: function (s) {
+      return s.split('\n').sort(function (a, b) { return a.localeCompare(b); }).join('\n');
+    },
     shuffle: function (s) {
       var a = s.split('\n');
       for (var i = a.length - 1; i > 0; i--) {
@@ -228,7 +255,10 @@
       }
       return a.join('\n');
     },
-    strip: function (s) { return s.replace(/<[^>]*>/g, ''); }
+    strip: function (s) {
+      // Remove tags then decode &amp; &nbsp; &lt; etc.
+      return decodeEntities(s.replace(/<[^>]*>/g, ''));
+    }
   };
 
   document.querySelectorAll('.actions button').forEach(function (b) {
@@ -236,20 +266,33 @@
       var t = b.dataset.t;
       if (t === 'copy') {
         var text = ta.value;
-        if (!text) return;
-        if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { pushFlash('Copied'); });
-        else {
-          ta.select(); document.execCommand('copy'); pushFlash('Copied');
+        if (!text) { pushFlash('Nothing to copy'); return; }
+        function fallback() {
+          try { ta.focus(); ta.select(); document.execCommand('copy'); pushFlash('Copied'); }
+          catch (e) { pushFlash('Copy blocked'); }
         }
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(
+            function () { pushFlash('Copied'); },
+            function () { fallback(); }
+          );
+        } else fallback();
         return;
       }
       if (t === 'clear') {
-        ta.value = ''; updateStats();
-        return;
+        ta.value = ''; updateStats(); pushFlash('Cleared'); return;
       }
-      if (!ACTIONS[t]) return;
-      ta.value = ACTIONS[t](ta.value);
-      updateStats();
+      if (!ACTIONS[t]) { pushFlash('Unknown'); return; }
+      try {
+        var before = ta.value;
+        var after = ACTIONS[t](before);
+        ta.value = after;
+        updateStats();
+        pushFlash(before === after ? 'No change' : b.textContent.trim());
+      } catch (err) {
+        console.error('Text tool error:', err);
+        pushFlash('Error');
+      }
     });
   });
 })();
