@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ASCENT — a climbing game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="frame">
+    <canvas id="game" width="540" height="720"></canvas>
+
+    <!-- Start screen -->
+    <div id="start" class="overlay">
+      <h1>ASCENT</h1>
+      <p class="tag">You start with the whole climber's kit. Climb the face, cross the city buried inside the mountain, reach the summit.</p>
+      <div class="controls">
+        <div><span class="key">A</span><span class="key">D</span> or <span class="key">&larr;</span><span class="key">&rarr;</span> &nbsp;move</div>
+        <div><span class="key">Space</span> &nbsp;jump &nbsp;<span class="muted">· again = double jump · off a wall = wall-jump</span></div>
+        <div><span class="key">Q</span> &nbsp;air dash</div>
+        <div><span class="key">E</span> &nbsp;grapple &nbsp;<span class="muted">— zips you to the rock and you hang on; </span><span class="key">Space</span><span class="muted"> to launch off</span></div>
+        <div><span class="key">R</span> &nbsp;restart from the bottom</div>
+        <div class="muted">All keys sit under your left hand. No checkpoints — don't fall!</div>
+      </div>
+      <button id="startBtn">CLIMB</button>
+    </div>
+
+    <!-- Win screen -->
+    <div id="win" class="overlay hidden">
+      <h1>SUMMIT!</h1>
+      <p class="tag">You reached the top with every power in hand.</p>
+      <p id="winStats" class="stats"></p>
+      <button id="replayBtn">Climb again</button>
+    </div>
+  </div>
+
+  <!-- One plain script so it runs from a plain double-click (no server needed). -->
+  <script src="js/game.js"></script>
+</body>
+</html>
