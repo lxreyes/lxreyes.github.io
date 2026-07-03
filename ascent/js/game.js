@@ -234,8 +234,28 @@ class Player {
     if (this.onGround) { this.coyote = COYOTE; this.airJumps = 1; this.dashCharges = 1; if (wasAir) { this.landTimer = 8; this.events.push('land'); } }
     else if (this.wall !== 0) { this.wallCoyote = WALL_COYOTE; this.dashCharges = Math.max(this.dashCharges, 1); }
   }
-  #moveX() { this.x += this.vx; const r = this.rect(); for (const s of SOLIDS) { if (s.oneWay || !aabb(r, s)) continue; if (this.vx > 0) this.x = s.x - this.w; else if (this.vx < 0) this.x = s.x + s.w; this.vx = 0; r.x = this.x; } }
-  #moveY() { const prevBottom = this.y + this.h; this.y += this.vy; const r = this.rect(); for (const s of SOLIDS) { if (!aabb(r, s)) continue; if (s.oneWay) { if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; this.vy = 0; r.y = this.y; } continue; } if (this.vy > 0) this.y = s.y - this.h; else if (this.vy < 0) this.y = s.y + s.h; this.vy = 0; r.y = this.y; } }
+  #moveX() {
+    this.x += this.vx; const r = this.rect();
+    for (const s of SOLIDS) {
+      if (s.oneWay || !aabb(r, s)) continue;
+      if (this.vx > 0) this.x = s.x - this.w;
+      else if (this.vx < 0) this.x = s.x + s.w;
+      // vx === 0: the sloped face's edge slid into us as we changed height — pop out the nearer side
+      else { const exitL = (r.x + r.w) - s.x, exitR = (s.x + s.w) - r.x; this.x += exitL <= exitR ? -exitL : exitR; }
+      this.vx = 0; r.x = this.x;
+    }
+  }
+  #moveY() {
+    const prevTop = this.y, prevBottom = this.y + this.h; this.y += this.vy; const r = this.rect();
+    for (const s of SOLIDS) {
+      if (!aabb(r, s)) continue;
+      if (s.oneWay) { if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; this.vy = 0; r.y = this.y; } continue; }
+      // Only resolve as a floor/ceiling hit if we actually crossed that edge this frame. A
+      // sideways overlap (the sloped wall embedding us) must NOT snap Y — that was the teleport-down.
+      if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; this.vy = 0; r.y = this.y; }
+      else if (this.vy < 0 && prevTop >= s.y + s.h - 1) { this.y = s.y + s.h; this.vy = 0; r.y = this.y; }
+    }
+  }
   #grounded() { const r = { x: this.x, y: this.y + 1, w: this.w, h: this.h }; for (const s of SOLIDS) { if (s.oneWay) { if (aabb(r, s) && this.y + this.h <= s.y + 2) return true; } else if (aabb(r, s)) return true; } return false; }
   #touchWall(side) { const r = { x: this.x + side * 2, y: this.y + 2, w: this.w, h: this.h - 4 }; for (const s of SOLIDS) if (!s.oneWay && s.kind !== 'mover' && aabb(r, s)) return true; return false; }
 }
@@ -303,7 +323,11 @@ function reactToEvents() {
     }
   }
 }
-function respawn() { particles.burst(player.cx, player.cy, 14, { color: '#9fb4d8', speed: 2.4, life: 22, size: 3 }); player.reset(SPAWN.x, SPAWN.y); }
+function respawn() {
+  particles.burst(player.cx, player.cy, 14, { color: '#9fb4d8', speed: 2.4, life: 22, size: 3 });
+  player.reset(SPAWN.x, SPAWN.y);
+  camY = clamp(player.y - VIEW_H * 0.55, 0, WORLD.h - VIEW_H); rcam = Math.round(camY);   // snap the camera back with you — don't leave the player off-screen
+}
 
 // ---------------- rendering ----------------
 function render() {
