@@ -56,26 +56,9 @@
   #vbtn-secondary { bottom: 16px;  border-color: #c47eff; }
   #vbtn-ability   { bottom: 96px;  border-color: #5cffec; }
   #vbtn-swap      { bottom: 176px; border-color: #ffd166; }
-  .plus-toggle { position: fixed; top: 56px; right: 16px; display: inline-flex; align-items: center;
-    gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 999px; padding: 6px 12px 6px 6px; font-family: "Space Grotesk", system-ui, sans-serif;
-    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,230,227,0.65);
-    cursor: pointer; z-index: 15; box-shadow: none; transition: background 200ms, border-color 200ms, color 200ms;
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-  .plus-toggle:hover { color: rgba(232,230,227,0.95); border-color: rgba(255,255,255,0.32); }
-  .plus-dot { width: 24px; height: 14px; border-radius: 999px; background: rgba(255,255,255,0.2);
-    position: relative; transition: background 220ms; flex-shrink: 0; }
-  .plus-dot::after { content: ''; position: absolute; width: 10px; height: 10px; border-radius: 50%;
-    background: #fff; top: 2px; left: 2px; transition: left 220ms; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-  .plus-toggle[aria-pressed="true"] { color: #ff3a55; border-color: rgba(255, 58, 85,0.5); background: rgba(255, 58, 85,0.10); }
-  .plus-toggle[aria-pressed="true"] .plus-dot { background: #ff3a55; }
-  .plus-toggle[aria-pressed="true"] .plus-dot::after { left: 12px; }
 </style>
 </head>
 <body>
-<button class="plus-toggle" id="plus-toggle" aria-pressed="false" type="button">
-  <span class="plus-dot"></span>Plus
-</button>
 <div id="wrap">
   <h1>D E A D Z O N E</h1>
   <div class="sub"><kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>hold LMB</kbd> shoot · stand in the shop to see upgrades · press <kbd>1-9</kbd> to buy · <kbd>R</kbd> reset</div>
@@ -783,16 +766,13 @@ const SFX_PICKUPS = {
 
 // ---------- Player ----------
 const SPAWN = { x: 90, y: H / 2 };
-// Plus mode: hero starts glass-cannon — 60hp cap and 15 damage per shot.
-const PLUS_ON = !!window.plusMode;
-window.addEventListener('plusmode', function () { location.reload(); });
 const player = {
   x: SPAWN.x, y: SPAWN.y,
   r: 11,
-  hp: PLUS_ON ? 60 : 100, maxHp: PLUS_ON ? 60 : 100,
+  hp: 100, maxHp: 100,
   money: 0,
-  speed: PLUS_ON ? 240 : 220,           // px/s
-  damage: PLUS_ON ? 15 : 10,
+  speed: 220,           // px/s
+  damage: 10,
   fireRate: 4,          // shots/s
   bulletSpeed: 700,
   pierce: 0,
@@ -2899,6 +2879,13 @@ function drawBullet(b) {
   // Custom-sprite override — per-bulletKind slot first, then a generic
   // "bulletDefault" fallback. The painted sprite rotates with the bullet's
   // velocity so the silhouette stays oriented correctly.
+  //
+  // IMPORTANT: bulletDefault only applies to bullets with NO bulletKind
+  // (basic weapons — pistol, shotgun, smg, rifle, twin, plus, tesla).
+  // Kind-having bullets fall through to their own procedural render when
+  // their specific slot is empty; otherwise painting bulletDefault (or any
+  // one bullet slot) would surprise-hijack every other kind's render and
+  // read as "I changed one bullet and they all changed".
   const kindSlot = b.bulletKind
     ? 'bullet' + b.bulletKind.charAt(0).toUpperCase() + b.bulletKind.slice(1)
     : null;
@@ -2911,7 +2898,7 @@ function drawBullet(b) {
     ctx.restore();
     return;
   }
-  if (hasCustomSprite('bulletDefault')) {
+  if (!kindSlot && hasCustomSprite('bulletDefault')) {
     const ang = Math.atan2(b.vy, b.vx);
     ctx.save();
     ctx.translate(b.x, b.y);
@@ -14136,26 +14123,6 @@ window.addEventListener('unhandledrejection', (e) => {
 })();
 
 tick();
-</script>
-<script>
-(function () {
-  var toggle = document.getElementById('plus-toggle');
-  if (!toggle) return;
-  var plus = false;
-  try { plus = localStorage.getItem('dz-plus') === '1'; } catch (_) {}
-  window.plusMode = plus;
-  toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
-  document.body.classList.toggle('is-plus', plus);
-  window.dispatchEvent(new CustomEvent('plusready', { detail: { plus: plus } }));
-  toggle.addEventListener('click', function () {
-    plus = !plus;
-    window.plusMode = plus;
-    try { localStorage.setItem('dz-plus', plus ? '1' : '0'); } catch (_) {}
-    toggle.setAttribute('aria-pressed', plus ? 'true' : 'false');
-    document.body.classList.toggle('is-plus', plus);
-    window.dispatchEvent(new CustomEvent('plusmode', { detail: { plus: plus } }));
-  });
-})();
 </script>
 </body>
 </html>
