@@ -2060,6 +2060,136 @@ let waveSpawnTimer = 0;
 let intermission = 3;            // seconds of safe prep before next wave
 let bestWave = 0;
 
+// ---------- Save slots ----------
+// Autosave between waves. Three named slots, each keyed by SAVE_KEY_PREFIX.
+// A save snapshot captures enough state to resume at the START of the
+// wave the player just finished — no need to serialize mid-wave zombies /
+// bullets / effects, since we restart the wave clean on load.
+//
+// What's saved: wave, player progression (money, hp, weapon, secondary,
+// upgrades, exp, buffs, perks, abilities), pets, buildings, storage +
+// banked money, and the upgrade cost array (so bought upgrades stay
+// bought). Loading calls hardReset() then patches state back in.
+const SAVE_KEY_PREFIX = 'deadzone-save-';
+const SAVE_SLOT_COUNT = 3;
+let currentSlot = 1;    // which slot the current run autosaves into
+
+function getSaveKey(slot) { return SAVE_KEY_PREFIX + slot; }
+
+function saveCurrentRun(slot) {
+  if (!slot || slot < 1 || slot > SAVE_SLOT_COUNT) return false;
+  try {
+    const snap = {
+      version: 1,
+      savedAt: Date.now(),
+      wave,
+      isBossWave,
+      currentSlot: slot,
+      player: {
+        money: player.money, hp: player.hp, maxHp: player.maxHp,
+        weapon: player.weapon, secondary: player.secondary,
+        speed: player.speed, damage: player.damage,
+        fireRate: player.fireRate, bulletSpeed: player.bulletSpeed,
+        pierce: player.pierce, exp: player.exp,
+        abilities: Object.assign({}, player.abilities),
+        buffs: Object.assign({}, player.buffs),
+        special: Object.assign({}, player.special),
+        specialLevels: Object.assign({}, player.specialLevels),
+      },
+      upgradeCosts: upgrades.map(u => u.cost),
+      ownedPets: Array.from(ownedPets),
+      buildings: buildings.map(b => ({
+        type: b.type, x: b.x, y: b.y, hp: b.hp, hpMax: b.hpMax,
+      })),
+      storage: storage.map(s => ({
+        kind: s.kind, id: s.id, color: s.color, tag: s.tag, name: s.name,
+      })),
+      storedMoney,
+      bestWave,
+    };
+    localStorage.setItem(getSaveKey(slot), JSON.stringify(snap));
+    return true;
+  } catch (_) { return false; }
+}
+
+function loadSaveMeta(slot) {
+  try {
+    const raw = localStorage.getItem(getSaveKey(slot));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.player) return null;
+    return {
+      wave: data.wave || 0,
+      money: data.player.money || 0,
+      weapon: data.player.weapon || 'pistol',
+      savedAt: data.savedAt || 0,
+      isBossWave: !!data.isBossWave,
+    };
+  } catch (_) { return null; }
+}
+
+function loadRun(slot) {
+  const raw = localStorage.getItem(getSaveKey(slot));
+  if (!raw) return false;
+  let data;
+  try { data = JSON.parse(raw); } catch (_) { return false; }
+  if (!data || !data.player) return false;
+  // Start from a clean world state, then patch the saved values in.
+  hardReset();
+  currentSlot = slot;
+  wave = data.wave || 0;
+  isBossWave = !!data.isBossWave;
+  intermission = 3;   // saved runs always resume at the intermission
+  Object.assign(player, {
+    money: data.player.money || 0,
+    hp: data.player.hp || 100,
+    maxHp: data.player.maxHp || 100,
+    weapon: data.player.weapon || 'pistol',
+    secondary: data.player.secondary || 'katana',
+    speed: data.player.speed || player.speed,
+    damage: data.player.damage || player.damage,
+    fireRate: data.player.fireRate || player.fireRate,
+    bulletSpeed: data.player.bulletSpeed || player.bulletSpeed,
+    pierce: data.player.pierce || 0,
+    exp: data.player.exp || 0,
+  });
+  if (data.player.abilities) Object.assign(player.abilities, data.player.abilities);
+  if (data.player.buffs) Object.assign(player.buffs, data.player.buffs);
+  if (data.player.special) Object.assign(player.special, data.player.special);
+  if (data.player.specialLevels) Object.assign(player.specialLevels, data.player.specialLevels);
+  if (Array.isArray(data.upgradeCosts)) {
+    for (let i = 0; i < data.upgradeCosts.length && i < upgrades.length; i++) {
+      upgrades[i].cost = data.upgradeCosts[i];
+    }
+  }
+  if (Array.isArray(data.ownedPets)) {
+    for (const id of data.ownedPets) {
+      if (!ownedPets.has(id)) spawnPetCheat(id);
+    }
+  }
+  if (Array.isArray(data.buildings)) {
+    for (const b of data.buildings) {
+      spawnBuilding(b.type, b.x, b.y);
+      // patch hp so damaged buildings stay damaged
+      const back = buildings[buildings.length - 1];
+      if (back && b.hp) { back.hp = b.hp; back.hpMax = b.hpMax || b.hp; }
+    }
+  }
+  if (Array.isArray(data.storage)) {
+    storage.length = 0;
+    for (const s of data.storage) storage.push(s);
+  }
+  storedMoney = data.storedMoney || 0;
+  if (data.bestWave) bestWave = Math.max(bestWave, data.bestWave);
+  hasGame = true;
+  return true;
+}
+
+function deleteSave(slot) {
+  try { localStorage.removeItem(getSaveKey(slot)); return true; }
+  catch (_) { return false; }
+}
+
 // ---------- Input ----------
 const keys = Object.create(null);
 const mouse = { x: W / 2, y: H / 2, down: false };
@@ -3914,6 +4044,7 @@ addEventListener('keydown', e => {
     if (gameState === 'settings')      { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); updateMusicForState(); return; }
     if (gameState === 'tutorial')      { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); return; }
     if (gameState === 'credits')       { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); return; }
+    if (gameState === 'load')          { gameState = 'menu'; SFX.uiClick(); return; }
     if (gameState === 'tree')          { gameState = 'playing'; SFX.uiClick(); return; }
     if (gameState === 'menu')          return;
   }
@@ -5312,6 +5443,9 @@ function endCurrentWave() {
   pendingCards = pickThreeUpgrades();
   // Roll the roaming trader's state for the next intermission.
   processTraderForWaveEnd();
+  // Autosave to the current slot — silent, at every wave-end intermission.
+  // Skip in training mode so the sandbox doesn't clobber a real run.
+  if (!trainingMode) saveCurrentRun(currentSlot);
 }
 
 function pickThreeUpgrades() {
@@ -10293,6 +10427,11 @@ function drawMainMenu() {
   const buttons = [];
   if (showResume) buttons.push({ id: 'resume', label: 'Resume', hint: '', accent: '#8be08b' });
   buttons.push({ id: 'play',     label: showResume ? 'New Game' : 'Play', hint: 'face the horde', accent: '#7ec8ff' });
+  // Show Load Game only when at least one slot has data — no point offering
+  // "load" on a fresh install.
+  let anySaveExists = false;
+  for (let i = 1; i <= SAVE_SLOT_COUNT; i++) if (loadSaveMeta(i)) { anySaveExists = true; break; }
+  if (anySaveExists) buttons.push({ id: 'load', label: 'Load Game', hint: 'resume a saved run', accent: '#ffce44' });
   buttons.push({ id: 'training', label: 'Training Arena',                 hint: 'cheats unlocked · practice freely', accent: '#ffd166' });
   buttons.push({ id: 'tutorial', label: 'How to Play',                    hint: 'controls + systems', accent: '#5cffec' });
   buttons.push({ id: 'guided',   label: 'Guided Tutorial',                hint: 'walks you through each action', accent: '#9bf07a' });
@@ -10787,6 +10926,111 @@ function drawCredits() {
   menuButtons = [backRect];
   drawMenuButton(backRect, 'Back', null, '#7ec8ff');
   ctx.textAlign = 'left';
+}
+
+// Load-game slot picker. Three rows, one per slot. Empty slots show "empty",
+// populated slots show wave / money / weapon / saved-at. Each populated row
+// gets a Delete button beside the Load area.
+function drawLoadMenu() {
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.94)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffce44';
+  ctx.font = 'bold 40px system-ui';
+  ctx.fillText('LOAD GAME', W / 2, 80);
+  ctx.fillStyle = '#9aa0ab';
+  ctx.font = '13px system-ui';
+  ctx.fillText('pick a slot to resume — autosaves happen at the end of every wave', W / 2, 106);
+
+  menuButtons = [];
+  const rowW = 640, rowH = 96, gap = 14;
+  const totalH = SAVE_SLOT_COUNT * rowH + (SAVE_SLOT_COUNT - 1) * gap;
+  let ry = (H - totalH) / 2 + 10;
+  for (let i = 1; i <= SAVE_SLOT_COUNT; i++) {
+    const meta = loadSaveMeta(i);
+    const rowX = (W - rowW) / 2;
+    // Row backdrop
+    ctx.fillStyle = meta ? '#151820' : '#0f1116';
+    ctx.fillRect(rowX, ry, rowW, rowH);
+    ctx.strokeStyle = meta ? '#ffce44' : '#33363f';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(rowX + 0.5, ry + 0.5, rowW - 1, rowH - 1);
+
+    // Slot label
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#7ec8ff';
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText('SLOT ' + i, rowX + 20, ry + 22);
+
+    if (meta) {
+      // Populated row — big wave badge + stats + Load button + Delete
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px system-ui';
+      ctx.fillText('Wave ' + meta.wave, rowX + 20, ry + 55);
+      ctx.fillStyle = '#ffce44';
+      ctx.font = 'bold 15px system-ui';
+      ctx.fillText('$' + meta.money, rowX + 20, ry + 78);
+      const wDef = WEAPONS[meta.weapon];
+      const wName = wDef ? wDef.name : meta.weapon;
+      ctx.fillStyle = '#dfe2e8';
+      ctx.font = '13px system-ui';
+      ctx.fillText('· ' + wName, rowX + 90, ry + 78);
+      // Timestamp far-right
+      const ago = fmtSaveAgo(meta.savedAt);
+      ctx.fillStyle = '#5a5d66';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'right';
+      ctx.fillText(ago, rowX + rowW - 20, ry + 22);
+
+      // Load button
+      const loadBtn = { x: rowX + rowW - 200, y: ry + 32, w: 120, h: 48, id: 'load-slot-' + i };
+      drawSmallActionBtn(loadBtn, 'Load', '#5cd86b');
+      menuButtons.push(loadBtn);
+      // Delete button
+      const delBtn = { x: rowX + rowW - 68, y: ry + 32, w: 52, h: 48, id: 'delete-slot-' + i };
+      drawSmallActionBtn(delBtn, '×', '#d33');
+      menuButtons.push(delBtn);
+    } else {
+      // Empty row
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#5a5d66';
+      ctx.font = 'italic 15px system-ui';
+      ctx.fillText('(empty)', rowX + 20, ry + rowH / 2 + 5);
+    }
+    ry += rowH + gap;
+  }
+
+  // Back button
+  const backRect = { x: (W - 260) / 2, y: H - 60, w: 260, h: 46, id: 'back' };
+  drawMenuButton(backRect, 'Back', null, '#7ec8ff');
+  menuButtons.push(backRect);
+  ctx.textAlign = 'left';
+}
+
+function drawSmallActionBtn(rect, label, accent) {
+  const hover = pointInRect(mouse, rect);
+  ctx.fillStyle = hover ? '#22252e' : '#181a24';
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = hover ? 2 : 1.5;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 15px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 5);
+}
+
+function fmtSaveAgo(ts) {
+  if (!ts) return '';
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + ' min ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + (hr === 1 ? ' hour ago' : ' hours ago');
+  const day = Math.floor(hr / 24);
+  return day + (day === 1 ? ' day ago' : ' days ago');
 }
 
 function drawTutorial() {
@@ -11521,6 +11765,20 @@ function handleMenuAction(id) {
     case 'credits':
       gameState = 'credits';
       break;
+    case 'load':
+      gameState = 'load';
+      break;
+    case 'load-slot-1': case 'load-slot-2': case 'load-slot-3': {
+      const slot = +id.split('-').pop();
+      if (loadRun(slot)) { gameState = 'playing'; SFX.uiClick(); }
+      break;
+    }
+    case 'delete-slot-1': case 'delete-slot-2': case 'delete-slot-3': {
+      const slot = +id.split('-').pop();
+      deleteSave(slot);
+      SFX.uiClick();
+      break;
+    }
     case 'tutorial-next':
       tutorialPage = Math.min(TUTORIAL_PAGES.length - 1, tutorialPage + 1);
       break;
@@ -14043,6 +14301,7 @@ function tickBody() {
   else if (gameState === 'settings') drawSettingsMenu();
   else if (gameState === 'tutorial') drawTutorial();
   else if (gameState === 'credits') drawCredits();
+  else if (gameState === 'load') drawLoadMenu();
   else if (gameState === 'tree') drawUpgradeTree();
   if (trainingMode && gameState === 'playing') drawTrainingBanner();
 
