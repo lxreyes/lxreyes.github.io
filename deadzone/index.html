@@ -1437,7 +1437,7 @@ let gameState = 'menu';
 let trainingMode = false;
 let hasGame = false; // set true after first Play/Training; controls Resume visibility
 let menuButtons = [];     // populated by the active menu draw fn each frame
-let settingsView = 'main'; // 'main' or 'sprites'
+let settingsView = 'main'; // 'main', 'sprites', or 'controls'
 let tutorialPage = 0;     // which page of the How to Play overlay is showing
 let shopTab = 'upgrades'; // 'upgrades' | 'arsenal' | 'storage' — active tab in the shop UI
 // Hit-test rects populated by drawShop each frame so mousedown can route clicks.
@@ -2059,6 +2059,97 @@ let waveZombiesToSpawn = 0;
 let waveSpawnTimer = 0;
 let intermission = 3;            // seconds of safe prep before next wave
 let bestWave = 0;
+
+// ---------- Key bindings ----------
+// Rebindable actions. Each action id maps to a KeyboardEvent.code. Movement
+// reads via keys[bindings['move-up']]; every other action gates its keydown
+// handler on e.code === bindings[actionId]. Unbindable keys (Escape, F11,
+// Enter, Y/N, digits, arrows) stay hardcoded — either OS-conventional or
+// too fundamental to swap safely.
+const DEFAULT_BINDINGS = {
+  'move-up':        'KeyW',
+  'move-down':      'KeyS',
+  'move-left':      'KeyA',
+  'move-right':     'KeyD',
+  'interact-gun':   'KeyE',
+  'interact-blade': 'KeyF',
+  'bow-release':    'KeyQ',
+  'dash':           'ShiftLeft',
+  'cycle-ability':  'Tab',
+  'ability-1':      'KeyZ',
+  'ability-2':      'KeyX',
+  'ability-3':      'KeyC',
+  'ability-4':      'KeyV',
+  'ability-5':      'KeyG',
+  'ability-6':      'KeyH',
+  'build':          'KeyB',
+  'tree':           'KeyT',
+  'reset':          'KeyR',
+  'mute':           'KeyM',
+};
+const BINDING_LABELS = {
+  'move-up':        'Move Up',
+  'move-down':      'Move Down',
+  'move-left':      'Move Left',
+  'move-right':     'Move Right',
+  'interact-gun':   'Pick up gun',
+  'interact-blade': 'Pick up secondary',
+  'bow-release':    'Release bow',
+  'dash':           'Dash / ability',
+  'cycle-ability':  'Cycle ability',
+  'ability-1':      'Bullet Time',
+  'ability-2':      'Rage',
+  'ability-3':      'Phase Walk',
+  'ability-4':      'Homing Bullets',
+  'ability-5':      'Magnetic Pull',
+  'ability-6':      'Lightning Storm',
+  'build':          'Toggle build mode',
+  'tree':           'Upgrade tree',
+  'reset':          'Reset run',
+  'mute':           'Toggle mute',
+};
+let bindings = Object.assign({}, DEFAULT_BINDINGS);
+try {
+  const raw = localStorage.getItem('deadzone-keybinds');
+  if (raw) {
+    const stored = JSON.parse(raw);
+    for (const k in DEFAULT_BINDINGS) {
+      if (typeof stored[k] === 'string') bindings[k] = stored[k];
+    }
+  }
+} catch (_) {}
+function saveBindings() {
+  try { localStorage.setItem('deadzone-keybinds', JSON.stringify(bindings)); }
+  catch (_) {}
+}
+function resetBindings() {
+  bindings = Object.assign({}, DEFAULT_BINDINGS);
+  saveBindings();
+}
+// User-friendly key-code display. Turns 'KeyA' → 'A', 'Space' → 'Space',
+// 'ShiftLeft' → 'Shift', 'ArrowUp' → '↑'.
+function keyLabel(code) {
+  if (!code) return '—';
+  if (code.startsWith('Key'))    return code.slice(3);
+  if (code.startsWith('Digit'))  return code.slice(5);
+  if (code.startsWith('Arrow'))  return { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[code] || code;
+  if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
+  if (code === 'ControlLeft' || code === 'ControlRight') return 'Ctrl';
+  if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+  if (code === 'MetaLeft' || code === 'MetaRight') return 'Cmd';
+  if (code === 'Space') return 'Space';
+  if (code === 'Enter') return 'Enter';
+  if (code === 'Tab') return 'Tab';
+  if (code === 'Backquote') return '`';
+  if (code === 'Minus') return '-';
+  if (code === 'Equal') return '=';
+  return code;
+}
+// Rebind mode — while an action id is set here, the next keydown captures
+// the pressed key and writes it into bindings[thisAction], then clears
+// itself. Escape cancels. drawSettingsMenu shows a "Press any key..."
+// overlay while rebindingAction is truthy.
+let rebindingAction = null;
 
 // ---------- Save slots ----------
 // Autosave between waves. Three named slots, each keyed by SAVE_KEY_PREFIX.
@@ -4011,8 +4102,24 @@ function darken(hex, amount = 0.4) {
 
 addEventListener('keydown', e => {
   ensureAudio(); resumeAudio();
+
+  // Rebind capture — if the settings menu is waiting for a new key,
+  // consume this keydown and write it into bindings. Escape cancels.
+  if (rebindingAction) {
+    e.preventDefault();
+    if (e.code === 'Escape') { rebindingAction = null; return; }
+    // Block unbindable / dangerous keys from being used as bindings.
+    const blocked = ['F11', 'Enter', 'Escape', 'Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+    if (blocked.includes(e.code)) return;
+    bindings[rebindingAction] = e.code;
+    saveBindings();
+    SFX.uiClick();
+    rebindingAction = null;
+    return;
+  }
+
   // Global keys that work in every state
-  if (e.code === 'KeyM') {
+  if (e.code === bindings.mute) {
     soundMuted = !soundMuted;
     applyMusicMute();
     if (!soundMuted) SFX.uiClick();
@@ -4058,7 +4165,7 @@ addEventListener('keydown', e => {
   if (gameState !== 'playing') return;
 
   keys[e.code] = true;
-  if (e.code === 'KeyR') resetConfirm = true;
+  if (e.code === bindings.reset) resetConfirm = true;
   // Enter / Y confirms a pending reset; Escape / N cancels
   if (resetConfirm) {
     if (e.code === 'Enter' || e.code === 'KeyY') {
@@ -4070,11 +4177,11 @@ addEventListener('keydown', e => {
       SFX.uiClick && SFX.uiClick();
     }
   }
-  if (e.code === 'KeyB' && !pendingCards) {
+  if (e.code === bindings.build && !pendingCards) {
     buildMode = !buildMode;
     SFX.uiClick();
   }
-  if (e.code === 'KeyT' && !pendingCards) {
+  if (e.code === bindings.tree && !pendingCards) {
     gameState = 'tree';
     SFX.uiClick();
     return;
@@ -4091,29 +4198,35 @@ addEventListener('keydown', e => {
     beginNextWave();
     e.preventDefault();
   }
-  if (e.code === 'KeyE' && nearbyGun) doSwapWeapon();
-  if (e.code === 'KeyF' && nearbyBladeCrate) doSwapSecondary();
-  if (e.code === 'KeyQ' && !inShop() && !pendingCards) {
+  if (e.code === bindings['interact-gun'] && nearbyGun) doSwapWeapon();
+  if (e.code === bindings['interact-blade'] && nearbyBladeCrate) doSwapSecondary();
+  if (e.code === bindings['bow-release'] && !inShop() && !pendingCards) {
     const sd = SECONDARIES[player.secondary];
     if (sd && sd.kind === 'charge') startBowCharge();
     else useSecondary();
   }
-  // Shift fires the currently-selected ability (dash is one of them)
-  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !inShop() && !pendingCards) {
+  // Dash — matches BOTH shift keys when the binding is a shift, so the
+  // ergonomic "either shift" behavior is preserved by default. Any other
+  // binding is exact.
+  const dashKey = bindings.dash;
+  const dashMatch = (dashKey === 'ShiftLeft' || dashKey === 'ShiftRight')
+    ? (e.code === 'ShiftLeft' || e.code === 'ShiftRight')
+    : (e.code === dashKey);
+  if (dashMatch && !inShop() && !pendingCards) {
     tryActivateSelected();
   }
-  // Tab cycles forward through unlocked abilities (no-op if none unlocked)
-  if (e.code === 'Tab' && !inShop() && !pendingCards) {
+  // Cycle abilities — preserves shift-modifier for reverse cycling
+  if (e.code === bindings['cycle-ability'] && !inShop() && !pendingCards) {
     cycleAbility(e.shiftKey ? -1 : 1);
     e.preventDefault();
   }
-  // Direct hotkeys are still here for power users
-  if (e.code === 'KeyZ') tryAbility('bulletTime');
-  if (e.code === 'KeyX') tryAbility('rage');
-  if (e.code === 'KeyC') tryAbility('phase');
-  if (e.code === 'KeyV') tryAbility('homing');
-  if (e.code === 'KeyG') tryAbility('pull');
-  if (e.code === 'KeyH') tryAbility('storm');
+  // Direct ability hotkeys
+  if (e.code === bindings['ability-1']) tryAbility('bulletTime');
+  if (e.code === bindings['ability-2']) tryAbility('rage');
+  if (e.code === bindings['ability-3']) tryAbility('phase');
+  if (e.code === bindings['ability-4']) tryAbility('homing');
+  if (e.code === bindings['ability-5']) tryAbility('pull');
+  if (e.code === bindings['ability-6']) tryAbility('storm');
   // build-mode digit selection takes priority over shop/cheats
   if (buildMode && e.code.startsWith('Digit')) {
     const bi = ['Digit1','Digit2','Digit3','Digit4','Digit5'].indexOf(e.code);
@@ -4137,7 +4250,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => {
   keys[e.code] = false;
   // Bow release on Q up
-  if (e.code === 'KeyQ' && player.bowHeld) releaseBow();
+  if (e.code === bindings['bow-release'] && player.bowHeld) releaseBow();
 });
 
 // Scroll wheel routes by context:
@@ -7450,11 +7563,12 @@ function updatePlayer(dt) {
   if (!inOverlay) {
     // When co-op is on, arrow keys belong to P2. Single-player keeps arrow
     // support so anyone who used arrows before still has them.
+    // Movement keys read through the bindings map so keybind remaps work.
     const allowArrows = !coopEnabled;
-    if (keys['KeyW'] || (allowArrows && keys['ArrowUp']))    dy -= 1;
-    if (keys['KeyS'] || (allowArrows && keys['ArrowDown']))  dy += 1;
-    if (keys['KeyA'] || (allowArrows && keys['ArrowLeft']))  dx -= 1;
-    if (keys['KeyD'] || (allowArrows && keys['ArrowRight'])) dx += 1;
+    if (keys[bindings['move-up']]    || (allowArrows && keys['ArrowUp']))    dy -= 1;
+    if (keys[bindings['move-down']]  || (allowArrows && keys['ArrowDown']))  dy += 1;
+    if (keys[bindings['move-left']]  || (allowArrows && keys['ArrowLeft']))  dx -= 1;
+    if (keys[bindings['move-right']] || (allowArrows && keys['ArrowRight'])) dx += 1;
   }
   const len = Math.hypot(dx, dy);
   if (len > 0) { dx /= len; dy /= len; }
@@ -11172,6 +11286,11 @@ function drawSettingsMenu() {
     drawSpriteEditor();
     return;
   }
+  if (settingsView === 'controls') {
+    for (const s of settingsSliders) s.rect = null;
+    drawControlsView();
+    return;
+  }
   ctx.fillStyle = 'rgba(6, 8, 12, 0.82)';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#fff';
@@ -11267,6 +11386,12 @@ function drawSettingsMenu() {
   menuButtons.push(clearCrashRect);
   by += bh + gap;
 
+  // Controls / keybinds entry
+  const ctrlsRect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: 'controls' };
+  drawMenuButton(ctrlsRect, 'Controls', 'rebind keys, reset to defaults', '#5cffec');
+  menuButtons.push(ctrlsRect);
+  by += bh + gap;
+
   // Sprite Editor entry
   const spriteRect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: 'sprites' };
   drawMenuButton(spriteRect, 'Sprite Editor', 'draw your own player + zombies', '#c47eff');
@@ -11276,6 +11401,110 @@ function drawSettingsMenu() {
   const backRect = { x: (W - bw) / 2, y: H - 90, w: bw, h: bh, id: 'back' };
   drawMenuButton(backRect, 'Back', null, '#7ec8ff');
   menuButtons.push(backRect);
+  ctx.textAlign = 'left';
+}
+
+// Controls page — scrollable list of every rebindable action. Each row
+// has the action label on the left, the current key on the right, and a
+// small "Rebind" button. A "Reset to Defaults" button lives at the bottom
+// next to the Back button. If rebindingAction is set, an overlay covers
+// the screen prompting for the new key.
+function drawControlsView() {
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.92)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 32px system-ui';
+  ctx.fillText('Controls', W / 2, 54);
+  ctx.fillStyle = '#9aa0ab';
+  ctx.font = '12px system-ui';
+  ctx.fillText('click Rebind, then press the key you want (Esc to cancel)', W / 2, 76);
+
+  const actions = [
+    'move-up', 'move-down', 'move-left', 'move-right',
+    'dash', 'cycle-ability',
+    'ability-1', 'ability-2', 'ability-3', 'ability-4', 'ability-5', 'ability-6',
+    'interact-gun', 'interact-blade', 'bow-release',
+    'build', 'tree', 'reset', 'mute',
+  ];
+
+  menuButtons = [];
+  const rowH = 30, gap = 4;
+  const colW = 640;
+  const startX = (W - colW) / 2;
+  let ry = 100;
+  ctx.textAlign = 'left';
+  for (const a of actions) {
+    const rowY = ry;
+    // Backdrop striping
+    ctx.fillStyle = '#13151c';
+    ctx.fillRect(startX, rowY, colW, rowH);
+    ctx.strokeStyle = '#22252e';
+    ctx.strokeRect(startX + 0.5, rowY + 0.5, colW - 1, rowH - 1);
+
+    ctx.fillStyle = '#dfe2e8';
+    ctx.font = '13px system-ui';
+    ctx.fillText(BINDING_LABELS[a] || a, startX + 14, rowY + 20);
+
+    // Current binding in a small keycap
+    const kb = keyLabel(bindings[a]);
+    const capX = startX + colW - 220;
+    const capW = Math.max(48, ctx.measureText(kb).width + 24);
+    const capH = 22;
+    const capY = rowY + (rowH - capH) / 2;
+    ctx.fillStyle = '#22252e';
+    ctx.fillRect(capX, capY, capW, capH);
+    ctx.strokeStyle = '#4a4a55';
+    ctx.strokeRect(capX + 0.5, capY + 0.5, capW - 1, capH - 1);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px system-ui';
+    ctx.fillText(kb, capX + capW / 2, capY + 15);
+    ctx.textAlign = 'left';
+
+    // Rebind button
+    const rbX = startX + colW - 100;
+    const rbBtn = { x: rbX, y: rowY + 3, w: 92, h: rowH - 6, id: 'rebind-' + a };
+    const hover = pointInRect(mouse, rbBtn);
+    ctx.fillStyle = hover ? '#1c3a5a' : '#181d28';
+    ctx.fillRect(rbBtn.x, rbBtn.y, rbBtn.w, rbBtn.h);
+    ctx.strokeStyle = hover ? '#7ec8ff' : '#33363f';
+    ctx.strokeRect(rbBtn.x + 0.5, rbBtn.y + 0.5, rbBtn.w - 1, rbBtn.h - 1);
+    ctx.fillStyle = hover ? '#7ec8ff' : '#dfe2e8';
+    ctx.font = 'bold 12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(rebindingAction === a ? 'press...' : 'Rebind', rbBtn.x + rbBtn.w / 2, rbBtn.y + 17);
+    ctx.textAlign = 'left';
+    menuButtons.push(rbBtn);
+
+    ry += rowH + gap;
+  }
+
+  // Reset + Back at the bottom
+  const bh = 44;
+  const resetRect = { x: startX, y: H - 60, w: colW / 2 - 8, h: bh, id: 'resetBindings' };
+  drawMenuButton(resetRect, 'Reset to Defaults', null, '#ffb85c');
+  menuButtons.push(resetRect);
+  const backRect = { x: startX + colW / 2 + 8, y: H - 60, w: colW / 2 - 8, h: bh, id: 'controlsBack' };
+  drawMenuButton(backRect, 'Back', null, '#7ec8ff');
+  menuButtons.push(backRect);
+
+  // Rebind capture overlay
+  if (rebindingAction) {
+    ctx.fillStyle = 'rgba(6, 8, 12, 0.85)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffce44';
+    ctx.font = 'bold 34px system-ui';
+    ctx.fillText('Press any key for', W / 2, H / 2 - 40);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 44px system-ui';
+    ctx.fillText(BINDING_LABELS[rebindingAction] || rebindingAction, W / 2, H / 2 + 10);
+    ctx.fillStyle = '#9aa0ab';
+    ctx.font = '13px system-ui';
+    ctx.fillText('Esc to cancel  ·  digits, arrows, Enter, F11 not bindable', W / 2, H / 2 + 46);
+  }
   ctx.textAlign = 'left';
 }
 
@@ -11794,8 +12023,9 @@ function handleMenuAction(id) {
       gameState = 'menu';
       break;
     case 'back':
-      if (gameState === 'settings' && settingsView === 'sprites') {
+      if (gameState === 'settings' && (settingsView === 'sprites' || settingsView === 'controls')) {
         settingsView = 'main';
+        rebindingAction = null;
         break;
       }
       gameState = hasGame ? 'paused' : 'menu';
@@ -11821,6 +12051,17 @@ function handleMenuAction(id) {
     case 'sprites':
       settingsView = 'sprites';
       break;
+    case 'controls':
+      settingsView = 'controls';
+      break;
+    case 'controlsBack':
+      settingsView = 'main';
+      rebindingAction = null;
+      break;
+    case 'resetBindings':
+      resetBindings();
+      SFX.uiClick();
+      break;
     case 'spriteBack':
       settingsView = 'main';
       break;
@@ -11842,6 +12083,10 @@ function handleMenuAction(id) {
         buyRootNode(id.slice('root-'.length));
       } else if (id && id.startsWith('sec-')) {
         tomeShopSection = id.slice('sec-'.length);
+      } else if (id && id.startsWith('rebind-')) {
+        // Set rebindingAction so the next keydown captures + saves.
+        rebindingAction = id.slice('rebind-'.length);
+        SFX.uiClick();
       }
       break;
   }
@@ -14279,13 +14524,13 @@ function pollGamepad() {
   const ly = Math.abs(pad.axes[1]) < dz ? 0 : pad.axes[1];
   const stickActive = lx !== 0 || ly !== 0;
   if (stickActive) {
-    keys['KeyW'] = ly < -0.3;
-    keys['KeyS'] = ly > 0.3;
-    keys['KeyA'] = lx < -0.3;
-    keys['KeyD'] = lx > 0.3;
+    keys[bindings['move-up']]    = ly < -0.3;
+    keys[bindings['move-down']]  = ly > 0.3;
+    keys[bindings['move-left']]  = lx < -0.3;
+    keys[bindings['move-right']] = lx > 0.3;
   } else if (gpStickWasActive) {
-    keys['KeyW'] = false; keys['KeyS'] = false;
-    keys['KeyA'] = false; keys['KeyD'] = false;
+    keys[bindings['move-up']] = false; keys[bindings['move-down']] = false;
+    keys[bindings['move-left']] = false; keys[bindings['move-right']] = false;
   }
   gpStickWasActive = stickActive;
 
@@ -14529,14 +14774,14 @@ window.addEventListener('unhandledrejection', (e) => {
   function refreshStickKeys() {
     const m = Math.hypot(stickState.dx, stickState.dy);
     if (m < 0.25) {
-      keys['KeyW'] = keys['KeyS'] = keys['KeyA'] = keys['KeyD'] = false;
+      keys[bindings['move-up']] = keys[bindings['move-down']] = keys[bindings['move-left']] = keys[bindings['move-right']] = false;
       return;
     }
     const nx = stickState.dx, ny = stickState.dy;
-    keys['KeyW'] = ny < -0.35;
-    keys['KeyS'] = ny >  0.35;
-    keys['KeyA'] = nx < -0.35;
-    keys['KeyD'] = nx >  0.35;
+    keys[bindings['move-up']]    = ny < -0.35;
+    keys[bindings['move-down']]  = ny >  0.35;
+    keys[bindings['move-left']]  = nx < -0.35;
+    keys[bindings['move-right']] = nx >  0.35;
   }
 
   function handleSwapTouch() {
