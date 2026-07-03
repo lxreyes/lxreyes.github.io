@@ -75,6 +75,11 @@ const c = document.getElementById('c');
 const ctx = c.getContext('2d');
 const W = c.width, H = c.height;
 
+// Ship-facing version — displayed on the main menu and useful for tagging
+// bug reports. Bump on every distribution build (itch upload, Steam depot,
+// Electron installer). Keep semver-flavored: MAJOR.MINOR.PATCH.
+const GAME_VERSION = '0.1.0';
+
 // ---------- Touch / mobile support ----------
 // The canvas keeps its internal 1200x680 logical resolution. CSS scales it
 // to fit the viewport while preserving aspect; mouse-event coords are
@@ -10318,7 +10323,12 @@ function drawMainMenu() {
     ctx.font = '11px system-ui';
     ctx.fillText('🔊  Click or press any key to enable audio (browser policy)', W / 2, H - 8);
   }
+  // Version stamp — bottom-left corner. Small enough not to fight the button
+  // stack; discoverable enough that a bug report can include the version.
   ctx.textAlign = 'left';
+  ctx.fillStyle = '#3a3d46';
+  ctx.font = '10px system-ui';
+  ctx.fillText(`v${GAME_VERSION}`, 10, H - 8);
 }
 
 // ---------- Tutorial / How to Play overlay ----------
