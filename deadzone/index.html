@@ -14225,10 +14225,154 @@ function drawErrorOverlay() {
   ctx.restore();
 }
 
+// ---------- Gamepad ----------
+// Web Gamepad API integration. Every frame we read the first connected
+// controller and MAP its inputs to the existing keys[] + mouse state, so
+// the rest of the game continues to think it's receiving keyboard + mouse.
+// This means Steam Input auto-mapping "just works" and every gameplay
+// system stays untouched.
+//
+// Layout (Xbox-style standard mapping):
+//   Left stick    → WASD movement
+//   Right stick   → aim (orbit crosshair around player)
+//   D-pad         → arrow keys (drives P2 in co-op)
+//   A / btn 0     → dash / activate selected ability
+//   B / btn 1     → interact — pick up hovered gun or blade crate
+//   Y / btn 3     → cycle selected ability
+//   LB / btn 4    → toggle build mode
+//   RB / btn 5    → open / close upgrade tree
+//   LT / btn 6    → secondary (charge on bow-kind weapons, release on up)
+//   RT / btn 7    → fire (equivalent to LMB held)
+//   Start / btn 9 → pause / resume
+let gpPrevButtons = new Array(20).fill(false);
+let gpStickWasActive = false;
+let gpDpadWasActive = false;
+let gpConnectedNotified = false;
+const GAMEPAD_DEADZONE = 0.22;
+const GAMEPAD_AIM_RADIUS = 220;
+
+function pollGamepad() {
+  if (!navigator.getGamepads) return;
+  const pads = navigator.getGamepads();
+  let pad = null;
+  for (const p of pads) { if (p && p.connected) { pad = p; break; } }
+  if (!pad) {
+    if (gpConnectedNotified) {
+      gpConnectedNotified = false;
+      floaters.push({ x: W / 2, y: 108, text: 'Controller disconnected', life: 1.6, color: '#d33' });
+    }
+    return;
+  }
+  if (!gpConnectedNotified) {
+    gpConnectedNotified = true;
+    floaters.push({ x: W / 2, y: 108, text: 'Controller connected', life: 2.0, color: '#5cd86b' });
+  }
+  const dz = GAMEPAD_DEADZONE;
+  const buttons = pad.buttons.map(b => !!(b && (b.pressed || b.value > 0.5)));
+  const pressed = i => buttons[i] && !gpPrevButtons[i];
+  const released = i => !buttons[i] && gpPrevButtons[i];
+
+  // Left stick → WASD. Only override keys[] when the stick is actively
+  // deflected; when it returns to rest, clear once and hand control back
+  // to keyboard events.
+  const lx = Math.abs(pad.axes[0]) < dz ? 0 : pad.axes[0];
+  const ly = Math.abs(pad.axes[1]) < dz ? 0 : pad.axes[1];
+  const stickActive = lx !== 0 || ly !== 0;
+  if (stickActive) {
+    keys['KeyW'] = ly < -0.3;
+    keys['KeyS'] = ly > 0.3;
+    keys['KeyA'] = lx < -0.3;
+    keys['KeyD'] = lx > 0.3;
+  } else if (gpStickWasActive) {
+    keys['KeyW'] = false; keys['KeyS'] = false;
+    keys['KeyA'] = false; keys['KeyD'] = false;
+  }
+  gpStickWasActive = stickActive;
+
+  // D-pad → arrow keys (mostly for P2 movement in co-op).
+  const dpUp = buttons[12], dpDn = buttons[13], dpLf = buttons[14], dpRt = buttons[15];
+  const dpadActive = dpUp || dpDn || dpLf || dpRt;
+  if (dpadActive) {
+    keys['ArrowUp'] = dpUp;
+    keys['ArrowDown'] = dpDn;
+    keys['ArrowLeft'] = dpLf;
+    keys['ArrowRight'] = dpRt;
+  } else if (gpDpadWasActive) {
+    keys['ArrowUp'] = false; keys['ArrowDown'] = false;
+    keys['ArrowLeft'] = false; keys['ArrowRight'] = false;
+  }
+  gpDpadWasActive = dpadActive;
+
+  // Right stick + triggers only apply during actual play. In menus, the
+  // player uses the mouse (or clicks) — trigger-fire during a menu would
+  // dispatch bullets at the pause screen otherwise.
+  if (gameState === 'playing' && !pendingCards) {
+    const rx = Math.abs(pad.axes[2]) < dz ? 0 : pad.axes[2];
+    const ry = Math.abs(pad.axes[3]) < dz ? 0 : pad.axes[3];
+    if (rx !== 0 || ry !== 0) {
+      mouse.x = player.x + rx * GAMEPAD_AIM_RADIUS;
+      mouse.y = player.y + ry * GAMEPAD_AIM_RADIUS;
+    }
+    mouse.down = buttons[7];   // RT
+
+    // LT (6) → secondary. Charge-kind weapons (bow) engage on press,
+    // release on up. Everything else uses the immediate one-shot path.
+    if (pressed(6)) {
+      const sd = SECONDARIES[player.secondary];
+      if (sd && sd.kind === 'charge') startBowCharge();
+      else useSecondary();
+    } else if (released(6) && player.bowHeld) {
+      releaseBow();
+    }
+
+    // A (0) — dash / selected ability
+    if (pressed(0)) tryActivateSelected();
+
+    // B (1) — interact: pick up whichever pickup we're hovering.
+    if (pressed(1)) {
+      if (nearbyGun && nearbyGun.weapon !== player.weapon) doSwapWeapon();
+      else if (nearbyBladeCrate && nearbyBladeCrate.secondary !== player.secondary) doSwapSecondary();
+    }
+
+    // Y (3) — cycle to the next unlocked ability
+    if (pressed(3)) cycleAbility(1);
+
+    // LB (4) — build mode toggle
+    if (pressed(4)) { buildMode = !buildMode; SFX.uiClick(); }
+
+    // RB (5) — open upgrade tree
+    if (pressed(5)) { gameState = 'tree'; SFX.uiClick(); }
+  } else if (gameState === 'tree') {
+    // From the tree, RB (5) closes back to play.
+    if (pressed(5)) { gameState = 'playing'; SFX.uiClick(); }
+  }
+
+  // Start (9) — universal pause / resume. Works during play + on pause menu.
+  if (pressed(9)) {
+    if (gameState === 'playing') {
+      gameState = 'paused';
+      clearKeys();
+      SFX.uiClick();
+      updateMusicForState();
+    } else if (gameState === 'paused') {
+      gameState = 'playing';
+      SFX.uiClick();
+      updateMusicForState();
+    }
+  }
+
+  gpPrevButtons = buttons;
+}
+
 function tickBody() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+
+  // Gamepad polled every frame BEFORE any state read — updates keys[] +
+  // mouse position + edge-triggered actions so the rest of the loop sees
+  // controller input as normal keyboard / mouse.
+  pollGamepad();
 
   if (gameState === 'playing') {
     gameTime += dt;
