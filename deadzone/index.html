@@ -3913,6 +3913,7 @@ addEventListener('keydown', e => {
     if (gameState === 'paused')        { gameState = 'playing'; SFX.uiClick(); updateMusicForState(); return; }
     if (gameState === 'settings')      { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); updateMusicForState(); return; }
     if (gameState === 'tutorial')      { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); return; }
+    if (gameState === 'credits')       { gameState = hasGame ? 'paused' : 'menu'; SFX.uiClick(); return; }
     if (gameState === 'tree')          { gameState = 'playing'; SFX.uiClick(); return; }
     if (gameState === 'menu')          return;
   }
@@ -10296,6 +10297,7 @@ function drawMainMenu() {
   buttons.push({ id: 'tutorial', label: 'How to Play',                    hint: 'controls + systems', accent: '#5cffec' });
   buttons.push({ id: 'guided',   label: 'Guided Tutorial',                hint: 'walks you through each action', accent: '#9bf07a' });
   buttons.push({ id: 'settings', label: 'Settings',                        hint: 'audio, sprites, more', accent: '#c47eff' });
+  buttons.push({ id: 'credits',  label: 'Credits',                         hint: 'who made this', accent: '#ffb85c' });
   // Adaptive sizing — the button stack grew from 4 to 6 entries, so size
   // them to fit between the title block and the bottom of the canvas
   // instead of using fixed dimensions that overflowed.
@@ -10731,6 +10733,62 @@ function drawGuidedTutorialBanner() {
   ctx.textAlign = 'left';
 }
 
+// Credits screen — accessible from the main menu + pause menu. Scrollable
+// list of who/what made the game. The layout stays intentionally simple:
+// a stack of centered blocks, each with a small role header and one or
+// more names or credits underneath. Escape / clicking Back returns to
+// wherever the player came from (menu or paused).
+function drawCredits() {
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.94)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff5050';
+  ctx.font = 'bold 44px system-ui';
+  ctx.fillText('CREDITS', W / 2, 78);
+  ctx.fillStyle = '#9aa0ab';
+  ctx.font = 'bold 12px system-ui';
+  ctx.fillText('D E A D Z O N E   ·   v' + GAME_VERSION, W / 2, 102);
+
+  // Roll blocks
+  const blocks = [
+    { role: 'Design & code', names: ['Lachlan Reyes'] },
+    { role: 'Programming assistance', names: ['Claude (Anthropic)'] },
+    { role: 'Playtesters', names: ['You', 'and whoever else spared the time'] },
+    { role: 'Sound design', names: ['Web Audio API — procedural, no samples'] },
+    { role: 'Art', names: ['HTML5 Canvas 2D — every sprite drawn at runtime'] },
+    { role: 'Built with', names: ['Vanilla JavaScript · zero dependencies · one HTML file'] },
+    { role: 'Made in', names: ['A single-file editor with far more agent tool calls than we care to admit'] },
+    { role: 'Special thanks', names: ['Every zombie that got shot along the way'] },
+  ];
+
+  let by = 148;
+  for (const b of blocks) {
+    ctx.fillStyle = '#7ec8ff';
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText(b.role.toUpperCase(), W / 2, by);
+    ctx.fillStyle = '#e8e8ee';
+    ctx.font = '18px system-ui';
+    for (const n of b.names) {
+      by += 22;
+      ctx.fillText(n, W / 2, by);
+    }
+    by += 26;
+  }
+
+  // Version + link footer
+  ctx.fillStyle = '#5a5d66';
+  ctx.font = '11px system-ui';
+  ctx.fillText('lxreyes.github.io/deadzone', W / 2, H - 66);
+
+  // Back button
+  const bw = 260, bh = 46;
+  const backRect = { x: (W - bw) / 2, y: H - 54, w: bw, h: bh, id: 'back' };
+  menuButtons = [backRect];
+  drawMenuButton(backRect, 'Back', null, '#7ec8ff');
+  ctx.textAlign = 'left';
+}
+
 function drawTutorial() {
   ctx.fillStyle = 'rgba(6, 8, 12, 0.92)';
   ctx.fillRect(0, 0, W, H);
@@ -10830,15 +10888,17 @@ function drawPauseMenu() {
   ctx.font = '13px system-ui';
   ctx.fillText('press Escape to resume', W / 2, H / 2 - 80);
 
-  const bw = 240, bh = 56, gap = 12;
+  const bw = 240, bh = 48, gap = 10;
   const items = [
     { id: 'resume',   label: 'Resume',          accent: '#8be08b' },
     { id: 'tutorial', label: 'How to Play',     accent: '#5cffec' },
     { id: 'guided',   label: 'Guided Tutorial', accent: '#9bf07a' },
     { id: 'settings', label: 'Settings',        accent: '#c47eff' },
+    { id: 'credits',  label: 'Credits',         accent: '#ffb85c' },
     { id: 'menu',     label: 'Main Menu',       accent: '#7ec8ff' },
   ];
-  let by = H / 2 - 30;
+  // Total stack height: 6 * (48 + 10) - 10 = 338. Center it around H/2.
+  let by = (H - (items.length * bh + (items.length - 1) * gap)) / 2 + 20;
   menuButtons = [];
   for (const it of items) {
     const rect = { x: (W - bw) / 2, y: by, w: bw, h: bh, id: it.id };
@@ -11457,6 +11517,9 @@ function handleMenuAction(id) {
       break;
     case 'guided':
       startGuidedTutorial();
+      break;
+    case 'credits':
+      gameState = 'credits';
       break;
     case 'tutorial-next':
       tutorialPage = Math.min(TUTORIAL_PAGES.length - 1, tutorialPage + 1);
@@ -13979,6 +14042,7 @@ function tickBody() {
   else if (gameState === 'paused') drawPauseMenu();
   else if (gameState === 'settings') drawSettingsMenu();
   else if (gameState === 'tutorial') drawTutorial();
+  else if (gameState === 'credits') drawCredits();
   else if (gameState === 'tree') drawUpgradeTree();
   if (trainingMode && gameState === 'playing') drawTrainingBanner();
 
