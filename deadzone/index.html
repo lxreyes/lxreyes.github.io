@@ -3883,6 +3883,23 @@ addEventListener('keydown', e => {
     if (!soundMuted) SFX.uiClick();
     return;
   }
+  // F11 — browser fullscreen toggle. Electron intercepts this in main.js
+  // with its own window.setFullScreen, so this branch only actually runs
+  // in the web build. Requesting fullscreen on the canvas element (not
+  // document.documentElement) keeps the game centered without pulling
+  // the surrounding page along.
+  if (e.code === 'F11') {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        (c.requestFullscreen && c.requestFullscreen()) ||
+        (c.webkitRequestFullscreen && c.webkitRequestFullscreen());
+      }
+      e.preventDefault();
+    } catch (_) { /* browser refused — nothing we can do */ }
+    return;
+  }
   // Escape switches game-state — checked before recording the key
   if (e.code === 'Escape') {
     if (resetConfirm)                  { resetConfirm = false; SFX.uiClick(); return; }
@@ -10290,6 +10307,16 @@ function drawMainMenu() {
     drawMenuButton(rect, b.label, b.hint, b.accent);
     menuButtons.push(rect);
     by += bh + gap;
+  }
+  // Audio hint — browsers won't play sound until the first user gesture.
+  // Show a small explanation so first-time players don't wonder why the
+  // menu music hasn't kicked in. Disappears the instant audioCtx is
+  // resumed (which happens on the same click/key/tap that opens the game).
+  if (!audioCtx || audioCtx.state === 'suspended') {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#5a5d66';
+    ctx.font = '11px system-ui';
+    ctx.fillText('🔊  Click or press any key to enable audio (browser policy)', W / 2, H - 8);
   }
   ctx.textAlign = 'left';
 }
