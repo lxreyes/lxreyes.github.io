@@ -19,7 +19,7 @@
 // 1. LEVEL  (bottom = big y, summit = small y)
 // ============================================================
 const VIEW_W = 540, VIEW_H = 720;
-const WORLD = { w: 540, h: 16800 };
+const WORLD = { w: 540, h: 19700 };
 const SNOWLINE = 3600;
 const CITY = { x: -120, y: 4500, w: 560, h: 2050 };       // the buried city, carved into solid rock
 const MINE = { x: -120, y: 11550, w: 560, h: 2010 };      // the old mine, bored into the lower rock
@@ -33,12 +33,15 @@ function plat(x, y, w) { const s = rock(x, y, w, 14, 'ledge', true); SOLIDS.push
 function mover(x, y, w, h, axis, dist, speed, ph) { const m = { x, y, w, h, kind: 'mover', oneWay: false, axis, from: axis === 'x' ? x : y, to: (axis === 'x' ? x : y) + dist, speed, phase: ph || 0, px: x, py: y, dx: 0, dy: 0 }; SOLIDS.push(m); MOVERS.push(m); return m; }
 function bouncer(x, y, w) { const s = rock(x, y, w, 12, 'bounce', true); s.bounce = true; SOLIDS.push(s); return s; }   // trampoline
 function updraft(x, y, w, h) { const u = { x, y, w, h }; UPDRAFTS.push(u); return u; }                                  // wind column
+const CRUMBLES = [];
+function ice(x, y, w) { const s = rock(x, y, w, 14, 'ice', true); SOLIDS.push(s); return s; }                          // slippery ledge
+function crumble(x, y, w) { const s = rock(x, y, w, 14, 'crumble', true); s.solid = true; s.t = 0; s.gone = 0; SOLIDS.push(s); CRUMBLES.push(s); return s; }   // gives way when stood on
 
 // --- The mountain face: a steep wall on the right that leans gently back as it rises (the "slope"). ---
 // faceLeft(y) = x of the rock's left edge at world height y; higher up (smaller y) → further right.
 function faceLeft(y) { const f = clamp((9340 - y) / 8550, 0, 1); return Math.round(300 + 175 * Math.pow(f, 1.35)); }
-for (let ty = -260; ty < 16700; ty += 300) { const fx = faceLeft(ty); body(fx, ty, 780 - fx, 360); }
-body(-80, 16600, 900, 400);                       // valley floor — the true base of a much bigger mountain
+for (let ty = -260; ty < 19500; ty += 300) { const fx = faceLeft(ty); body(fx, ty, 780 - fx, 360); }
+body(-80, 19400, 900, 400);                       // the glacier floor — the true base of the mountain
 
 // A zig-zag run of "filler" ledges between the authored challenges (keeps the climb DRY).
 function ladder(yBot, yTop, step) { let i = 0; for (let y = yBot; y >= yTop; y -= step, i++) plat(i % 2 ? 190 : 44, y, 100); }
@@ -104,6 +107,14 @@ updraft(52, 3160, 84, 400);                       // wind rushing up the left of
 // ================= THE LOWER MOUNTAIN — a much longer approach (new) =================
 // A green valley & base camp, a pine forest, an old mine bored into the rock, and a
 // frozen waterfall, all climbing up to the original foothills far above.
+// -- The Glacier — everything's slippery underfoot (ICE) --
+ice(60, 19200, 110); ice(190, 19060, 100); ice(60, 18920, 110); ice(190, 18780, 100);
+ice(60, 18640, 110); ice(190, 18500, 100); ice(70, 18360, 110); ice(190, 18220, 100);
+plat(70, 18100, 110);                             // solid footing before the crag
+// -- The Crumbling Crag — the rock gives way; keep moving up (CRUMBLE) --
+crumble(80, 17960, 90); crumble(190, 17820, 90); crumble(80, 17680, 90); crumble(190, 17540, 90);
+crumble(80, 17400, 90); crumble(190, 17260, 90); crumble(80, 17120, 90); crumble(190, 16980, 90);
+plat(80, 16840, 100); plat(200, 16700, 90); plat(80, 16560, 100);   // back to solid ground, up to the valley
 // -- The Valley & Base Camp — big springs bounce you up (SPRINGS) --
 ladder(16420, 16130, 145);
 bouncer(90, 15990, 110);             // ── SPRING CHAIN · each pad launches ~430px, far past any jump ──
@@ -139,13 +150,13 @@ updraft(140, 9600, 96, 540);                        // freezing mist rising up t
 plat(200, 10000, 90); plat(70, 9860, 96);
 ladder(9720, 9270, 145);                            // up to the original foothills
 
-const SPAWN = { x: 90, y: 16540 };
+const SPAWN = { x: 90, y: 19340 };
 const FLAG = { x: 250, y: 760 };
 const GOAL = { x: 150, y: 676, w: 190, h: 86 };
 const GEMS = [[130, 8980], [200, 8180], [40, 7020], [230, 6760], [150, 6160], [96, 5680], [260, 5280], [110, 4980], [250, 3680], [180, 3180], [220, 2080], [110, 840],
   [330, 1745],                                        // alternate-route reward
   [276, 14260], [150, 11480], [150, 10280],           // gate rewards: glide pit, sheer wall, dash shaft
-  [200, 16300], [70, 15130], [150, 13330], [290, 12500], [96, 11910], [64, 10140], [200, 10000]]   // the new lower mountain
+  [200, 19000], [110, 17400], [200, 16300], [70, 15130], [150, 13330], [290, 12500], [96, 11910], [64, 10140], [200, 10000]]   // glacier, crag + the lower mountain
   .map(([x, y]) => ({ x, y }));
 
 // Movement techs you unlock at shrines along the climb (placed just before where each shines).
@@ -244,6 +255,8 @@ const HOOK_SPEED = 46, HOOK_RANGE = 340, PULL_SPEED = 12;
 // --- unlockable movement techs (found at shrines up the mountain) ---
 const GLIDE_FALL = 2.2, CLIMB_SPEED = 2.4, CLIMB_BUDGET = 64;
 const BOUNCE_VEL = 25, UPDRAFT_ACCEL = 1.15, UPDRAFT_MAX = 4.6;   // trampolines (~430px launch) & wind columns
+const ICE_FRICTION = 0.03, ICE_ACCEL = 0.34;                     // slippery glacier ledges
+const CRUMBLE_STAND = 40, CRUMBLE_GONE = 150;                    // crumbling platforms: frames to break, frames to respawn
 function maxDash() { return typeof unlocked !== 'undefined' && unlocked.dash2 ? 2 : 1; }
 
 class Player {
@@ -251,7 +264,7 @@ class Player {
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.facing = 1; this.onGround = false; this.wall = 0; this.lastWall = 1;
     this.coyote = 0; this.wallCoyote = 0; this.jumpBuffer = 0; this.airLock = 0; this.airJumps = 1; this.dashCharges = maxDash(); this.dashTime = 0; this.dashCooldown = 0;
-    this.gliding = false; this.landTimer = 0; this.gState = 'idle'; this.fireDir = 1; this.hx = 0; this.hy = 0; this.travel = 0; this.ax = 0; this.ay = 0; this.clingWall = 0; this.events = []; this.impact = 0; this.climbLeft = CLIMB_BUDGET; this.climbing = false; this.trail = []; this.inUpdraft = false; this.launched = false;
+    this.gliding = false; this.landTimer = 0; this.gState = 'idle'; this.fireDir = 1; this.hx = 0; this.hy = 0; this.travel = 0; this.ax = 0; this.ay = 0; this.clingWall = 0; this.events = []; this.impact = 0; this.climbLeft = CLIMB_BUDGET; this.climbing = false; this.trail = []; this.inUpdraft = false; this.launched = false; this.onIce = false;
   }
   rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
@@ -302,7 +315,7 @@ class Player {
       const wallSlide = !this.onGround && pushWall && this.vy > 0;
       const climbing = unlocked.climb && this.wall !== 0 && !this.onGround && input.up && this.climbLeft > 0;   // scramble up the rock
       const glide = unlocked.glide && !this.onGround && this.vy > 0 && input.jumpHeld && !wallSlide && !climbing; // ride the wind down
-      if (this.airLock <= 0) { if (dir !== 0) { const a = this.onGround ? GROUND_ACCEL : (glide ? 0.86 : AIR_ACCEL); this.vx = clamp(this.vx + dir * a, -MOVE_SPEED, MOVE_SPEED); } else { const f = this.onGround ? GROUND_FRICTION : AIR_FRICTION; if (this.vx > 0) this.vx = Math.max(0, this.vx - f); else if (this.vx < 0) this.vx = Math.min(0, this.vx + f); } }
+      if (this.airLock <= 0) { if (dir !== 0) { const a = this.onGround ? (this.onIce ? ICE_ACCEL : GROUND_ACCEL) : (glide ? 0.86 : AIR_ACCEL); this.vx = clamp(this.vx + dir * a, -MOVE_SPEED, MOVE_SPEED); } else { const f = this.onGround ? (this.onIce ? ICE_FRICTION : GROUND_FRICTION) : AIR_FRICTION; if (this.vx > 0) this.vx = Math.max(0, this.vx - f); else if (this.vx < 0) this.vx = Math.min(0, this.vx + f); } }
       if (climbing) { this.vy = -CLIMB_SPEED; this.climbLeft--; this.climbing = true; this.gliding = false; this.events.push('climb'); }
       else if (wallSlide) { this.vy = Math.min(this.vy + GRAVITY, WALL_SLIDE_FALL); this.gliding = false; }
       else if (glide) { this.vy = Math.min(this.vy + GRAVITY, GLIDE_FALL); this.gliding = true; this.events.push('glide'); }
@@ -322,6 +335,7 @@ class Player {
     this.impact = this.vy;                          // descent speed at the moment of impact (for landing juice)
     this.#moveX(); this.#moveY();
     this.onGround = this.#grounded();
+    this.onIce = this.onGround && this.#standingOn('ice');
     this.wall = this.#touchWall(-1) ? -1 : (this.#touchWall(1) ? 1 : 0); if (this.wall !== 0) this.lastWall = this.wall;
     if (this.onGround) { this.coyote = COYOTE; this.airJumps = 1; this.dashCharges = maxDash(); this.climbLeft = CLIMB_BUDGET; if (wasAir) { this.landTimer = 8; this.events.push('land'); } }
     else if (this.wall !== 0) { this.wallCoyote = WALL_COYOTE; this.dashCharges = Math.max(this.dashCharges, 1); }
@@ -340,6 +354,7 @@ class Player {
   #moveY() {
     const prevTop = this.y, prevBottom = this.y + this.h; this.y += this.vy; const r = this.rect();
     for (const s of SOLIDS) {
+      if (s.kind === 'crumble' && !s.solid) continue;   // a crumbled platform isn't there
       if (!aabb(r, s)) continue;
       if (s.oneWay) { if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; if (s.bounce) { this.vy = -BOUNCE_VEL; this.launched = true; this.airJumps = 1; this.dashCharges = maxDash(); this.climbLeft = CLIMB_BUDGET; this.events.push('bounce'); } else this.vy = 0; r.y = this.y; } continue; }
       // Only resolve as a floor/ceiling hit if we actually crossed that edge this frame. A
@@ -348,8 +363,9 @@ class Player {
       else if (this.vy < 0 && prevTop >= s.y + s.h - 1) { this.y = s.y + s.h; this.vy = 0; r.y = this.y; }
     }
   }
-  #grounded() { const r = { x: this.x, y: this.y + 1, w: this.w, h: this.h }; for (const s of SOLIDS) { if (s.oneWay) { if (aabb(r, s) && this.y + this.h <= s.y + 2) return true; } else if (aabb(r, s)) return true; } return false; }
+  #grounded() { const r = { x: this.x, y: this.y + 1, w: this.w, h: this.h }; for (const s of SOLIDS) { if (s.kind === 'crumble' && !s.solid) continue; if (s.oneWay) { if (aabb(r, s) && this.y + this.h <= s.y + 2) return true; } else if (aabb(r, s)) return true; } return false; }
   #touchWall(side) { const r = { x: this.x + side * 2, y: this.y + 2, w: this.w, h: this.h - 4 }; for (const s of SOLIDS) if (!s.oneWay && s.kind !== 'mover' && aabb(r, s)) return true; return false; }
+  #standingOn(kind) { const r = { x: this.x, y: this.y + 1, w: this.w, h: this.h }; for (const s of SOLIDS) if (s.kind === kind && aabb(r, s) && this.y + this.h <= s.y + 3) return true; return false; }
 }
 
 // ============================================================
@@ -371,6 +387,7 @@ function resetGame() {
   for (const m of MOVERS) { if (m.axis === 'x') m.x = m.from; else m.y = m.from; m.px = m.x; m.py = m.y; m.dx = 0; m.dy = 0; }
   unlocked = { glide: false, dash2: false, climb: false };            // techs persist across falls, reset on full restart
   abilities = ABILITIES.map((a) => ({ ...a, taken: false }));
+  for (const s of CRUMBLES) { s.solid = true; s.t = 0; s.gone = 0; }
   player = new Player(SPAWN.x, SPAWN.y);
   gems = GEMS.map((g) => ({ ...g, taken: false, bob: Math.random() * 6.28 }));
   camY = clamp(player.y - VIEW_H * 0.55, 0, WORLD.h - VIEW_H); rcam = Math.round(camY);
@@ -384,6 +401,16 @@ function frame(now) { acc += now - last; last = now; if (acc > 200) acc = 200; w
 
 function updateMovers() { for (const m of MOVERS) { m.px = m.x; m.py = m.y; const t = (Math.sin(frames * m.speed + m.phase) + 1) / 2, v = m.from + (m.to - m.from) * t; if (m.axis === 'x') m.x = v; else m.y = v; m.dx = m.x - m.px; m.dy = m.y - m.py; } }
 function carryPlayer() { const feet = player.y + player.h; for (const m of MOVERS) { if (player.onGround && Math.abs(feet - m.py) < 6 && player.x + player.w > m.px + 3 && player.x < m.px + m.w - 3) { player.x += m.dx; player.y += m.dy; break; } } }
+function updateCrumble() {
+  const feet = player.y + player.h;
+  for (const s of CRUMBLES) {
+    if (s.solid) {
+      const standing = player.onGround && Math.abs(feet - s.y) < 3 && player.x + player.w > s.x + 2 && player.x < s.x + s.w - 2;
+      if (standing || s.t > 0) s.t++;                              // once touched, it keeps crumbling
+      if (s.t >= CRUMBLE_STAND) { s.solid = false; s.gone = CRUMBLE_GONE; if (Math.abs(feet - s.y) < 40) particles.burst(s.x + s.w / 2, s.y + 6, 10, { color: '#8a6b57', gravity: 0.3, speed: 2, life: 30, size: 3 }); }
+    } else if (--s.gone <= 0) { s.solid = true; s.t = 0; }
+  }
+}
 
 function update() {
   if (state !== STATE.PLAY) { input.endFrame(); return; }
@@ -397,7 +424,7 @@ function update() {
     player.inUpdraft = true;
     if (frames % 2 === 0) particles.spawn(u.x + Math.random() * u.w, player.y + player.h + 4, { color: 'rgba(206,236,255,0.85)', vy: -3.6, life: 22, size: 2 });
   }
-  player.step(input); reactToEvents();
+  player.step(input); reactToEvents(); updateCrumble();
 
   for (const g of gems) { if (g.taken) continue; if (aabb(player.rect(), { x: g.x - 11, y: g.y - 11, w: 24, h: 24 })) { g.taken = true; gemsGot++; particles.burst(g.x, g.y, 10, { color: '#7ee7ff', speed: 2.6, life: 26, size: 3 }); sfx.gem(); } }
   for (const a of abilities) { if (a.taken) continue; if (aabb(player.rect(), { x: a.x - 15, y: a.y - 15, w: 30, h: 30 })) { a.taken = true; unlocked[a.key] = true; player.dashCharges = maxDash(); particles.burst(a.x, a.y, 30, { color: a.color, speed: 3.6, life: 42, size: 3 }); sfx.unlock(); addShake(4); showToast('NEW TECH · ' + a.name + ' — ' + a.hint); } }
@@ -443,7 +470,7 @@ function render() {
   const sh = shakeXY();
   ctx.save(); ctx.translate(sh.x, sh.y);
   drawBackdrop(); drawInterior(); drawGears();
-  for (const s of SOLIDS) { if (s.kind === 'mover') drawMover(s); else if (s.kind === 'bounce') drawBouncer(s); else if (s.kind === 'ledge') drawLedge(s); else if (s.kind === 'ruin') drawRuin(s); else drawBody(s); }
+  for (const s of SOLIDS) { if (s.kind === 'mover') drawMover(s); else if (s.kind === 'bounce') drawBouncer(s); else if (s.kind === 'ice') drawIce(s); else if (s.kind === 'crumble') drawCrumble(s); else if (s.kind === 'ledge') drawLedge(s); else if (s.kind === 'ruin') drawRuin(s); else drawBody(s); }
   drawUpdrafts();
   drawPeak();
   drawCityAmbience();
@@ -488,6 +515,23 @@ function drawUpdrafts() {
     }
   }
 }
+function drawIce(s) {
+  const x = Math.round(s.x), y = Math.round(s.y - rcam); if (y > VIEW_H || y + 14 < 0) return;
+  ctx.fillStyle = '#b7e0f2'; ctx.fillRect(x, y, s.w, 14);
+  ctx.fillStyle = '#eafaff'; ctx.fillRect(x, y, s.w, 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; for (let i = 3; i < s.w - 4; i += 15) ctx.fillRect(x + i, y + 6, 5, 2);
+  ctx.fillStyle = 'rgba(50,95,125,0.3)'; ctx.fillRect(x, y + 12, s.w, 2);
+}
+function drawCrumble(s) {
+  const y = Math.round(s.y - rcam); if (y > VIEW_H || y + 14 < 0) return;
+  if (!s.solid) { ctx.globalAlpha = 0.16; ctx.strokeStyle = '#8a6b57'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(s.x) + 0.5, y + 0.5, s.w - 1, 13); ctx.globalAlpha = 1; return; }
+  const shake = s.t > 0 ? Math.round(Math.sin(frames * 0.9) * (s.t / CRUMBLE_STAND) * 2.5) : 0, x = Math.round(s.x) + shake;
+  ctx.fillStyle = '#7a5c48'; ctx.fillRect(x, y, s.w, 14);
+  ctx.fillStyle = '#946f57'; ctx.fillRect(x, y, s.w, 4);
+  ctx.strokeStyle = 'rgba(28,18,12,0.55)'; ctx.lineWidth = 1;
+  for (let i = 12; i < s.w; i += 17) { ctx.beginPath(); ctx.moveTo(x + i + 0.5, y); ctx.lineTo(x + i - 4 + 0.5, y + 14); ctx.stroke(); }
+  if (s.t > CRUMBLE_STAND * 0.5) { ctx.fillStyle = 'rgba(30,20,14,0.4)'; ctx.fillRect(x, y + 11, s.w, 3); }   // darkening as it fails
+}
 function drawBouncer(s) {
   const x = Math.round(s.x), y = Math.round(s.y - rcam); if (y > VIEW_H || y + 20 < 0) return;
   const on = player && Math.abs((player.y + player.h) - s.y) < 30 && player.x + player.w > s.x && player.x < s.x + s.w, c = on ? 3 : 0;
@@ -497,7 +541,9 @@ function drawBouncer(s) {
 }
 // Cozy mountaineers' huts perched at each section (decorative — you climb past them).
 const CABINS = [
-  { x: 30, y: 16600, w: 80 },   // base camp on the valley floor
+  { x: 30, y: 19400, w: 80 },   // base camp on the glacier floor
+  { x: 210, y: 18100, w: 46 },  // shelter above the crag
+  { x: 30, y: 16600, w: 66 },   // valley waystation
   { x: 70, y: 15410, w: 46 },   // valley waystation
   { x: 120, y: 13530, w: 46 },  // hut at the mine mouth
   { x: 66, y: 10130, w: 44 },   // camp by the frozen falls
@@ -507,7 +553,8 @@ const CABINS = [
   { x: 168, y: 760, w: 56 },    // summit shelter by the flag
 ];
 const TREES = [{ x: 120, y: 16600 }, { x: 165, y: 16600 }, { x: 210, y: 16600 }, { x: 255, y: 16600 }, { x: 80, y: 16600 }, { x: 110, y: 15410 }, { x: 100, y: 14110 }];
-const CRYSTALS = [{ x: 300, y: 12900, c: '#8fe9ff' }, { x: 78, y: 12500, c: '#9ff0a8' }, { x: 300, y: 12150, c: '#c9a0ff' }, { x: 90, y: 11850, c: '#8fe9ff' }, { x: 296, y: 13150, c: '#ffd27a' }, { x: 70, y: 13000, c: '#8fe9ff' }, { x: 296, y: 10700, c: '#bfe6ff' }, { x: 296, y: 11100, c: '#bfe6ff' }];
+const CRYSTALS = [{ x: 300, y: 12900, c: '#8fe9ff' }, { x: 78, y: 12500, c: '#9ff0a8' }, { x: 300, y: 12150, c: '#c9a0ff' }, { x: 90, y: 11850, c: '#8fe9ff' }, { x: 296, y: 13150, c: '#ffd27a' }, { x: 70, y: 13000, c: '#8fe9ff' }, { x: 296, y: 10700, c: '#bfe6ff' }, { x: 296, y: 11100, c: '#bfe6ff' },
+  { x: 300, y: 19000, c: '#d6f0ff' }, { x: 300, y: 18500, c: '#bfe6ff' }, { x: 300, y: 18960, c: '#eafaff' }];   // glacier ice
 const FALLS = [{ x: 296, y: 9880, w: 38, h: 1560 }];
 function drawTrees() { for (const t of TREES) drawTree(t); }
 function drawCrystals() { for (const c of CRYSTALS) drawCrystal(c); }
@@ -685,6 +732,8 @@ function drawPlayer() {
 let shake = 0, ambient = [];
 const bannersShown = new Set();
 const BANNERS = [
+  { y: 19100, text: 'THE GLACIER — mind your footing, the ice is slick' },
+  { y: 17920, text: 'THE CRUMBLING CRAG — keep moving, the rock gives way' },
   { y: 15600, text: 'THE VALLEY — base camp' },
   { y: 14350, text: 'THE PINE WOODS' },
   { y: 13600, text: 'THE OLD MINE — abandoned diggings' },
@@ -749,6 +798,8 @@ function drawCityAmbience() {
   ctx.globalAlpha = 1;
 }
 const BIOMES = [
+  { y: 19500, c: [206, 228, 244] }, // glacier — pale ice
+  { y: 18050, c: [140, 100, 78] },  // crumbling crag — brown rock
   { y: 16900, c: [96, 150, 84] },   // valley — green
   { y: 14300, c: [70, 118, 74] },   // pine woods — deep green
   { y: 12400, c: [112, 82, 132] },  // the mine — purple gloom
