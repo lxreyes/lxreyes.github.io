@@ -540,19 +540,21 @@ function drawBouncer(s) {
   ctx.fillStyle = '#ffd166'; for (let bx = x + 4; bx < x + s.w - 2; bx += 10) ctx.fillRect(bx, y + 1 - c, 4, 3);
 }
 // Cozy mountaineers' huts perched at each section (decorative — you climb past them).
-const CABINS = [
-  { x: 30, y: 19400, w: 80 },   // base camp on the glacier floor
-  { x: 210, y: 18100, w: 46 },  // shelter above the crag
-  { x: 30, y: 16600, w: 66 },   // valley waystation
-  { x: 70, y: 15410, w: 46 },   // valley waystation
-  { x: 120, y: 13530, w: 46 },  // hut at the mine mouth
-  { x: 66, y: 10130, w: 44 },   // camp by the frozen falls
-  { x: 205, y: 7300, w: 52 },   // foothills waystation
-  { x: 116, y: 6450, w: 46 },   // camp at the mouth of the buried city
-  { x: 95, y: 4110, w: 46 },    // upper-face hut
-  { x: 168, y: 760, w: 56 },    // summit shelter by the flag
+const CABINS = [   // each sits on a real ledge (x within that ledge's span)
+  { x: 30, y: 19400, w: 80 },   // base camp — glacier floor
+  { x: 80, y: 18100, w: 46 },   // above the crag — plat 70..180
+  { x: 100, y: 15620, w: 52 },  // valley waystation — plat 90..210
+  { x: 120, y: 13530, w: 46 },  // mine mouth — plat 110..200
+  { x: 66, y: 10140, w: 44 },   // frozen falls — plat 60..156
+  { x: 120, y: 8080, w: 52 },   // foothills, top of the wind shaft — plat 80..230
+  { x: 116, y: 6450, w: 46 },   // buried city mouth — plat 110..200
+  { x: 95, y: 4110, w: 46 },    // upper-face hut — plat 90..190
+  { x: 168, y: 760, w: 56 },    // summit shelter — summit ledge 150..330
 ];
-const TREES = [{ x: 120, y: 16600 }, { x: 165, y: 16600 }, { x: 210, y: 16600 }, { x: 255, y: 16600 }, { x: 80, y: 16600 }, { x: 110, y: 15410 }, { x: 100, y: 14110 }];
+const TREES = [   // a forest in the Pine Woods (all on real ledges), plus a couple in the green valley
+  { x: 80, y: 14990 }, { x: 220, y: 14845 }, { x: 80, y: 14700 }, { x: 220, y: 14555 }, { x: 90, y: 14410 },
+  { x: 150, y: 14150 }, { x: 240, y: 14010 }, { x: 110, y: 13880 }, { x: 230, y: 13720 }, { x: 140, y: 13530 },
+  { x: 140, y: 15620 }, { x: 170, y: 15120 }];
 const CRYSTALS = [{ x: 300, y: 12900, c: '#8fe9ff' }, { x: 78, y: 12500, c: '#9ff0a8' }, { x: 300, y: 12150, c: '#c9a0ff' }, { x: 90, y: 11850, c: '#8fe9ff' }, { x: 296, y: 13150, c: '#ffd27a' }, { x: 70, y: 13000, c: '#8fe9ff' }, { x: 296, y: 10700, c: '#bfe6ff' }, { x: 296, y: 11100, c: '#bfe6ff' },
   { x: 300, y: 19000, c: '#d6f0ff' }, { x: 300, y: 18500, c: '#bfe6ff' }, { x: 300, y: 18960, c: '#eafaff' }];   // glacier ice
 const FALLS = [{ x: 296, y: 9880, w: 38, h: 1560 }];
@@ -626,13 +628,16 @@ function drawBackdrop() {
 }
 // The climbable mountain's own snowy summit — a long left slope up to a peak.
 function drawPeak() {
-  if (rcam > 1500) return;
+  if (rcam > 1400) return;
   const y = -rcam;
-  ctx.fillStyle = '#5b606f';
-  ctx.beginPath(); ctx.moveTo(232, 812 + y); ctx.lineTo(498, 470 + y); ctx.lineTo(560, 552 + y); ctx.lineTo(560, 812 + y); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#e9f1fb';
-  ctx.beginPath(); ctx.moveTo(330, 700 + y); ctx.lineTo(498, 470 + y); ctx.lineTo(540, 522 + y);
-  ctx.lineTo(486, 556 + y); ctx.lineTo(452, 588 + y); ctx.lineTo(410, 628 + y); ctx.lineTo(372, 664 + y); ctx.closePath(); ctx.fill();
+  // A clean snow-capped summit rising above the top ledge (apex centered at x330).
+  ctx.fillStyle = '#6a6f7e';
+  ctx.beginPath(); ctx.moveTo(110, 800 + y); ctx.lineTo(330, 505 + y); ctx.lineTo(560, 785 + y); ctx.lineTo(560, 800 + y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#eef4fb';
+  ctx.beginPath();
+  ctx.moveTo(258, 645 + y); ctx.lineTo(330, 505 + y); ctx.lineTo(404, 648 + y);
+  ctx.lineTo(374, 636 + y); ctx.lineTo(350, 668 + y); ctx.lineTo(330, 640 + y); ctx.lineTo(308, 672 + y); ctx.lineTo(282, 634 + y);
+  ctx.closePath(); ctx.fill();
 }
 function drawInterior() {
   for (const R of INTERIORS) {
