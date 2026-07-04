@@ -43,8 +43,11 @@ body(-80, 16600, 900, 400);                       // valley floor — the true b
 // A zig-zag run of "filler" ledges between the authored challenges (keeps the climb DRY).
 function ladder(yBot, yTop, step) { let i = 0; for (let y = yBot; y >= yTop; y -= step, i++) plat(i % 2 ? 190 : 44, y, 100); }
 
-// ---- Foothills + lower face: a long climb, with one early dash gap, up to the city ----
-ladder(9120, 7160, 140);
+// ---- Foothills — ride the wind up (WIND) ----
+ladder(9120, 8420, 140);
+updraft(90, 8140, 120, 280);                      // ── THE WIND · ride the updraft up, then jump out at the top ──
+plat(80, 8080, 150);                              // top of the wind shaft (a jump-out from the column)
+ladder(7940, 7100, 140);
 plat(40, 7020, 80); plat(230, 7020, 80);          // ── dash the gap (Q) ──
 ladder(6880, 6620, 140);
 plat(110, 6450, 90);                              // under the mouth of the entry shaft
@@ -101,9 +104,10 @@ updraft(52, 3160, 84, 400);                       // wind rushing up the left of
 // ================= THE LOWER MOUNTAIN — a much longer approach (new) =================
 // A green valley & base camp, a pine forest, an old mine bored into the rock, and a
 // frozen waterfall, all climbing up to the original foothills far above.
-// -- The Valley & Base Camp --
-ladder(16420, 15550, 145);
-plat(60, 15410, 100); bouncer(50, 15270, 80); plat(180, 15130, 100);
+// -- The Valley & Base Camp — bounce your way up (SPRINGS) --
+ladder(16420, 15985, 145);
+bouncer(80, 15845, 96); bouncer(200, 15655, 90); bouncer(70, 15465, 96); bouncer(200, 15275, 90);   // ── SPRING CHAIN ──
+plat(80, 15130, 100);
 // -- The Pine Woods & the Long Pit (needs GLIDE) --
 ladder(14990, 14410, 145);
 // ── THE LONG PIT · a wide gap only a GLIDE can cross (glide shrine is the near ledge) ──
@@ -385,7 +389,9 @@ function update() {
   updateMovers(); carryPlayer();
   player.inUpdraft = false;
   for (const u of UPDRAFTS) if (player.gState === 'idle' && aabb(player.rect(), u)) {   // ride the wind up
-    player.vy = Math.max(player.vy - UPDRAFT_ACCEL, -UPDRAFT_MAX); player.inUpdraft = true;
+    if (player.vy > -UPDRAFT_MAX) player.vy = Math.max(player.vy - UPDRAFT_ACCEL, -UPDRAFT_MAX);   // lift up to a cap, but never slow a jump out of it
+    player.airJumps = Math.max(player.airJumps, 1);   // keep a jump handy so you can always launch out of the top
+    player.inUpdraft = true;
     if (frames % 2 === 0) particles.spawn(u.x + Math.random() * u.w, player.y + player.h + 4, { color: 'rgba(206,236,255,0.85)', vy: -3.6, life: 22, size: 2 });
   }
   player.step(input); reactToEvents();
@@ -753,7 +759,7 @@ function drawBiomeTint() {
   const cy = rcam + VIEW_H / 2; let c = BIOMES[BIOMES.length - 1].c;
   if (cy >= BIOMES[0].y) c = BIOMES[0].c;
   else for (let i = 0; i < BIOMES.length - 1; i++) if (cy < BIOMES[i].y && cy >= BIOMES[i + 1].y) { const k = (BIOMES[i].y - cy) / (BIOMES[i].y - BIOMES[i + 1].y); c = BIOMES[i].c.map((v, j) => Math.round(v + (BIOMES[i + 1].c[j] - v) * k)); break; }
-  ctx.globalAlpha = 0.1; ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.17; ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); ctx.globalAlpha = 1;
 }
 function drawVignette() {
   const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H * 0.46, VIEW_H * 0.34, VIEW_W / 2, VIEW_H * 0.52, VIEW_H * 0.82);
