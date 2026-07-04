@@ -104,3 +104,42 @@ button:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(255, 20
 button:active { transform: translateY(1px); }
 
 .stats { font-size: 16px; opacity: 0.9; line-height: 1.6; }
+
+/* ---- Ghost buttons (secondary) ---- */
+button.ghost {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+  font-size: 14px;
+  letter-spacing: 1px;
+  padding: 9px 22px;
+}
+button.ghost:hover { background: rgba(255, 255, 255, 0.15); box-shadow: none; }
+
+/* ---- Keybinds panel ---- */
+.binds {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px 18px;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 15px;
+}
+.binds .lbl { text-align: right; opacity: 0.85; }
+.binds .keybtn {
+  min-width: 120px;
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.binds .keybtn:hover { transform: none; background: rgba(255, 255, 255, 0.18); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+.binds .keybtn.listening { background: rgba(255, 209, 102, 0.25); border-color: var(--accent); color: var(--accent); }
+.bindRow { display: flex; gap: 12px; align-items: center; }

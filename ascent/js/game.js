@@ -104,11 +104,11 @@ updraft(52, 3160, 84, 400);                       // wind rushing up the left of
 // -- The Valley & Base Camp --
 ladder(16420, 15550, 145);
 plat(60, 15410, 100); bouncer(50, 15270, 80); plat(180, 15130, 100);
-// -- The Pine Woods --
+// -- The Pine Woods & the Long Pit (needs GLIDE) --
 ladder(14990, 14410, 145);
-plat(30, 14270, 84); plat(200, 14250, 84);          // ── dash between the pines ──
-plat(60, 14110, 100);
-ladder(13970, 13680, 145);
+// ── THE LONG PIT · a wide gap only a GLIDE can cross (glide shrine is the near ledge) ──
+plat(252, 14280, 46);                               // far side of the pit
+plat(120, 14150, 100); plat(200, 14010, 90); plat(80, 13880, 100); plat(196, 13720, 90);
 plat(110, 13530, 90);                               // approach the mine shaft
 // -- The Old Mine (bored into the rock) --
 body(-120, 11550, 184, 2010);                       // mine's west wall
@@ -122,34 +122,34 @@ plat(64, 12750, 110);
 plat(196, 12610, 96); plat(72, 12470, 100); plat(196, 12330, 96);
 plat(72, 12190, 100); plat(196, 12050, 96); plat(96, 11910, 100);
 plat(196, 11750, 96);                               // exit ledge → up the ceiling shaft
-// -- The Frozen Falls --
-plat(200, 11570, 96);                               // above the mine
-ladder(11430, 10270, 145);
-plat(60, 10130, 84);
-updraft(140, 9700, 96, 560);                        // freezing mist rising up the falls
-plat(200, 9990, 88);
-ladder(9850, 9270, 145);                            // up to the original foothills
+// -- Out of the mine: The Sheer Wall (needs WALL CLIMB; the climb shrine is the near ledge) --
+body(150, 11430, 24, 150);                          // ── THE SHEER WALL · hop to it and climb; jump won't do ──
+plat(90, 11410, 100);                               // top of the wall
+ladder(11270, 10690, 145);
+// -- The Frozen Falls & the Dash Shaft (needs DOUBLE DASH; the dash shrine is the foot) --
+plat(150, 10280, 90);                               // ── DASH SHAFT · two dash-ups, straight up ──
+plat(60, 10140, 96);
+updraft(140, 9600, 96, 540);                        // freezing mist rising up the falls
+plat(200, 10000, 90); plat(70, 9860, 96);
+ladder(9720, 9270, 145);                            // up to the original foothills
 
 const SPAWN = { x: 90, y: 16540 };
 const FLAG = { x: 250, y: 760 };
 const GOAL = { x: 150, y: 676, w: 190, h: 86 };
 const GEMS = [[130, 8980], [200, 8180], [40, 7020], [230, 6760], [150, 6160], [96, 5680], [260, 5280], [110, 4980], [250, 3680], [180, 3180], [220, 2080], [110, 840],
-  [296, 7392], [58, 4176], [82, 3520], [330, 1745],   // rewards for the three tech trials + the alternate route
-  [200, 16300], [70, 15130], [110, 14110], [150, 13330], [290, 12500], [96, 11910], [64, 10130], [200, 9990]]   // the new lower mountain
+  [330, 1745],                                        // alternate-route reward
+  [276, 14260], [150, 11480], [150, 10280],           // gate rewards: glide pit, sheer wall, dash shaft
+  [200, 16300], [70, 15130], [150, 13330], [290, 12500], [96, 11910], [64, 10140], [200, 10000]]   // the new lower mountain
   .map(([x, y]) => ({ x, y }));
 
 // Movement techs you unlock at shrines along the climb (placed just before where each shines).
+// Each tech is unlocked at a shrine standing right before a section built for it.
 const ABILITIES = [
-  { key: 'glide', name: 'GLIDE',       hint: 'hold SPACE in the air to ride the wind down', color: '#8fe9ff', x: 46, y: 7250 },
-  { key: 'dash2', name: 'DOUBLE DASH', hint: 'a second air-dash (Q) before you land',        color: '#ffd27a', x: 300, y: 4180 },
-  { key: 'climb', name: 'WALL CLIMB',  hint: 'hold W / ↑ against a wall to scramble up',  color: '#9ff0a8', x: 150, y: 3620 },
+  { key: 'glide', name: 'GLIDE',       hint: 'hold SPACE in the air to ride the wind down', color: '#8fe9ff', x: 44, y: 14260 },
+  { key: 'climb', name: 'WALL CLIMB',  hint: 'hold W / ↑ against a wall to scramble up',  color: '#9ff0a8', x: 228, y: 11548 },
+  { key: 'dash2', name: 'DOUBLE DASH', hint: 'a second air-dash (Q) before you land',        color: '#ffd27a', x: 195, y: 10620 },
 ];
 ABILITIES.forEach((a) => plat(a.x - 28, a.y + 20, 56));   // a stone pedestal you stand on to take the tech
-
-// Tech trials — a short challenge beside each altar, each meant for its own move:
-plat(272, 7420, 50);            // GLIDE · a wide chasm to drift across (gem on the far side)
-plat(30, 4200, 56);             // DOUBLE DASH · a gap two dashes wide (gem across it)
-body(60, 3460, 24, 180);        // WALL CLIMB · a lone pillar to scale (gem partway up)
 
 // ============================================================
 // 2. HELPERS
@@ -161,7 +161,19 @@ function pointInSolid(x, y) { for (const s of SOLIDS) { if (s.oneWay || s.kind =
 // ============================================================
 // 3. INPUT  (all under the left hand)
 // ============================================================
-const KEYMAP = { KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', Space: 'jump', KeyQ: 'dash', KeyE: 'grapple', KeyR: 'restart', Enter: 'restart' };
+// Rebindable controls. Each action has one custom key (saved to localStorage); arrows/Enter are fixed extras.
+const DEFAULT_BINDS = { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', jump: 'Space', dash: 'KeyQ', grapple: 'KeyE', restart: 'KeyR' };
+const FIXED_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'restart' };
+let BINDS; try { BINDS = { ...DEFAULT_BINDS, ...(JSON.parse(localStorage.getItem('ascent-binds')) || {}) }; } catch (_) { BINDS = { ...DEFAULT_BINDS }; }
+function buildKeymap() { const m = { ...FIXED_KEYS }; for (const a in BINDS) if (BINDS[a]) m[BINDS[a]] = a; return m; }
+let KEYMAP = buildKeymap();
+function saveBinds() { try { localStorage.setItem('ascent-binds', JSON.stringify(BINDS)); } catch (_) { } KEYMAP = buildKeymap(); }
+function rebindKey(action, code) { const prev = BINDS[action]; for (const a in BINDS) if (BINDS[a] === code && a !== action) BINDS[a] = prev; BINDS[action] = code; saveBinds(); }
+function keyName(code) {
+  if (!code) return '—';
+  if (code === 'Space') return 'Space'; if (code.startsWith('Key')) return code.slice(3); if (code.startsWith('Digit')) return code.slice(5);
+  const arrows = { ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' }; return arrows[code] || code;
+}
 class Input {
   constructor() {
     this.held = new Set(); this.edges = new Set();
@@ -431,7 +443,7 @@ function render() {
   particles.draw(ctx, rcam);
   if (state !== STATE.MENU) drawPlayer();
   ctx.restore();
-  drawWeather(); drawVignette();
+  drawBiomeTint(); drawWeather(); drawVignette();
   if (state !== STATE.MENU) drawHUD();
   shake *= 0.86; if (shake < 0.3) shake = 0;
 }
@@ -727,15 +739,32 @@ function drawCityAmbience() {
   }
   ctx.globalAlpha = 1;
 }
+const BIOMES = [
+  { y: 16900, c: [96, 150, 84] },   // valley — green
+  { y: 14300, c: [70, 118, 74] },   // pine woods — deep green
+  { y: 12400, c: [112, 82, 132] },  // the mine — purple gloom
+  { y: 10500, c: [128, 176, 216] }, // frozen falls — icy blue
+  { y: 8500, c: [150, 150, 162] },  // foothills — grey stone
+  { y: 5400, c: [122, 108, 142] },  // buried city — dusk
+  { y: 3400, c: [198, 214, 236] },  // snowfields — white-blue
+  { y: 900, c: [92, 104, 146] },    // the summit — cold
+];
+function drawBiomeTint() {
+  const cy = rcam + VIEW_H / 2; let c = BIOMES[BIOMES.length - 1].c;
+  if (cy >= BIOMES[0].y) c = BIOMES[0].c;
+  else for (let i = 0; i < BIOMES.length - 1; i++) if (cy < BIOMES[i].y && cy >= BIOMES[i + 1].y) { const k = (BIOMES[i].y - cy) / (BIOMES[i].y - BIOMES[i + 1].y); c = BIOMES[i].c.map((v, j) => Math.round(v + (BIOMES[i + 1].c[j] - v) * k)); break; }
+  ctx.globalAlpha = 0.1; ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); ctx.globalAlpha = 1;
+}
 function drawVignette() {
   const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H * 0.46, VIEW_H * 0.34, VIEW_W / 2, VIEW_H * 0.52, VIEW_H * 0.82);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(6,8,16,0.4)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 }
 
 function hudControls() {
-  const c = ['A D  move', 'Space  jump ×2 · wall-jump', 'Q  dash' + (unlocked.dash2 ? ' ×2' : ''), 'E  grapple → zip & hang'];
-  if (unlocked.glide) c.push('Space (air)  glide');
-  if (unlocked.climb) c.push('W / ↑ on wall  climb');
+  const k = (a) => keyName(BINDS[a]);
+  const c = [k('left') + ' ' + k('right') + '  move', k('jump') + '  jump ×2 · wall-jump', k('dash') + '  dash' + (unlocked.dash2 ? ' ×2' : ''), k('grapple') + '  grapple → zip & hang'];
+  if (unlocked.glide) c.push(k('jump') + ' (air)  glide');
+  if (unlocked.climb) c.push(k('up') + ' on wall  climb');
   return c;
 }
 function drawHUD() {
@@ -768,6 +797,31 @@ function showWin() {
 }
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('replayBtn').addEventListener('click', startGame);
+
+// ---- Keybinds panel ----
+const bindsEl = document.getElementById('binds');
+const bindListEl = document.getElementById('bindList');
+const BIND_ROWS = [['left', 'Move left'], ['right', 'Move right'], ['up', 'Up / climb'], ['down', 'Down / dash-down'], ['jump', 'Jump / glide'], ['dash', 'Dash'], ['grapple', 'Grapple'], ['restart', 'Restart']];
+let rebindAction = null;
+function renderBinds() {
+  bindListEl.innerHTML = '';
+  for (const [act, label] of BIND_ROWS) {
+    const l = document.createElement('div'); l.className = 'lbl'; l.textContent = label;
+    const b = document.createElement('button'); b.className = 'keybtn' + (rebindAction === act ? ' listening' : '');
+    b.textContent = rebindAction === act ? 'press a key…' : keyName(BINDS[act]);
+    b.addEventListener('click', () => { rebindAction = act; renderBinds(); });
+    bindListEl.appendChild(l); bindListEl.appendChild(b);
+  }
+}
+window.addEventListener('keydown', (e) => {
+  if (rebindAction === null) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.code !== 'Escape') rebindKey(rebindAction, e.code);
+  rebindAction = null; renderBinds();
+}, true);
+document.getElementById('bindsBtn').addEventListener('click', () => { startEl.classList.add('hidden'); bindsEl.classList.remove('hidden'); renderBinds(); });
+document.getElementById('bindsDone').addEventListener('click', () => { rebindAction = null; bindsEl.classList.add('hidden'); startEl.classList.remove('hidden'); });
+document.getElementById('bindsReset').addEventListener('click', () => { BINDS = { ...DEFAULT_BINDS }; saveBinds(); renderBinds(); });
 
 resetGame();
 requestAnimationFrame(frame);
