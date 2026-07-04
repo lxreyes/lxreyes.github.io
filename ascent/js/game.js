@@ -377,7 +377,7 @@ ctx.imageSmoothingEnabled = false;
 const input = new Input();
 const particles = new Particles();
 const STATE = { MENU: 'menu', PLAY: 'play', WIN: 'win' };
-let player, gems, camY, rcam, frames, gemsGot, state, toast, unlocked, abilities;
+let player, gems, camY, rcam, frames, gemsGot, state, toast, banner, unlocked, abilities;
 state = STATE.MENU;
 const stars = Array.from({ length: 130 }, () => ({ x: Math.random() * VIEW_W, y: Math.random() * WORLD.h, r: Math.random() < 0.5 ? 1 : 2, tw: Math.random() * 6.28 }));
 const birds = Array.from({ length: 6 }, () => ({ x: Math.random() * VIEW_W, y: 46 + Math.random() * 230, sp: 0.25 + Math.random() * 0.5, ph: Math.random() * 6.28, dir: Math.random() < 0.5 ? 1 : -1 }));
@@ -391,7 +391,7 @@ function resetGame() {
   player = new Player(SPAWN.x, SPAWN.y);
   gems = GEMS.map((g) => ({ ...g, taken: false, bob: Math.random() * 6.28 }));
   camY = clamp(player.y - VIEW_H * 0.55, 0, WORLD.h - VIEW_H); rcam = Math.round(camY);
-  frames = 0; gemsGot = 0; toast = null; particles.list.length = 0;
+  frames = 0; gemsGot = 0; toast = null; banner = null; particles.list.length = 0;
   initWeather(); bannersShown.clear(); shake = 0;
 }
 
@@ -431,11 +431,11 @@ function update() {
 
   if (player.gState !== 'pull' && player.gState !== 'cling' && player.y > SPAWN.y + 220) respawn();   // fell off the left into the void
   if (aabb(player.rect(), GOAL)) { state = STATE.WIN; sfx.win(); addShake(9); particles.burst(FLAG.x, FLAG.y - 40, 46, { color: '#ffd166', speed: 4, life: 60, size: 3 }); showWin(); }
-  for (let i = 0; i < BANNERS.length; i++) if (!bannersShown.has(i) && player.y < BANNERS[i].y) { bannersShown.add(i); showToast(BANNERS[i].text); }
+  for (let i = 0; i < BANNERS.length; i++) if (!bannersShown.has(i) && player.y < BANNERS[i].y) { bannersShown.add(i); banner = { text: BANNERS[i].text, life: 220 }; }
 
   const look = clamp(player.vy * 4.5, -46, 66);   // lead the camera the way you're moving
   const target = clamp(player.cy - VIEW_H * 0.55 + look, 0, WORLD.h - VIEW_H); camY += (target - camY) * 0.11;
-  particles.update(); if (toast) toast.life--; input.endFrame();
+  particles.update(); if (toast) toast.life--; if (banner) banner.life--; input.endFrame();
 }
 
 function reactToEvents() {
@@ -474,13 +474,14 @@ function render() {
   drawUpdrafts();
   drawPeak();
   drawCityAmbience();
-  drawFalls(); drawTrees(); drawCabins(); drawCrystals();
+  drawFalls(); drawTrees(); drawCabins(); drawCrystals(); drawSigns();
   drawGems(); drawAbilities(); drawFlag(); drawGrapple();
   particles.draw(ctx, rcam);
   if (state !== STATE.MENU) drawPlayer();
   ctx.restore();
   drawBiomeTint(); drawWeather(); drawVignette();
   if (state !== STATE.MENU) drawHUD();
+  drawBanner();
   shake *= 0.86; if (shake < 0.3) shake = 0;
 }
 const SKY = [{ t: 0, top: '#0a1230', bot: '#20305e' }, { t: 0.4, top: '#33487f', bot: '#6a8ec4' }, { t: 0.72, top: '#6f9bcb', bot: '#b6d3ea' }, { t: 1, top: '#bcd8e6', bot: '#e9dcc0' }];
@@ -580,6 +581,29 @@ function drawCrystal(c) {
   ctx.globalAlpha = 0.35 + 0.25 * Math.sin(frames * 0.08 + c.x); ctx.fillStyle = g; ctx.fillRect(x - 22, y - 22, 44, 44); ctx.globalAlpha = 1;
   ctx.fillStyle = c.c; ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 5, y); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x + 7, y - 4); ctx.lineTo(x + 11, y + 2); ctx.lineTo(x + 7, y + 6); ctx.lineTo(x + 3, y + 2); ctx.closePath(); ctx.fill();
+}
+// Wooden signposts that call out each challenge right where you reach it.
+const SIGNS = [
+  { x: 120, y: 19200, t: 'ICE — you slide' },
+  { x: 120, y: 18100, t: 'CRUMBLING — keep moving' },
+  { x: 120, y: 16560, t: 'SPRINGS — bounce up' },
+  { x: 60, y: 14280, t: 'GLIDE the pit →' },
+  { x: 228, y: 11568, t: 'CLIMB the wall' },
+  { x: 195, y: 10640, t: 'DASH up ×2' },
+  { x: 230, y: 8420, t: 'WIND — ride up' },
+  { x: 175, y: 3540, t: 'GRAPPLE (E) up' },
+  { x: 120, y: 2880, t: 'WALL-JUMP the chimney' },
+];
+function drawSigns() {
+  ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const s of SIGNS) {
+    const y = Math.round(s.y - rcam); if (y < -30 || y > VIEW_H + 10) continue;
+    const x = Math.round(s.x), w = Math.round((s.t.length * 5.4) + 12);
+    ctx.fillStyle = '#4a3a28'; ctx.fillRect(x - 1, y - 20, 3, 20);              // post
+    ctx.fillStyle = '#6f5232'; ctx.fillRect(x - w / 2, y - 34, w, 15);          // board
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x - w / 2, y - 20, w, 2);
+    ctx.fillStyle = '#f4e6c8'; ctx.fillText(s.t, x, y - 26);                     // label
+  }
 }
 function drawCabins() { for (const c of CABINS) drawCabin(c); }
 function drawCabin(c) {
@@ -843,6 +867,16 @@ function drawHUD() {
   if (toast && toast.life > 0) { ctx.globalAlpha = toast.life < 30 ? toast.life / 30 : 1; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRect(VIEW_W / 2 - 200, VIEW_H - 44, 400, 30, 8); ctx.fill(); ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText(toast.text, VIEW_W / 2, VIEW_H - 29); ctx.globalAlpha = 1; }
 }
 function showToast(text) { toast = { text, life: 320 }; }
+function drawBanner() {
+  if (!banner || banner.life <= 0) return;
+  const a = clamp(banner.life > 180 ? (220 - banner.life) / 40 : banner.life / 45, 0, 1);
+  ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const parts = banner.text.split(' — '), title = parts[0], sub = parts[1];
+  ctx.fillStyle = 'rgba(8,10,20,0.55)'; roundRect(VIEW_W / 2 - 230, 74, 460, sub ? 50 : 38, 10); ctx.fill();
+  ctx.font = '800 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText(title, VIEW_W / 2, sub ? 92 : 94);
+  if (sub) { ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(sub, VIEW_W / 2, 112); }
+  ctx.globalAlpha = 1;
+}
 function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
 const startEl = document.getElementById('start');
