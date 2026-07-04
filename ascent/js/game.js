@@ -78,7 +78,9 @@ plat(60, 2440, 100);                              // top of chimney A
 
 // ---- The Spire: tight ledges, a second chimney, a moving span, then the summit ----
 plat(210, 2320, 96); plat(80, 2200, 96); plat(220, 2080, 96);
-plat(110, 1980, 90);                              // foot of chimney B
+plat(110, 1980, 90);                              // foot of chimney B (main route)
+// ── ALTERNATE ROUTE · "The East Ledges": hop the face on the right instead of the chimney ──
+plat(300, 1980, 54); plat(250, 1860, 60); plat(320, 1740, 44); plat(250, 1620, 60); plat(300, 1520, 50);
 body(72, 1600, 24, 360); body(182, 1600, 24, 360);// chimney B — wall-jump again
 plat(60, 1540, 100);                              // top of chimney B
 plat(220, 1420, 96); plat(90, 1300, 96);
@@ -89,15 +91,22 @@ plat(150, 760, 180);                              // summit ledge
 const SPAWN = { x: 90, y: 9280 };
 const FLAG = { x: 250, y: 760 };
 const GOAL = { x: 150, y: 676, w: 190, h: 86 };
-const GEMS = [[130, 8980], [200, 8180], [40, 7020], [230, 6760], [150, 6160], [96, 5680], [260, 5280], [110, 4980], [250, 3680], [180, 3180], [220, 2080], [110, 840]]
+const GEMS = [[130, 8980], [200, 8180], [40, 7020], [230, 6760], [150, 6160], [96, 5680], [260, 5280], [110, 4980], [250, 3680], [180, 3180], [220, 2080], [110, 840],
+  [296, 7392], [58, 4176], [82, 3520], [330, 1745]]   // rewards for the three tech trials + the alternate route
   .map(([x, y]) => ({ x, y }));
 
 // Movement techs you unlock at shrines along the climb (placed just before where each shines).
 const ABILITIES = [
-  { key: 'glide', name: 'GLIDE',       hint: 'hold SPACE in the air to ride the wind down', color: '#8fe9ff', x: 190, y: 7268 },
-  { key: 'dash2', name: 'DOUBLE DASH', hint: 'a second air-dash (Q) before you land',        color: '#ffd27a', x: 250, y: 4198 },
-  { key: 'climb', name: 'WALL CLIMB',  hint: 'hold W / ↑ against a wall to scramble up',  color: '#9ff0a8', x: 250, y: 3648 },
+  { key: 'glide', name: 'GLIDE',       hint: 'hold SPACE in the air to ride the wind down', color: '#8fe9ff', x: 46, y: 7250 },
+  { key: 'dash2', name: 'DOUBLE DASH', hint: 'a second air-dash (Q) before you land',        color: '#ffd27a', x: 300, y: 4180 },
+  { key: 'climb', name: 'WALL CLIMB',  hint: 'hold W / ↑ against a wall to scramble up',  color: '#9ff0a8', x: 150, y: 3620 },
 ];
+ABILITIES.forEach((a) => plat(a.x - 28, a.y + 20, 56));   // a stone pedestal you stand on to take the tech
+
+// Tech trials — a short challenge beside each altar, each meant for its own move:
+plat(272, 7420, 50);            // GLIDE · a wide chasm to drift across (gem on the far side)
+plat(30, 4200, 56);             // DOUBLE DASH · a gap two dashes wide (gem across it)
+body(60, 3460, 24, 180);        // WALL CLIMB · a lone pillar to scale (gem partway up)
 
 // ============================================================
 // 2. HELPERS
@@ -438,15 +447,22 @@ function drawGems() { for (const g of gems) { if (g.taken) continue; const sy = 
 function drawAbilities() {
   if (!abilities) return;
   for (const a of abilities) {
+    const px = Math.round(a.x), capY = Math.round(a.y + 20 - rcam);          // top of the pedestal ledge
+    if (capY > -30 && capY < VIEW_H + 44) {                                   // stone pedestal — stays as a monument once taken
+      ctx.fillStyle = '#4f4a59'; ctx.fillRect(px - 16, capY + 14, 32, 14);
+      ctx.fillStyle = '#413c49'; ctx.fillRect(px - 23, capY + 26, 46, 6);
+      ctx.fillStyle = a.taken ? 'rgba(150,150,175,0.5)' : a.color; ctx.fillRect(px - 9, capY + 17, 18, 3);   // rune inlay
+    }
     if (a.taken) continue;
     const sy = a.y - rcam + Math.sin(frames * 0.06 + a.x) * 4; if (sy < -34 || sy > VIEW_H + 34) continue;
-    const x = Math.round(a.x), y = Math.round(sy);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, 30);
+    const y = Math.round(sy);
+    ctx.globalAlpha = 0.22; ctx.strokeStyle = a.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px, y + 9); ctx.lineTo(px, capY); ctx.stroke(); ctx.globalAlpha = 1;   // beam to the pedestal
+    const g = ctx.createRadialGradient(px, y, 0, px, y, 30);
     g.addColorStop(0, a.color); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = 0.45 + 0.3 * Math.sin(frames * 0.12 + a.x); ctx.fillStyle = g; ctx.fillRect(x - 30, y - 30, 60, 60); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.45 + 0.3 * Math.sin(frames * 0.12 + a.x); ctx.fillStyle = g; ctx.fillRect(px - 30, y - 30, 60, 60); ctx.globalAlpha = 1;
     const r = 9 + Math.sin(frames * 0.1 + a.x) * 1.5;             // pulsing diamond shard
-    ctx.fillStyle = a.color; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.7, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.7, y); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.fillRect(x - 2, y - 3, 3, 5);
+    ctx.fillStyle = a.color; ctx.beginPath(); ctx.moveTo(px, y - r); ctx.lineTo(px + r * 0.7, y); ctx.lineTo(px, y + r); ctx.lineTo(px - r * 0.7, y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(px - 2, y - 3, 3, 5);
   }
 }
 function drawFlag() { const x = Math.round(FLAG.x), y = Math.round(FLAG.y - rcam); ctx.fillStyle = '#e9eefc'; ctx.fillRect(x, y - 64, 3, 64); const wav = Math.sin(frames * 0.15) * 3; ctx.fillStyle = '#ff5470'; ctx.beginPath(); ctx.moveTo(x + 3, y - 64); ctx.lineTo(x + 32, y - 58 + wav); ctx.lineTo(x + 3, y - 46); ctx.closePath(); ctx.fill(); }
@@ -498,7 +514,7 @@ const BANNERS = [
   { y: 6300, text: 'THE BURIED CITY — an abandoned hall inside the mountain' },
   { y: 4500, text: 'BACK ONTO THE OPEN FACE' },
   { y: SNOWLINE, text: 'ABOVE THE SNOWLINE' },
-  { y: 2650, text: 'THE SPIRE — the final push' },
+  { y: 2650, text: 'THE SPIRE — wall-jump the chimney, or take the East Ledges' },
 ];
 function addShake(v) { shake = Math.min(11, shake + v); }
 function shakeXY() { if (shake < 0.3) return { x: 0, y: 0 }; return { x: Math.round((Math.random() * 2 - 1) * shake), y: Math.round((Math.random() * 2 - 1) * shake) }; }
