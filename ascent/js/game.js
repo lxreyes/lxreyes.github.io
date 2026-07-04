@@ -104,10 +104,12 @@ updraft(52, 3160, 84, 400);                       // wind rushing up the left of
 // ================= THE LOWER MOUNTAIN — a much longer approach (new) =================
 // A green valley & base camp, a pine forest, an old mine bored into the rock, and a
 // frozen waterfall, all climbing up to the original foothills far above.
-// -- The Valley & Base Camp — bounce your way up (SPRINGS) --
-ladder(16420, 15985, 145);
-bouncer(80, 15845, 96); bouncer(200, 15655, 90); bouncer(70, 15465, 96); bouncer(200, 15275, 90);   // ── SPRING CHAIN ──
-plat(80, 15130, 100);
+// -- The Valley & Base Camp — big springs bounce you up (SPRINGS) --
+ladder(16420, 16130, 145);
+bouncer(90, 15990, 110);             // ── SPRING CHAIN · each pad launches ~430px, far past any jump ──
+plat(90, 15620, 120);
+bouncer(110, 15490, 110);
+plat(120, 15120, 120);
 // -- The Pine Woods & the Long Pit (needs GLIDE) --
 ladder(14990, 14410, 145);
 // ── THE LONG PIT · a wide gap only a GLIDE can cross (glide shrine is the near ledge) ──
@@ -241,7 +243,7 @@ const DASH_SPEED = 9.2, DASH_TIME = 10, DASH_END_KEEP = 0.5, DASH_COOLDOWN = 8;
 const HOOK_SPEED = 46, HOOK_RANGE = 340, PULL_SPEED = 12;
 // --- unlockable movement techs (found at shrines up the mountain) ---
 const GLIDE_FALL = 2.2, CLIMB_SPEED = 2.4, CLIMB_BUDGET = 64;
-const BOUNCE_VEL = 18, UPDRAFT_ACCEL = 1.15, UPDRAFT_MAX = 4.6;   // trampolines & wind columns
+const BOUNCE_VEL = 25, UPDRAFT_ACCEL = 1.15, UPDRAFT_MAX = 4.6;   // trampolines (~430px launch) & wind columns
 function maxDash() { return typeof unlocked !== 'undefined' && unlocked.dash2 ? 2 : 1; }
 
 class Player {
@@ -249,7 +251,7 @@ class Player {
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.facing = 1; this.onGround = false; this.wall = 0; this.lastWall = 1;
     this.coyote = 0; this.wallCoyote = 0; this.jumpBuffer = 0; this.airLock = 0; this.airJumps = 1; this.dashCharges = maxDash(); this.dashTime = 0; this.dashCooldown = 0;
-    this.gliding = false; this.landTimer = 0; this.gState = 'idle'; this.fireDir = 1; this.hx = 0; this.hy = 0; this.travel = 0; this.ax = 0; this.ay = 0; this.clingWall = 0; this.events = []; this.impact = 0; this.climbLeft = CLIMB_BUDGET; this.climbing = false; this.trail = []; this.inUpdraft = false;
+    this.gliding = false; this.landTimer = 0; this.gState = 'idle'; this.fireDir = 1; this.hx = 0; this.hy = 0; this.travel = 0; this.ax = 0; this.ay = 0; this.clingWall = 0; this.events = []; this.impact = 0; this.climbLeft = CLIMB_BUDGET; this.climbing = false; this.trail = []; this.inUpdraft = false; this.launched = false;
   }
   rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
   get cx() { return this.x + this.w / 2; } get cy() { return this.y + this.h / 2; }
@@ -293,6 +295,7 @@ class Player {
   }
   #move(input, dir) {
     this.climbing = false;
+    if (this.vy >= 0) this.launched = false;   // a spring/launch is no longer active once you start falling
     if (this.dashTime > 0) { this.dashTime--; this.events.push('dashtrail'); if (this.dashTime === 0) { this.vx *= DASH_END_KEEP; this.vy = this.vy > 0 ? this.vy * DASH_END_KEEP : Math.min(this.vy, -2); } }
     else {
       const pushWall = (this.wall === -1 && input.left) || (this.wall === 1 && input.right);
@@ -310,7 +313,7 @@ class Player {
       else if (this.wall !== 0 || this.wallCoyote > 0) { const ws = this.wall !== 0 ? this.wall : this.lastWall; this.vy = -WALL_JUMP_VY; this.vx = -ws * WALL_JUMP_VX; this.facing = -ws; this.airLock = WALL_JUMP_LOCK; this.jumpBuffer = 0; this.wallCoyote = 0; this.airJumps = 1; this.events.push('walljump'); }
       else if (this.airJumps > 0) { this.vy = -DOUBLE_JUMP; this.airJumps--; this.jumpBuffer = 0; this.events.push('double'); }
     }
-    if (!input.jumpHeld && this.vy < 0 && this.dashTime <= 0 && !this.climbing && !this.inUpdraft) this.vy *= JUMP_CUT;
+    if (!input.jumpHeld && this.vy < 0 && this.dashTime <= 0 && !this.climbing && !this.inUpdraft && !this.launched) this.vy *= JUMP_CUT;
     if (input.consume('dash') && this.dashCharges > 0 && this.dashCooldown <= 0 && this.dashTime <= 0) {
       let dx = dir, dy = (input.down ? 1 : 0) - (input.up ? 1 : 0); if (dx === 0 && dy === 0) dx = this.facing;
       const len = Math.hypot(dx, dy) || 1; this.vx = (dx / len) * DASH_SPEED; this.vy = (dy / len) * DASH_SPEED; this.dashTime = DASH_TIME; this.dashCharges--; this.dashCooldown = DASH_COOLDOWN; this.events.push('dash');
@@ -338,7 +341,7 @@ class Player {
     const prevTop = this.y, prevBottom = this.y + this.h; this.y += this.vy; const r = this.rect();
     for (const s of SOLIDS) {
       if (!aabb(r, s)) continue;
-      if (s.oneWay) { if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; if (s.bounce) { this.vy = -BOUNCE_VEL; this.airJumps = 1; this.dashCharges = maxDash(); this.climbLeft = CLIMB_BUDGET; this.events.push('bounce'); } else this.vy = 0; r.y = this.y; } continue; }
+      if (s.oneWay) { if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; if (s.bounce) { this.vy = -BOUNCE_VEL; this.launched = true; this.airJumps = 1; this.dashCharges = maxDash(); this.climbLeft = CLIMB_BUDGET; this.events.push('bounce'); } else this.vy = 0; r.y = this.y; } continue; }
       // Only resolve as a floor/ceiling hit if we actually crossed that edge this frame. A
       // sideways overlap (the sloped wall embedding us) must NOT snap Y — that was the teleport-down.
       if (this.vy > 0 && prevBottom <= s.y + 1) { this.y = s.y - this.h; this.vy = 0; r.y = this.y; }
