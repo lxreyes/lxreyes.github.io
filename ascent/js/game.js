@@ -391,6 +391,7 @@ function render() {
   drawUpdrafts();
   drawPeak();
   drawCityAmbience();
+  drawCabins();
   drawGems(); drawAbilities(); drawFlag(); drawGrapple();
   particles.draw(ctx, rcam);
   if (state !== STATE.MENU) drawPlayer();
@@ -437,6 +438,38 @@ function drawBouncer(s) {
   ctx.fillStyle = '#2a2f3a'; ctx.fillRect(x, y + 6 - c, s.w, 9 + c);
   ctx.fillStyle = '#ff5470'; ctx.fillRect(x, y - c, s.w, 6);
   ctx.fillStyle = '#ffd166'; for (let bx = x + 4; bx < x + s.w - 2; bx += 10) ctx.fillRect(bx, y + 1 - c, 4, 3);
+}
+// Cozy mountaineers' huts perched at each section (decorative — you climb past them).
+const CABINS = [
+  { x: 30, y: 9340, w: 76 },    // base camp on the ground
+  { x: 205, y: 7300, w: 52 },   // foothills waystation
+  { x: 116, y: 6450, w: 46 },   // camp at the mouth of the buried city
+  { x: 95, y: 4110, w: 46 },    // upper-face hut
+  { x: 168, y: 760, w: 56 },    // summit shelter by the flag
+];
+function drawCabins() { for (const c of CABINS) drawCabin(c); }
+function drawCabin(c) {
+  const w = c.w, wh = Math.round(w * 0.6), rh = Math.round(w * 0.5);
+  const x = Math.round(c.x), gy = Math.round(c.y - rcam), top = gy - wh;   // gy = the surface it stands on
+  if (gy < -140 || top - rh > VIEW_H) return;
+  ctx.fillStyle = '#6b4a33'; ctx.fillRect(x, top, w, wh);                  // log walls
+  ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1;
+  for (let ly = top + 6; ly < gy; ly += 7) { ctx.beginPath(); ctx.moveTo(x, ly + 0.5); ctx.lineTo(x + w, ly + 0.5); ctx.stroke(); }
+  ctx.fillStyle = '#3a2618'; ctx.fillRect(x + Math.round(w * 0.12), gy - Math.round(wh * 0.6), Math.round(w * 0.24), Math.round(wh * 0.6));   // door
+  const ws = Math.max(6, Math.round(w * 0.2)), wx = x + Math.round(w * 0.56), wy = top + Math.round(wh * 0.3);   // warm window
+  const flick = 0.72 + 0.28 * Math.sin(frames * 0.14 + c.x);
+  const g = ctx.createRadialGradient(wx + ws / 2, wy + ws / 2, 0, wx + ws / 2, wy + ws / 2, ws * 3);
+  g.addColorStop(0, `rgba(255,196,110,${0.7 * flick})`); g.addColorStop(1, 'rgba(255,196,110,0)');
+  ctx.fillStyle = g; ctx.fillRect(wx - ws * 2.5, wy - ws * 2.5, ws * 6, ws * 6);
+  ctx.fillStyle = `rgba(255,208,120,${0.85 * flick})`; ctx.fillRect(wx, wy, ws, ws);
+  ctx.fillStyle = '#3a2618'; ctx.fillRect(wx + Math.floor(ws / 2), wy, 1, ws); ctx.fillRect(wx, wy + Math.floor(ws / 2), ws, 1);
+  ctx.fillStyle = '#4a3324'; ctx.beginPath(); ctx.moveTo(x - 7, top + 3); ctx.lineTo(x + w / 2, top - rh); ctx.lineTo(x + w + 7, top + 3); ctx.closePath(); ctx.fill();   // roof
+  ctx.fillStyle = '#eef4fb'; ctx.beginPath(); ctx.moveTo(x + w / 2 - (w / 2 + 7) * 0.5, top - rh * 0.5); ctx.lineTo(x + w / 2, top - rh); ctx.lineTo(x + w / 2 + (w / 2 + 7) * 0.5, top - rh * 0.5); ctx.closePath(); ctx.fill();   // snow cap
+  const cxp = x + Math.round(w * 0.7), cty = top - Math.round(rh * 0.5);   // chimney + smoke
+  ctx.fillStyle = '#514a52'; ctx.fillRect(cxp, cty, Math.max(4, Math.round(w * 0.12)), Math.round(rh * 0.7));
+  ctx.fillStyle = '#b8bcc6';
+  for (let i = 0; i < 3; i++) { const t = (frames * 0.5 + i * 22) % 66; ctx.globalAlpha = 0.4 * (1 - t / 66); ctx.beginPath(); ctx.arc(cxp + 2 + Math.sin((t + i * 12) * 0.12) * 5, cty - t, 2 + t * 0.05, 0, 6.2832); ctx.fill(); }
+  ctx.globalAlpha = 1;
 }
 function h2(a, b) { let n = (a * 73856093) ^ (b * 19349663); n = (n ^ (n >> 13)) >>> 0; return n % 100; }
 function drawBackdrop() {
