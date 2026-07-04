@@ -23,7 +23,9 @@ const WORLD = { w: 540, h: 19700 };
 const SNOWLINE = 3600;
 const CITY = { x: -120, y: 4500, w: 560, h: 2050 };       // the buried city, carved into solid rock
 const MINE = { x: -120, y: 11550, w: 560, h: 2010 };      // the old mine, bored into the lower rock
-const INTERIORS = [CITY, MINE];
+const ICECAVE = { x: -120, y: 7080, w: 560, h: 1030 };    // a frozen hollow in the foothills
+const SANCTUM = { x: -120, y: 800, w: 600, h: 590 };      // an ancient vault sealed inside the peak
+const INTERIORS = [CITY, MINE, ICECAVE, SANCTUM];
 
 const rock = (x, y, w, h, kind, oneWay) => ({ x, y, w, h, kind: kind || 'rock', oneWay: !!oneWay });
 const SOLIDS = [], MOVERS = [], GEARS = [], UPDRAFTS = [];
@@ -50,7 +52,13 @@ function ladder(yBot, yTop, step) { let i = 0; for (let y = yBot; y >= yTop; y -
 ladder(9120, 8420, 140);
 updraft(90, 8140, 120, 280);                      // ── THE WIND · ride the updraft up, then jump out at the top ──
 plat(80, 8080, 150);                              // top of the wind shaft (a jump-out from the column)
-ladder(7940, 7100, 140);
+// -- The Ice Caverns (INTERIOR: a frozen hollow bored into the rock) --
+body(-120, 7100, 184, 1010);                      // west wall 7100..8110
+ruin(64, 7100, 146, 80); ruin(300, 7100, 90, 80); // ceiling 7100..7180 (exit shaft x210..300)
+ruin(64, 7960, 36, 80); ruin(190, 7960, 200, 80); // floor 7960..8040 (entry shaft x100..190)
+plat(100, 7930, 96);                              // climb in through the floor shaft
+plat(210, 7800, 96); plat(80, 7660, 100); plat(210, 7520, 96); plat(90, 7370, 100);
+plat(210, 7200, 96);                              // exit ledge → up the ceiling shaft
 plat(40, 7020, 80); plat(230, 7020, 80);          // ── dash the gap (Q) ──
 ladder(6880, 6620, 140);
 plat(110, 6450, 90);                              // under the mouth of the entry shaft
@@ -92,16 +100,21 @@ plat(110, 1980, 90);                              // foot of chimney B (main rou
 // ── ALTERNATE ROUTE · "The East Ledges": hop the face on the right instead of the chimney ──
 plat(300, 1980, 54); plat(250, 1860, 60); plat(320, 1740, 44); plat(250, 1620, 60); plat(300, 1520, 50);
 body(72, 1600, 24, 360); body(182, 1600, 24, 360);// chimney B — wall-jump again
-plat(60, 1540, 100);                              // top of chimney B
-plat(220, 1420, 96); plat(90, 1300, 96);
-mover(150, 1180, 100, 16, 'x', 120, 0.02, 0);     // a last moving span
-plat(60, 1050, 96); plat(230, 940, 96); plat(110, 840, 100);
-plat(150, 760, 180);                              // summit ledge
+plat(60, 1540, 100);                              // top of chimney B (East Ledges rejoin near here)
+plat(120, 1400, 110);                             // both routes merge, under the sanctum's entry shaft
+// -- The Summit Sanctum (INTERIOR: an ancient vault sealed inside the peak) --
+body(-120, 810, 184, 560);                        // west wall 810..1370
+ruin(64, 810, 146, 70); ruin(300, 810, 180, 70);  // ceiling 810..880 (exit shaft x210..300)
+ruin(64, 1240, 36, 70); ruin(190, 1240, 290, 70); // floor 1240..1310 (entry shaft x100..190)
+plat(100, 1210, 96);                              // climb in through the floor shaft
+plat(210, 1090, 96); plat(80, 970, 100);
+plat(210, 900, 96);                               // exit ledge → up the ceiling shaft
+plat(150, 760, 180);                              // summit ledge, out onto the peak
 
 // ---- Fun stuff: trampolines to boing off, and an updraft you can glide up ----
 bouncer(120, 8630, 80);                           // foothills spring (clear of the ladder rungs)
 bouncer(40, 3820, 70);                            // upper-face spring
-bouncer(70, 1250, 80);                            // spire spring
+bouncer(70, 2100, 80);                            // spire spring (clear of the sanctum)
 updraft(52, 3160, 84, 400);                       // wind rushing up the left of the Blank Face
 
 // ================= THE LOWER MOUNTAIN — a much longer approach (new) =================
@@ -474,7 +487,7 @@ function render() {
   drawUpdrafts();
   drawPeak();
   drawCityAmbience();
-  drawFalls(); drawTrees(); drawCabins(); drawCrystals(); drawSigns();
+  drawFalls(); drawTrees(); drawCabins(); drawCrystals();
   drawGems(); drawAbilities(); drawFlag(); drawGrapple();
   particles.draw(ctx, rcam);
   if (state !== STATE.MENU) drawPlayer();
@@ -557,7 +570,9 @@ const TREES = [   // a forest in the Pine Woods (all on real ledges), plus a cou
   { x: 150, y: 14150 }, { x: 240, y: 14010 }, { x: 110, y: 13880 }, { x: 230, y: 13720 }, { x: 140, y: 13530 },
   { x: 140, y: 15620 }, { x: 170, y: 15120 }];
 const CRYSTALS = [{ x: 300, y: 12900, c: '#8fe9ff' }, { x: 78, y: 12500, c: '#9ff0a8' }, { x: 300, y: 12150, c: '#c9a0ff' }, { x: 90, y: 11850, c: '#8fe9ff' }, { x: 296, y: 13150, c: '#ffd27a' }, { x: 70, y: 13000, c: '#8fe9ff' }, { x: 296, y: 10700, c: '#bfe6ff' }, { x: 296, y: 11100, c: '#bfe6ff' },
-  { x: 300, y: 19000, c: '#d6f0ff' }, { x: 300, y: 18500, c: '#bfe6ff' }, { x: 300, y: 18960, c: '#eafaff' }];   // glacier ice
+  { x: 300, y: 19000, c: '#d6f0ff' }, { x: 300, y: 18500, c: '#bfe6ff' }, { x: 300, y: 18960, c: '#eafaff' },   // glacier ice
+  { x: 300, y: 7600, c: '#bfe6ff' }, { x: 70, y: 7440, c: '#d6f0ff' }, { x: 300, y: 7860, c: '#eafaff' },        // ice caverns
+  { x: 300, y: 1080, c: '#ffd27a' }, { x: 70, y: 980, c: '#c9a0ff' }, { x: 300, y: 1240, c: '#ffe08a' }];         // summit sanctum
 const FALLS = [{ x: 296, y: 9880, w: 38, h: 1560 }];
 function drawTrees() { for (const t of TREES) drawTree(t); }
 function drawCrystals() { for (const c of CRYSTALS) drawCrystal(c); }
@@ -581,29 +596,6 @@ function drawCrystal(c) {
   ctx.globalAlpha = 0.35 + 0.25 * Math.sin(frames * 0.08 + c.x); ctx.fillStyle = g; ctx.fillRect(x - 22, y - 22, 44, 44); ctx.globalAlpha = 1;
   ctx.fillStyle = c.c; ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 5, y); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x + 7, y - 4); ctx.lineTo(x + 11, y + 2); ctx.lineTo(x + 7, y + 6); ctx.lineTo(x + 3, y + 2); ctx.closePath(); ctx.fill();
-}
-// Wooden signposts that call out each challenge right where you reach it.
-const SIGNS = [
-  { x: 120, y: 19200, t: 'ICE — you slide' },
-  { x: 120, y: 18100, t: 'CRUMBLING — keep moving' },
-  { x: 120, y: 16560, t: 'SPRINGS — bounce up' },
-  { x: 60, y: 14280, t: 'GLIDE the pit →' },
-  { x: 228, y: 11568, t: 'CLIMB the wall' },
-  { x: 195, y: 10640, t: 'DASH up ×2' },
-  { x: 230, y: 8420, t: 'WIND — ride up' },
-  { x: 175, y: 3540, t: 'GRAPPLE (E) up' },
-  { x: 120, y: 2880, t: 'WALL-JUMP the chimney' },
-];
-function drawSigns() {
-  ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const s of SIGNS) {
-    const y = Math.round(s.y - rcam); if (y < -30 || y > VIEW_H + 10) continue;
-    const x = Math.round(s.x), w = Math.round((s.t.length * 5.4) + 12);
-    ctx.fillStyle = '#4a3a28'; ctx.fillRect(x - 1, y - 20, 3, 20);              // post
-    ctx.fillStyle = '#6f5232'; ctx.fillRect(x - w / 2, y - 34, w, 15);          // board
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x - w / 2, y - 20, w, 2);
-    ctx.fillStyle = '#f4e6c8'; ctx.fillText(s.t, x, y - 26);                     // label
-  }
 }
 function drawCabins() { for (const c of CABINS) drawCabin(c); }
 function drawCabin(c) {
@@ -768,11 +760,13 @@ const BANNERS = [
   { y: 13600, text: 'THE OLD MINE — abandoned diggings' },
   { y: 11400, text: 'THE FROZEN FALLS' },
   { y: 9150, text: 'THE FOOTHILLS' },
+  { y: 8000, text: 'THE ICE CAVERNS — a frozen hollow in the rock' },
   { y: 7100, text: 'THE LOWER FACE' },
   { y: 6300, text: 'THE BURIED CITY — an abandoned hall inside the mountain' },
   { y: 4500, text: 'BACK ONTO THE OPEN FACE' },
   { y: SNOWLINE, text: 'ABOVE THE SNOWLINE' },
   { y: 2650, text: 'THE SPIRE — wall-jump the chimney, or take the East Ledges' },
+  { y: 1360, text: 'THE SUMMIT SANCTUM — sealed inside the peak' },
 ];
 function addShake(v) { shake = Math.min(11, shake + v); }
 function shakeXY() { if (shake < 0.3) return { x: 0, y: 0 }; return { x: Math.round((Math.random() * 2 - 1) * shake), y: Math.round((Math.random() * 2 - 1) * shake) }; }
