@@ -19,9 +19,11 @@
 // 1. LEVEL  (bottom = big y, summit = small y)
 // ============================================================
 const VIEW_W = 540, VIEW_H = 720;
-const WORLD = { w: 540, h: 9600 };
+const WORLD = { w: 540, h: 16800 };
 const SNOWLINE = 3600;
-const INTERIOR = { x: -120, y: 4500, w: 560, h: 2050 };   // the buried city, carved into solid rock
+const CITY = { x: -120, y: 4500, w: 560, h: 2050 };       // the buried city, carved into solid rock
+const MINE = { x: -120, y: 11550, w: 560, h: 2010 };      // the old mine, bored into the lower rock
+const INTERIORS = [CITY, MINE];
 
 const rock = (x, y, w, h, kind, oneWay) => ({ x, y, w, h, kind: kind || 'rock', oneWay: !!oneWay });
 const SOLIDS = [], MOVERS = [], GEARS = [], UPDRAFTS = [];
@@ -35,8 +37,8 @@ function updraft(x, y, w, h) { const u = { x, y, w, h }; UPDRAFTS.push(u); retur
 // --- The mountain face: a steep wall on the right that leans gently back as it rises (the "slope"). ---
 // faceLeft(y) = x of the rock's left edge at world height y; higher up (smaller y) → further right.
 function faceLeft(y) { const f = clamp((9340 - y) / 8550, 0, 1); return Math.round(300 + 175 * Math.pow(f, 1.35)); }
-for (let ty = -260; ty < 9340; ty += 300) { const fx = faceLeft(ty); body(fx, ty, 780 - fx, 360); }
-body(-80, 9340, 900, 400);                        // base ground
+for (let ty = -260; ty < 16700; ty += 300) { const fx = faceLeft(ty); body(fx, ty, 780 - fx, 360); }
+body(-80, 16600, 900, 400);                       // valley floor — the true base of a much bigger mountain
 
 // A zig-zag run of "filler" ledges between the authored challenges (keeps the climb DRY).
 function ladder(yBot, yTop, step) { let i = 0; for (let y = yBot; y >= yTop; y -= step, i++) plat(i % 2 ? 190 : 44, y, 100); }
@@ -96,11 +98,44 @@ bouncer(40, 3820, 70);                            // upper-face spring
 bouncer(70, 1250, 80);                            // spire spring
 updraft(52, 3160, 84, 400);                       // wind rushing up the left of the Blank Face
 
-const SPAWN = { x: 90, y: 9280 };
+// ================= THE LOWER MOUNTAIN — a much longer approach (new) =================
+// A green valley & base camp, a pine forest, an old mine bored into the rock, and a
+// frozen waterfall, all climbing up to the original foothills far above.
+// -- The Valley & Base Camp --
+ladder(16420, 15550, 145);
+plat(60, 15410, 100); bouncer(50, 15270, 80); plat(180, 15130, 100);
+// -- The Pine Woods --
+ladder(14990, 14410, 145);
+plat(30, 14270, 84); plat(200, 14250, 84);          // ── dash between the pines ──
+plat(60, 14110, 100);
+ladder(13970, 13680, 145);
+plat(110, 13530, 90);                               // approach the mine shaft
+// -- The Old Mine (bored into the rock) --
+body(-120, 11550, 184, 2010);                       // mine's west wall
+ruin(64, 11600, 146, 90); ruin(300, 11600, 90, 90); // timber ceiling (exit shaft x210..300)
+ruin(64, 13380, 36, 90); ruin(190, 13380, 200, 90); // floor (entry shaft x100..190)
+plat(100, 13350, 96);                               // land inside off the shaft
+mover(90, 13220, 96, 16, 'x', 150, 0.02, 0);        // minecart across
+plat(196, 13110, 96);
+mover(150, 13110, 96, 16, 'y', -360, 0.016, 0);     // ore lift up
+plat(64, 12750, 110);
+plat(196, 12610, 96); plat(72, 12470, 100); plat(196, 12330, 96);
+plat(72, 12190, 100); plat(196, 12050, 96); plat(96, 11910, 100);
+plat(196, 11750, 96);                               // exit ledge → up the ceiling shaft
+// -- The Frozen Falls --
+plat(200, 11570, 96);                               // above the mine
+ladder(11430, 10270, 145);
+plat(60, 10130, 84);
+updraft(140, 9700, 96, 560);                        // freezing mist rising up the falls
+plat(200, 9990, 88);
+ladder(9850, 9270, 145);                            // up to the original foothills
+
+const SPAWN = { x: 90, y: 16540 };
 const FLAG = { x: 250, y: 760 };
 const GOAL = { x: 150, y: 676, w: 190, h: 86 };
 const GEMS = [[130, 8980], [200, 8180], [40, 7020], [230, 6760], [150, 6160], [96, 5680], [260, 5280], [110, 4980], [250, 3680], [180, 3180], [220, 2080], [110, 840],
-  [296, 7392], [58, 4176], [82, 3520], [330, 1745]]   // rewards for the three tech trials + the alternate route
+  [296, 7392], [58, 4176], [82, 3520], [330, 1745],   // rewards for the three tech trials + the alternate route
+  [200, 16300], [70, 15130], [110, 14110], [150, 13330], [290, 12500], [96, 11910], [64, 10130], [200, 9990]]   // the new lower mountain
   .map(([x, y]) => ({ x, y }));
 
 // Movement techs you unlock at shrines along the climb (placed just before where each shines).
@@ -391,7 +426,7 @@ function render() {
   drawUpdrafts();
   drawPeak();
   drawCityAmbience();
-  drawCabins();
+  drawFalls(); drawTrees(); drawCabins(); drawCrystals();
   drawGems(); drawAbilities(); drawFlag(); drawGrapple();
   particles.draw(ctx, rcam);
   if (state !== STATE.MENU) drawPlayer();
@@ -441,12 +476,41 @@ function drawBouncer(s) {
 }
 // Cozy mountaineers' huts perched at each section (decorative — you climb past them).
 const CABINS = [
-  { x: 30, y: 9340, w: 76 },    // base camp on the ground
+  { x: 30, y: 16600, w: 80 },   // base camp on the valley floor
+  { x: 70, y: 15410, w: 46 },   // valley waystation
+  { x: 120, y: 13530, w: 46 },  // hut at the mine mouth
+  { x: 66, y: 10130, w: 44 },   // camp by the frozen falls
   { x: 205, y: 7300, w: 52 },   // foothills waystation
   { x: 116, y: 6450, w: 46 },   // camp at the mouth of the buried city
   { x: 95, y: 4110, w: 46 },    // upper-face hut
   { x: 168, y: 760, w: 56 },    // summit shelter by the flag
 ];
+const TREES = [{ x: 120, y: 16600 }, { x: 165, y: 16600 }, { x: 210, y: 16600 }, { x: 255, y: 16600 }, { x: 80, y: 16600 }, { x: 110, y: 15410 }, { x: 100, y: 14110 }];
+const CRYSTALS = [{ x: 300, y: 12900, c: '#8fe9ff' }, { x: 78, y: 12500, c: '#9ff0a8' }, { x: 300, y: 12150, c: '#c9a0ff' }, { x: 90, y: 11850, c: '#8fe9ff' }, { x: 296, y: 13150, c: '#ffd27a' }, { x: 70, y: 13000, c: '#8fe9ff' }, { x: 296, y: 10700, c: '#bfe6ff' }, { x: 296, y: 11100, c: '#bfe6ff' }];
+const FALLS = [{ x: 296, y: 9880, w: 38, h: 1560 }];
+function drawTrees() { for (const t of TREES) drawTree(t); }
+function drawCrystals() { for (const c of CRYSTALS) drawCrystal(c); }
+function drawFalls() {
+  for (const f of FALLS) {
+    const y0 = f.y - rcam; if (y0 > VIEW_H || y0 + f.h < 0) continue;
+    for (let i = 0; i < 5; i++) { const cx = Math.round(f.x + 6 + i * (f.w - 12) / 4); ctx.fillStyle = i % 2 ? 'rgba(198,226,246,0.5)' : 'rgba(226,242,252,0.6)'; ctx.fillRect(cx, Math.max(0, Math.round(y0)), 5, Math.min(f.h, VIEW_H - Math.max(0, y0))); }
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (let i = 0; i < 9; i++) { const sx = f.x + (h2(i * 31, 5) / 100) * f.w, yy = f.y + ((frames * 2 + i * 47) % f.h) - rcam; if (yy > 0 && yy < VIEW_H) ctx.fillRect(Math.round(sx), Math.round(yy), 2, 9); }
+  }
+}
+function drawTree(t) {
+  const x = Math.round(t.x), gy = Math.round(t.y - rcam); if (gy < -70 || gy > VIEW_H + 20) return;
+  const snowy = t.y < SNOWLINE;
+  ctx.fillStyle = '#4a3526'; ctx.fillRect(x - 2, gy - 10, 4, 11);
+  for (let i = 0; i < 3; i++) { const w = 22 - i * 6, ty = gy - 8 - i * 12; ctx.fillStyle = snowy ? '#335641' : '#2e5636'; ctx.beginPath(); ctx.moveTo(x - w, ty); ctx.lineTo(x, ty - 16); ctx.lineTo(x + w, ty); ctx.closePath(); ctx.fill(); if (snowy) { ctx.fillStyle = '#eef4fb'; ctx.beginPath(); ctx.moveTo(x, ty - 16); ctx.lineTo(x + w * 0.45, ty - 8); ctx.lineTo(x, ty - 5); ctx.closePath(); ctx.fill(); } }
+}
+function drawCrystal(c) {
+  const x = Math.round(c.x), y = Math.round(c.y - rcam); if (y < -30 || y > VIEW_H + 30) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 22); g.addColorStop(0, c.c); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.35 + 0.25 * Math.sin(frames * 0.08 + c.x); ctx.fillStyle = g; ctx.fillRect(x - 22, y - 22, 44, 44); ctx.globalAlpha = 1;
+  ctx.fillStyle = c.c; ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 5, y); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + 7, y - 4); ctx.lineTo(x + 11, y + 2); ctx.lineTo(x + 7, y + 6); ctx.lineTo(x + 3, y + 2); ctx.closePath(); ctx.fill();
+}
 function drawCabins() { for (const c of CABINS) drawCabin(c); }
 function drawCabin(c) {
   const w = c.w, wh = Math.round(w * 0.6), rh = Math.round(w * 0.5);
@@ -503,11 +567,13 @@ function drawPeak() {
   ctx.lineTo(486, 556 + y); ctx.lineTo(452, 588 + y); ctx.lineTo(410, 628 + y); ctx.lineTo(372, 664 + y); ctx.closePath(); ctx.fill();
 }
 function drawInterior() {
-  const sy = INTERIOR.y - rcam; if (sy > VIEW_H || sy + INTERIOR.h < 0) return;
-  const g = ctx.createLinearGradient(0, sy, 0, sy + INTERIOR.h); g.addColorStop(0, '#161119'); g.addColorStop(1, '#0c0910');
-  ctx.fillStyle = g; ctx.fillRect(INTERIOR.x, Math.max(sy, 0), INTERIOR.w, Math.min(INTERIOR.h, VIEW_H - Math.max(sy, 0)));
-  ctx.strokeStyle = 'rgba(150,130,170,0.06)'; ctx.lineWidth = 1;
-  for (let by = Math.floor(INTERIOR.y / 32) * 32; by < INTERIOR.y + INTERIOR.h; by += 32) { const yy = Math.round(by - rcam) + 0.5; ctx.beginPath(); ctx.moveTo(INTERIOR.x, yy); ctx.lineTo(INTERIOR.x + INTERIOR.w, yy); ctx.stroke(); }
+  for (const R of INTERIORS) {
+    const sy = R.y - rcam; if (sy > VIEW_H || sy + R.h < 0) continue;
+    const g = ctx.createLinearGradient(0, sy, 0, sy + R.h); g.addColorStop(0, '#161119'); g.addColorStop(1, '#0c0910');
+    ctx.fillStyle = g; ctx.fillRect(R.x, Math.max(sy, 0), R.w, Math.min(R.h, VIEW_H - Math.max(sy, 0)));
+    ctx.strokeStyle = 'rgba(150,130,170,0.06)'; ctx.lineWidth = 1;
+    for (let by = Math.floor(R.y / 32) * 32; by < R.y + R.h; by += 32) { const yy = Math.round(by - rcam) + 0.5; ctx.beginPath(); ctx.moveTo(R.x, yy); ctx.lineTo(R.x + R.w, yy); ctx.stroke(); }
+  }
 }
 function drawGears() { for (const gr of GEARS) { const y = gr.y - rcam; if (y < -60 || y > VIEW_H + 60) continue; ctx.save(); ctx.translate(gr.x, y); ctx.rotate(frames * 0.012 * (gr.r % 2 ? 1 : -1)); ctx.fillStyle = '#4a4450'; for (let i = 0; i < 8; i++) { ctx.rotate(0.7854); ctx.fillRect(-4, gr.r - 5, 8, 10); } ctx.beginPath(); ctx.arc(0, 0, gr.r, 0, 6.2832); ctx.fillStyle = '#574f5e'; ctx.fill(); ctx.beginPath(); ctx.arc(0, 0, gr.r * 0.4, 0, 6.2832); ctx.fillStyle = '#221d29'; ctx.fill(); ctx.restore(); } }
 function speckle(x0, y0, w, h) { const wyTop = Math.max(y0, rcam), wyBot = Math.min(y0 + h, rcam + VIEW_H), xEnd = Math.min(x0 + w, VIEW_W + 10); for (let wy = Math.floor(wyTop / 12) * 12; wy < wyBot; wy += 12) for (let wx = Math.floor(x0 / 12) * 12; wx < xEnd; wx += 12) { const v = h2(wx, wy); if (v < 15) { ctx.fillStyle = '#463f3a'; ctx.fillRect(wx, wy - rcam, 6, 6); } else if (v > 88) { ctx.fillStyle = '#6b625b'; ctx.fillRect(wx + 4, wy - rcam + 4, 4, 4); } } }
@@ -598,6 +664,11 @@ function drawPlayer() {
 let shake = 0, ambient = [];
 const bannersShown = new Set();
 const BANNERS = [
+  { y: 15600, text: 'THE VALLEY — base camp' },
+  { y: 14350, text: 'THE PINE WOODS' },
+  { y: 13600, text: 'THE OLD MINE — abandoned diggings' },
+  { y: 11400, text: 'THE FROZEN FALLS' },
+  { y: 9150, text: 'THE FOOTHILLS' },
   { y: 7100, text: 'THE LOWER FACE' },
   { y: 6300, text: 'THE BURIED CITY — an abandoned hall inside the mountain' },
   { y: 4500, text: 'BACK ONTO THE OPEN FACE' },
@@ -610,7 +681,8 @@ function initWeather() { ambient = Array.from({ length: 64 }, () => ({ x: Math.r
 function drawWeather() {
   if (!ambient.length) return;
   const alt = clamp(rcam / (WORLD.h - VIEW_H), 0, 1), mid = rcam + VIEW_H * 0.5;
-  const indoor = mid > INTERIOR.y + 40 && mid < INTERIOR.y + INTERIOR.h - 40, snowy = rcam < SNOWLINE;
+  let indoor = false; for (const R of INTERIORS) if (mid > R.y + 40 && mid < R.y + R.h - 40) indoor = true;
+  const snowy = rcam < SNOWLINE;
   const vis = indoor ? 0 : (snowy ? 1 : 0.4), wind = 1.0 + alt * 1.8, fall = snowy ? 1.05 : 0.5;
   for (const w of ambient) {
     w.x -= w.sp * wind; w.y += w.sp * fall;
@@ -632,7 +704,7 @@ function drawSun() {
 }
 const LANTERNS = [{ x: 120, y: 6220 }, { x: 300, y: 5600 }, { x: 96, y: 5040 }, { x: 300, y: 4860 }, { x: 255, y: 4640 }];
 function drawCityAmbience() {
-  if (INTERIOR.y + INTERIOR.h - rcam < -40 || INTERIOR.y - rcam > VIEW_H + 40) return;
+  if (CITY.y + CITY.h - rcam < -40 || CITY.y - rcam > VIEW_H + 40) return;
   const gy = 4590 - rcam;                                   // daylight pouring down the ceiling shaft
   const shaft = ctx.createLinearGradient(0, gy, 0, gy + 300);
   shaft.addColorStop(0, 'rgba(214,228,248,0.22)'); shaft.addColorStop(1, 'rgba(214,228,248,0)');
