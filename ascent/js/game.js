@@ -351,7 +351,7 @@ class Player {
     this.onIce = this.onGround && this.#standingOn('ice');
     this.wall = this.#touchWall(-1) ? -1 : (this.#touchWall(1) ? 1 : 0); if (this.wall !== 0) this.lastWall = this.wall;
     if (this.onGround) { this.coyote = COYOTE; this.airJumps = 1; this.dashCharges = maxDash(); this.climbLeft = CLIMB_BUDGET; if (wasAir) { this.landTimer = 8; this.events.push('land'); } }
-    else if (this.wall !== 0) { this.wallCoyote = WALL_COYOTE; this.dashCharges = Math.max(this.dashCharges, 1); }
+    else if (this.wall !== 0) { this.wallCoyote = WALL_COYOTE; }   // touching a wall no longer refills dash (that let you dash-spam up the face)
   }
   #moveX() {
     this.x += this.vx; const r = this.rect();
