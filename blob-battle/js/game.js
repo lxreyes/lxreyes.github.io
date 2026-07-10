@@ -375,6 +375,7 @@ BB.Game = class {
       for (const p of this.projectiles) p.draw(ctx);
       for (const b of this.blobs) b.draw(ctx);
       BB.Particles.draw(ctx);
+      this._drawWater(ctx);
       this.drawReticle(ctx);
       ctx.restore();
       // UI stays in screen space
@@ -397,6 +398,62 @@ BB.Game = class {
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(a.x, a.y, s * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // reflective water across the bottom: mirrors islands, blobs and projectiles
+  _drawWater(ctx) {
+    const wy = this.arena.waterY;
+    const t = this.time;
+    const left = this.cam.x - this.w, right = this.cam.x + this.w;
+    const seg = 26;
+    const surfaceY = (x) => wy + Math.sin(x * 0.03 + t * 1.6) * 3;
+
+    ctx.save();
+    // clip to the water body (below the rippling surface)
+    ctx.beginPath();
+    ctx.moveTo(left, wy + this.h);
+    ctx.lineTo(left, surfaceY(left));
+    for (let x = left; x <= right; x += seg) ctx.lineTo(x, surfaceY(x));
+    ctx.lineTo(right, wy + this.h);
+    ctx.closePath();
+    ctx.clip();
+
+    // mirror the world about the waterline, faded
+    ctx.save();
+    ctx.translate(0, 2 * wy);
+    ctx.scale(1, -1);
+    ctx.globalAlpha = 0.38;
+    this.arena.drawIslands(ctx, t);
+    for (const p of this.projectiles) p.draw(ctx);
+    for (const b of this.blobs) if (!b.dead) b.draw(ctx);
+    ctx.restore();
+
+    // blue depth wash over the reflection
+    const g = ctx.createLinearGradient(0, wy, 0, wy + 150);
+    g.addColorStop(0, "rgba(44,116,156,0.34)");
+    g.addColorStop(1, "rgba(8,26,54,0.82)");
+    ctx.fillStyle = g;
+    ctx.fillRect(left, wy - 4, right - left, this.h + 60);
+
+    // drifting ripple highlights
+    ctx.strokeStyle = "rgba(150,205,255,0.12)";
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i <= 3; i++) {
+      ctx.beginPath();
+      for (let x = left; x <= right; x += seg) {
+        const ry = wy + i * 15 + Math.sin(x * 0.05 + t * 2 + i) * 2.4;
+        if (x === left) ctx.moveTo(x, ry); else ctx.lineTo(x, ry);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // bright wavy surface line
+    ctx.strokeStyle = "rgba(175,218,255,0.55)";
+    ctx.lineWidth = 2 / this.cam.zoom;
+    ctx.beginPath();
+    for (let x = left; x <= right; x += seg) { const yy = surfaceY(x); if (x === left) ctx.moveTo(x, yy); else ctx.lineTo(x, yy); }
     ctx.stroke();
   }
 

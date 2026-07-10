@@ -32,8 +32,7 @@ BB.Blob = class {
     this.vx = 0;
     this.vy = 0;
     this.frozen = true; // hover at spawn — you don't fall until you move
-    this.hp = 100;
-    this.maxHp = 100;
+    this._inWater = false;
     this.dead = false;
     this.onGround = false;
     this.jumps = 0;
@@ -72,26 +71,19 @@ BB.Blob = class {
   // all abilities fire at the match's chosen power level (menu "Ability power" mode)
   level(id) { return this.game.abilityLevel || BB.ABILITY_LEVEL; }
 
+  // no HP: a "hit" only launches you — the sole way to die is a ring-out
   hurt(dmg, kx, ky, source) {
     if (this.dead || this.invuln > 0) return;
     if (this.grow > 0) { kx *= 0.5; ky *= 0.5; }      // heavier: resists knockback
     if (this.shrink > 0) { kx *= 1.6; ky *= 1.6; }    // lighter: flies further
-    this.hp -= dmg;
     this.vx += kx;
     this.vy += ky;
+    this.frozen = false;
     this.invuln = 0.25;
     this.hitFlash = 0.15;
     this.lastHitBy = source;
     BB.Particles.burst(this.x, this.y, this.color, 10, 180);
     BB.Audio.play("hit");
-    if (this.hp <= 0) this.die("hp");
-  }
-
-  heal(amt) {
-    if (this.dead) return;
-    this.hp = Math.min(this.maxHp, this.hp + amt);
-    this.healFx = 0.6;
-    BB.Particles.burst(this.x, this.y, "#5be08a", 12, 140, { gravity: -60, life: 0.6 });
   }
 
   recoil(kx, ky) { this.vx += kx; this.vy += ky; }
@@ -101,7 +93,7 @@ BB.Blob = class {
     // Revival: if armed, come back once instead of dying
     if (this.reviveArmed) {
       this.reviveArmed = false;
-      this.hp = 45;
+      this.healFx = 0.6;
       this.invuln = 1.2;
       // reposition onto the nearest platform so a void death doesn't repeat
       let best = null, bd = 1e9;
@@ -256,8 +248,20 @@ BB.Blob = class {
       }
     }
 
-    // void death
-    if (this.y - this.r > this.game.h + 40) this.die("fall");
+    // splash when you break the water surface (on your way out of bounds)
+    const wy = this.game.arena.waterY;
+    if (wy != null) {
+      const inNow = this.y + this.r > wy;
+      if (inNow && !this._inWater) {
+        BB.Particles.burst(this.x, wy, "#bfe3ff", 16, 240, { gravity: 260, life: 0.5 });
+        BB.Audio.play("whoosh");
+      }
+      this._inWater = inNow;
+    }
+
+    // ring-out: the ONLY way to die is to leave the arena bounds
+    const g = this.game;
+    if (this.x < -220 || this.x > g.w + 220 || this.y - this.r > g.h + 40 || this.y < -560) this.die("fall");
 
     // land juice
     if (this.onGround && this.vy >= 0 && this._wasAir) {
@@ -339,12 +343,5 @@ BB.Blob = class {
       ctx.beginPath(); ctx.arc(this.x, this.y, this.r + 7, 0, Math.PI * 2); ctx.stroke();
     }
 
-    const bw = 46;
-    const bx = this.x - bw / 2;
-    const by = this.y - this.r - 16;
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    BB.roundRect(ctx, bx, by, bw, 6, 3); ctx.fill();
-    ctx.fillStyle = this.hp > 40 ? "#5be08a" : "#ff5b5b";
-    BB.roundRect(ctx, bx, by, bw * BB.clamp(this.hp / this.maxHp, 0, 1), 6, 3); ctx.fill();
   }
 };

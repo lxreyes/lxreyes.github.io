@@ -184,10 +184,10 @@ BB.Bot = class {
       if (bestI >= 0) b.tryAbility(bestI, this.aim.x, this.aim.y);
     }
 
-    // panic defense when low & pressured
-    if (b.hp < 32 && dist < 240) {
+    // defensive ability when pressured near the edge
+    if (dist < 240 && !this.groundNear(b.x + BB.sign(b.x - t.x) * 60, b.y)) {
       const di = this.chooseReady(this.defenseAbs);
-      if (di >= 0 && Math.random() < 0.06) b.tryAbility(di, b.x, b.y);
+      if (di >= 0 && Math.random() < 0.05) b.tryAbility(di, b.x, b.y);
     }
 
     b.control(moveDir, wantJump, true); // bot uses full-height jumps

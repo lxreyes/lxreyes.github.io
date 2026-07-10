@@ -10,6 +10,7 @@ BB.Arena = class {
     this.h = h;
     this.platforms = [];
     this.forcedLayout = -1; // -1 = random each round; 0..4 = a chosen map
+    this.waterY = h - 70;   // world y of the reflective water surface at the bottom
     this.reset();
   }
 
@@ -122,14 +123,10 @@ BB.Arena = class {
     ctx.stroke();
   }
 
-  draw(ctx, time = 0) {
-    // the void below
-    const vg = ctx.createLinearGradient(0, this.h - 90, 0, this.h);
-    vg.addColorStop(0, "rgba(220,40,60,0)");
-    vg.addColorStop(1, "rgba(220,40,60,0.22)");
-    ctx.fillStyle = vg;
-    ctx.fillRect(-200, this.h - 90, this.w + 400, 90);
+  draw(ctx, time = 0) { this.drawIslands(ctx, time); }
 
+  // just the islands + decor (also re-used, flipped, for the water reflection)
+  drawIslands(ctx, time = 0) {
     for (const p of this.platforms) {
       if (p.temp) {
         const blink = p.life < 1.2 ? 0.4 + 0.5 * Math.abs(Math.sin(p.life * 14)) : 1;
