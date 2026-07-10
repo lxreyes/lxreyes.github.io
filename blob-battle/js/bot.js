@@ -10,12 +10,27 @@ BB.DIFFICULTY = {
   hard:   { react: 0.08, aimErr: 0.035, dodge: 0.92, aggro: 0.95, spacing: 240 },
 };
 
+/* Bot personalities (separate from difficulty): each has a kit it drafts from
+   and multipliers that reshape how it fights. */
+BB.PLAYSTYLES = [
+  { name: "Rusher",    pool: ["roll", "drill", "dash", "spike", "rock", "grenade"],      spacing: 0.35, aggro: 1.3, dodge: 0.7,  preferMelee: true },
+  { name: "Zoner",     pool: ["bow", "beam", "missile", "meteor", "mine", "tesla"],      spacing: 1.7,  aggro: 0.95, dodge: 1.1, preferMelee: false },
+  { name: "Trickster", pool: ["dash", "teleport", "blinkgun", "grapple", "bow", "shrink"], spacing: 1.15, aggro: 1.0, dodge: 1.4, preferMelee: false },
+  { name: "Bruiser",   pool: ["grenade", "push", "gust", "blackhole", "growth", "revival"], spacing: 0.9, aggro: 1.1, dodge: 0.55, preferMelee: false },
+  { name: "All-Round", pool: BB.ABILITY_IDS,                                             spacing: 1.0,  aggro: 1.0, dodge: 1.0,  preferMelee: false },
+];
+
 BB.Bot = class {
   constructor(blob, target, game, difficulty) {
     this.blob = blob;
     this.target = target;
     this.game = game;
     this.d = BB.DIFFICULTY[difficulty] || BB.DIFFICULTY.normal;
+    // personality (playstyle) reshapes the difficulty baseline
+    this.style = BB.PLAYSTYLES[game.botStyleResolved] || BB.PLAYSTYLES[BB.PLAYSTYLES.length - 1];
+    this.spacing = this.d.spacing * this.style.spacing;
+    this.aggro = BB.clamp(this.d.aggro * this.style.aggro, 0, 1);
+    this.dodge = BB.clamp(this.d.dodge * this.style.dodge, 0, 1);
     this.reactTimer = 0;
     this.aim = { x: target.x, y: target.y };
     this.strafeDir = 1;
@@ -126,8 +141,9 @@ BB.Bot = class {
       }
     } else {
       // 2) combat spacing
-      const preferred = this.meleeOnly() ? 40 : this.attackAbs.length ? this.d.spacing : 120;
-      if (this.meleeOnly()) {
+      const wantClose = this.meleeOnly() || this.style.preferMelee;
+      const preferred = wantClose ? 40 : this.attackAbs.length ? this.spacing : 120;
+      if (wantClose) {
         moveDir = BB.sign(dx);
       } else if (dist > preferred + 40) {
         moveDir = BB.sign(dx);
@@ -156,7 +172,7 @@ BB.Bot = class {
 
     // 3) dodging
     const threat = this.incomingThreat();
-    if (threat && Math.random() < this.d.dodge) {
+    if (threat && Math.random() < this.dodge) {
       const di = this.chooseReady(this.defenseAbs);
       const bi = this.chooseReady(this.mobilityAbs);
       if (di >= 0) {
@@ -170,7 +186,7 @@ BB.Bot = class {
     }
 
     // 4) offense: pick an attack whose range fits the distance
-    if (dist < 720 && Math.random() < this.d.aggro) {
+    if (dist < 720 && Math.random() < this.aggro) {
       let bestI = -1;
       for (const i of this.attackAbs) {
         const id = b.abilities[i];

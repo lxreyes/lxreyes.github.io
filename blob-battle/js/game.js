@@ -16,6 +16,8 @@ BB.Game = class {
     this.winsNeeded = 3; // best of 5
     this.abilityLevel = BB.ABILITY_LEVEL; // "Ability power" mode (1..5); every ability fires at this level
     this.mapChoice = -1; // -1 = Any (random each round); 0..4 = a specific map
+    this.botStyle = -1;  // -1 = Any (random each match); 0..4 = a specific playstyle
+    this.botStyleResolved = 4;
     this.time = 0;
     this.dt = 1 / 60;
 
@@ -51,6 +53,8 @@ BB.Game = class {
       name: "BOT", color: "#ff6b6b", abilities: [], spawn: this.arena.spawns[1], isBot: true,
     });
     this.blobs = [this.player, this.enemy];
+    // resolve the bot's playstyle for this match (Any = pick one at random)
+    this.botStyleResolved = this.botStyle >= 0 ? this.botStyle : BB.randInt(0, BB.PLAYSTYLES.length - 1);
     this.bot = new BB.Bot(this.enemy, this.player, this, this.difficulty);
     this.selected = []; // ability ids the player is picking on the loadout screen
     this.repicked = false;  // has the one match-point kit change been used yet?
@@ -66,12 +70,18 @@ BB.Game = class {
     return arr;
   }
 
-  // lock in the player's 3 picks, give the bot a random kit (fresh match only), and fight
+  // lock in the player's 3 picks, draft the bot a style-appropriate kit, and fight
   confirmLoadout() {
     this.player.abilities = this.selected.slice();
-    if (!this.repicking) this.enemy.abilities = this._shuffle(BB.ABILITY_IDS.slice()).slice(0, 3);
+    if (!this.repicking) this.enemy.abilities = this._botKit();
     this.repicking = false;
     this.startRound();
+  }
+
+  // pick 3 abilities from the resolved playstyle's pool
+  _botKit() {
+    const style = BB.PLAYSTYLES[this.botStyleResolved] || BB.PLAYSTYLES[BB.PLAYSTYLES.length - 1];
+    return this._shuffle(style.pool.slice()).slice(0, 3);
   }
 
   // match point reached — let the player swap their kit before the decider (once)
@@ -273,26 +283,19 @@ BB.Game = class {
   /* ---------------- MENU ---------------- */
   menuLayout() {
     const cx = this.w / 2;
-    const row = (y) => {
-      const out = [];
-      const bw = 52, bg = 12, n = 5;
-      let x = cx - (n * bw + (n - 1) * bg) / 2;
-      for (let i = 1; i <= n; i++) { out.push({ n: i, x, y, w: bw, h: 34, label: String(i) }); x += bw + bg; }
-      return out;
+    const mkRow = (y, items, bw, bg, h) => {
+      let x = cx - (items.length * bw + (items.length - 1) * bg) / 2;
+      return items.map((it) => { const r = { ...it, x, y, w: bw, h }; x += bw + bg; return r; });
     };
-    const maps = [];
-    { const bw = 64, bg = 8, n = 6; let x = cx - (n * bw + (n - 1) * bg) / 2;
-      for (let i = 0; i < n; i++) { maps.push({ v: i - 1, x, y: 370, w: bw, h: 34, label: i === 0 ? "Any" : String(i) }); x += bw + bg; } }
+    const num5 = [1, 2, 3, 4, 5].map((i) => ({ n: i, label: String(i) }));
+    const choice6 = [-1, 0, 1, 2, 3, 4].map((v, i) => ({ v, label: i === 0 ? "Any" : String(i) }));
     return {
-      diffs: [
-        { id: "easy", x: cx - 207, y: 144, w: 130, h: 38, label: "EASY" },
-        { id: "normal", x: cx - 65, y: 144, w: 130, h: 38, label: "NORMAL" },
-        { id: "hard", x: cx + 77, y: 144, w: 130, h: 38, label: "HARD" },
-      ],
-      wins: row(222),
-      powers: row(296),
-      maps,
-      start: { x: cx - 110, y: 424, w: 220, h: 48, label: "START" },
+      diffs: mkRow(124, [{ id: "easy", label: "EASY" }, { id: "normal", label: "NORMAL" }, { id: "hard", label: "HARD" }], 126, 12, 34),
+      wins: mkRow(194, num5, 52, 12, 30),
+      powers: mkRow(260, num5, 52, 12, 30),
+      maps: mkRow(326, choice6, 64, 8, 30),
+      styles: mkRow(392, choice6, 64, 8, 30),
+      start: { x: cx - 110, y: 440, w: 220, h: 44, label: "START" },
     };
   }
 
@@ -304,6 +307,7 @@ BB.Game = class {
     for (const wb of L.wins) if (this._hit(wb, m.x, m.y)) { this.winsNeeded = wb.n; BB.Audio.play("click"); }
     for (const pb of L.powers) if (this._hit(pb, m.x, m.y)) { this.abilityLevel = pb.n; BB.Audio.play("click"); }
     for (const mb of L.maps) if (this._hit(mb, m.x, m.y)) { this.mapChoice = mb.v; BB.Audio.play("click"); }
+    for (const sb of L.styles) if (this._hit(sb, m.x, m.y)) { this.botStyle = sb.v; BB.Audio.play("click"); }
     if (this._hit(L.start, m.x, m.y)) { BB.Audio.play("click"); this.startMatch(); }
   }
 
@@ -519,27 +523,25 @@ BB.Game = class {
 
   drawMenu(ctx) {
     const cx = this.w / 2;
-    this._text(ctx, "BLOB BATTLE", cx, 60, 46, "#ffffff", "bold");
-    this._text(ctx, "a physics ability-brawler vs. a bot", cx, 94, 16, "#8fa3c8");
+    this._text(ctx, "BLOB BATTLE", cx, 46, 42, "#ffffff", "bold");
+    this._text(ctx, "a physics ability-brawler vs. a bot", cx, 78, 15, "#8fa3c8");
     const L = this.menuLayout();
-    this._text(ctx, "Difficulty", cx, 128, 16, "#8fa3c8");
-    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 18 });
-    this._text(ctx, "First to how many round wins?", cx, 206, 16, "#8fa3c8");
-    for (const wb of L.wins) this._button(ctx, wb, { active: this.winsNeeded === wb.n, font: 17 });
-    this._text(ctx, "Ability power (Lv 1–5)", cx, 280, 16, "#8fa3c8");
-    for (const pb of L.powers) this._button(ctx, pb, { active: this.abilityLevel === pb.n, font: 17 });
+    this._text(ctx, "Difficulty", cx, 110, 15, "#8fa3c8");
+    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 17 });
+    this._text(ctx, "First to how many round wins?", cx, 180, 15, "#8fa3c8");
+    for (const wb of L.wins) this._button(ctx, wb, { active: this.winsNeeded === wb.n, font: 16 });
+    this._text(ctx, "Ability power (Lv 1–5)", cx, 246, 15, "#8fa3c8");
+    for (const pb of L.powers) this._button(ctx, pb, { active: this.abilityLevel === pb.n, font: 16 });
     const mapName = this.mapChoice < 0 ? "Any (random each round)" : BB.MAP_NAMES[this.mapChoice];
-    this._text(ctx, "Map  —  " + mapName, cx, 354, 16, "#8fa3c8");
-    for (const mb of L.maps) this._button(ctx, mb, { active: this.mapChoice === mb.v, font: 16 });
+    this._text(ctx, "Map  —  " + mapName, cx, 312, 15, "#8fa3c8");
+    for (const mb of L.maps) this._button(ctx, mb, { active: this.mapChoice === mb.v, font: 15 });
+    const styleName = this.botStyle < 0 ? "Any (random each match)" : BB.PLAYSTYLES[this.botStyle].name;
+    this._text(ctx, "Bot style  —  " + styleName, cx, 378, 15, "#8fa3c8");
+    for (const sb of L.styles) this._button(ctx, sb, { active: this.botStyle === sb.v, font: 15 });
     this._button(ctx, L.start, { font: 24 });
 
-    const help = [
-      "Move: A / D    Jump: W or Space    Aim: mouse    Abilities: 1·2·3 / LMB·RMB·Shift",
-      "Pick ANY 3 abilities or a quick-combo preset. Knock the bot into the void!",
-      "(press M to toggle music)",
-    ];
-    let y = 496;
-    for (const line of help) { this._text(ctx, line, cx, y, 14, "#7f92b6"); y += 20; }
+    this._text(ctx, "Move A/D · Jump W/Space · Aim mouse · Abilities 1·2·3 / LMB·RMB·Shift", cx, 506, 13, "#7f92b6");
+    this._text(ctx, "Pick ANY 3 abilities or a quick-combo. Ring the bot out!   (M toggles music)", cx, 526, 13, "#7f92b6");
   }
 
   // a rounded tile with the ability's vector symbol — used on cards and the HUD
@@ -560,6 +562,7 @@ BB.Game = class {
       this._text(ctx, "CHOOSE YOUR 3 ABILITIES", cx, 42, 34, "#ffffff", "bold");
       this._text(ctx, `pick any 3, or tap a quick-combo  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
     }
+    this._text(ctx, "opponent: " + BB.PLAYSTYLES[this.botStyleResolved].name + " bot", this.w - 18, 22, 13, "#ff9aa0", "normal", "right");
 
     const L = this.loadoutLayout();
 
@@ -619,6 +622,7 @@ BB.Game = class {
     this._winPips(ctx, this.enemy, this.w - 24, 24, true);
     this._text(ctx, "YOU", 24, 52, 14, "#46c8ff", "bold", "left");
     this._text(ctx, "BOT", this.w - 24, 52, 14, "#ff6b6b", "bold", "right");
+    this._text(ctx, BB.PLAYSTYLES[this.botStyleResolved].name, this.w - 24, 70, 11, "#ff9aa0", "normal", "right");
     this._text(ctx, `ROUND ${this.roundNumber}`, this.w / 2, 26, 18, "#c9d6f0", "bold");
 
     const aliases = ["LMB", "RMB", "Shift"];

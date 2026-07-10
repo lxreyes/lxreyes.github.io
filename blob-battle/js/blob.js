@@ -66,6 +66,10 @@ BB.Blob = class {
     for (const id of this.abilities) this.cooldowns[id] = 0;
     this.squash = 0;
     this._wasAir = false;
+    this.animT = BB.rand(0, 10);           // desync the two blobs' idle cycles
+    this.blink = 0;
+    this.blinkTimer = BB.rand(1.5, 4);
+    this.wobblePhase = BB.rand(0, Math.PI * 2);
   }
 
   // all abilities fire at the match's chosen power level (menu "Ability power" mode)
@@ -270,6 +274,12 @@ BB.Blob = class {
       if (Math.abs(this.vx) > 60 || this._wasAir) BB.Audio.play("land");
     }
     this._wasAir = !this.onGround;
+
+    // animation clocks
+    this.animT += dt;
+    this.blinkTimer -= dt;
+    if (this.blinkTimer <= 0) { this.blink = 0.12; this.blinkTimer = BB.rand(2.4, 5.5); }
+    this.blink = Math.max(0, this.blink - dt);
   }
 
   collidePlatform(p) {
@@ -295,39 +305,71 @@ BB.Blob = class {
     if (this.dead) return;
     const flashing = this.hitFlash > 0 && Math.floor(this.hitFlash * 40) % 2 === 0;
     const sq = this.squash;
+    const r = this.r;
+    const spd = Math.hypot(this.vx, this.vy);
+    const moving = this.onGround && Math.abs(this.vx) > 35;
+    const airborne = !this.onGround;
+    const hitFace = this.hitFlash > 0;
+    const surprised = spd > 520 || (airborne && Math.abs(this.vy) > 260);
 
-    // spikes
+    // spikes (world space, drawn under the body)
     if (this.spikeTime > 0) {
       ctx.fillStyle = "#d0d8e0";
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2 + this.game.time * 2;
         const c = Math.cos(a), s = Math.sin(a);
         ctx.beginPath();
-        ctx.moveTo(this.x + c * this.r, this.y + s * this.r);
-        ctx.lineTo(this.x + c * (this.r + 10), this.y + s * (this.r + 10));
-        ctx.lineTo(this.x + Math.cos(a + 0.25) * this.r, this.y + Math.sin(a + 0.25) * this.r);
+        ctx.moveTo(this.x + c * r, this.y + s * r);
+        ctx.lineTo(this.x + c * (r + 10), this.y + s * (r + 10));
+        ctx.lineTo(this.x + Math.cos(a + 0.25) * r, this.y + Math.sin(a + 0.25) * r);
         ctx.fill();
       }
     }
 
+    // procedural animation: walk bounce, idle breath, speed stretch, lean
+    const walkT = this.animT * 15;
+    const bounce = moving ? Math.abs(Math.sin(walkT)) * r * 0.14 : 0;
+    const breathe = this.onGround && !moving ? Math.sin(this.animT * 3) * 0.035 : 0;
+    const vStretch = BB.clamp(Math.abs(this.vy) / 1500, 0, 0.24);
+    const hStretch = BB.clamp(Math.abs(this.vx) / 1300, 0, 0.18);
+    const lean = BB.clamp(this.vx / 1000, -0.32, 0.32);
+    let sx = 1 - sq * 0.4 + breathe - vStretch * 0.7 + hStretch;
+    let sy = 1 + sq * 0.4 - breathe + vStretch - hStretch * 0.7;
+    if (moving) sx += Math.sin(walkT) * 0.05;
+
     ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.scale(1 - sq * 0.4, 1 + sq * 0.4);
-    if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.r + 4, 0, Math.PI * 2); ctx.stroke(); }
-    if (this.grow > 0) { ctx.strokeStyle = "rgba(255,200,90,0.8)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.r + 3, 0, Math.PI * 2); ctx.stroke(); }
-    if (this.shrink > 0) { ctx.strokeStyle = "rgba(255,120,200,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.r + 3, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.translate(this.x, this.y - bounce);
+    ctx.rotate(lean * 0.5);
+
+    // status rings (unscaled)
+    if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke(); }
+    if (this.grow > 0) { ctx.strokeStyle = "rgba(255,200,90,0.8)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke(); }
+    if (this.shrink > 0) { ctx.strokeStyle = "rgba(255,120,200,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke(); }
+
+    ctx.scale(sx, sy);
+
+    // wobbly jelly body
+    const jiggle = 0.028 + BB.clamp(spd / 4000, 0, 0.05) + (hitFace ? 0.05 : 0);
     ctx.fillStyle = flashing ? "#ffffff" : this.healFx > 0 ? "#7dffb0" : (this.bodyColor || this.color);
-    ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.beginPath(); ctx.arc(-this.r * 0.35, -this.r * 0.35, this.r * 0.4, 0, Math.PI * 2); ctx.fill();
-    const ex = this.facing * 5;
-    ctx.fillStyle = "#0d1020";
     ctx.beginPath();
-    ctx.arc(ex - 5, -3, 3.2, 0, Math.PI * 2);
-    ctx.arc(ex + 5, -3, 3.2, 0, Math.PI * 2);
-    ctx.fill();
+    const N = 22;
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const wob = 1 + Math.sin(a * 3 + this.animT * 6 + this.wobblePhase) * jiggle + Math.sin(a * 2 - this.animT * 4) * jiggle * 0.6;
+      const rr = r * wob;
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+
+    // shine
+    ctx.fillStyle = "rgba(255,255,255,0.25)";
+    ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.38, r * 0.4, 0, Math.PI * 2); ctx.fill();
+
+    this._drawFace(ctx, r, hitFace, surprised);
     ctx.restore();
 
+    // world-space overlays (not squashed)
     if (this.grapple) {
       ctx.strokeStyle = "#4be0c0"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.grapple.x, this.grapple.y); ctx.stroke();
@@ -335,13 +377,55 @@ BB.Blob = class {
     if (this.reviveArmed) {
       ctx.strokeStyle = `rgba(91,224,138,${0.5 + 0.4 * Math.sin(this.game.time * 8)})`;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(this.x, this.y, this.r + 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(this.x, this.y, r + 10, 0, Math.PI * 2); ctx.stroke();
     }
     if (this.invuln > 0) {
       ctx.strokeStyle = `rgba(91,184,255,${0.4 + 0.4 * Math.sin(this.game.time * 20)})`;
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(this.x, this.y, this.r + 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(this.x, this.y, r + 7, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  _drawFace(ctx, r, hitFace, surprised) {
+    const eyeDX = r * 0.36, eyeY = -r * 0.10;
+    const eyeR = r * (surprised ? 0.26 : 0.22);
+    const dark = "#0d1020";
+
+    // pupils track velocity when moving, else stare at the opponent
+    let lx = this.facing, ly = 0;
+    if (Math.hypot(this.vx, this.vy) > 45) { const n = BB.Vec.norm(this.vx, this.vy); lx = n.x; ly = n.y * 0.6; }
+    else { const o = this.game.blobs.find((b) => b !== this && !b.dead); if (o) { const n = BB.Vec.norm(o.x - this.x, o.y - this.y); lx = n.x; ly = n.y * 0.6; } }
+
+    for (const side of [-1, 1]) {
+      const cx = side * eyeDX;
+      if (hitFace) { // X_X
+        ctx.strokeStyle = dark; ctx.lineWidth = 2.4; ctx.lineCap = "round";
+        const s = eyeR * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(cx - s, eyeY - s); ctx.lineTo(cx + s, eyeY + s);
+        ctx.moveTo(cx + s, eyeY - s); ctx.lineTo(cx - s, eyeY + s);
+        ctx.stroke();
+      } else if (this.blink > 0) { // closed
+        ctx.strokeStyle = dark; ctx.lineWidth = 2.4; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(cx - eyeR * 0.8, eyeY); ctx.lineTo(cx + eyeR * 0.8, eyeY); ctx.stroke();
+      } else { // white eye + tracking pupil
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(cx, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(13,16,32,0.25)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, eyeY, eyeR, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = dark;
+        ctx.beginPath(); ctx.arc(cx + lx * eyeR * 0.42, eyeY + ly * eyeR * 0.42, eyeR * 0.52, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
+    // mouth: open "o" when surprised/hit, otherwise a little smile
+    const my = r * 0.36;
+    if (hitFace || surprised) {
+      ctx.fillStyle = dark;
+      ctx.beginPath(); ctx.ellipse(0, my, r * 0.13, r * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.arc(0, my - r * 0.12, r * 0.2, 0.18 * Math.PI, 0.82 * Math.PI); ctx.stroke();
+    }
   }
 };
