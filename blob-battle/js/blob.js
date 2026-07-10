@@ -34,7 +34,10 @@ BB.Blob = class {
     this.frozen = true; // hover at spawn — you don't fall until you move
     this._inWater = false;
     this.dead = false;
+    this.percent = 0; // Smash-style damage: higher % = you fly further
+    this.oob = 0;     // time spent past a side barrier (grace before ring-out)
     this.onGround = false;
+    this.onWall = false; this.wallNx = 0; this.wallNy = 0;
     this.jumps = 0;
     this.jumpBuffer = 0;
     this.jumpCut = false;
@@ -43,6 +46,7 @@ BB.Blob = class {
     this.invuln = 0;
     this.shieldFx = 0;
     this.dashing = 0;
+    this.drilling = 0; // drilling through terrain (ignores platform collision)
     this.dashLevel = 1;
     this.dashDamage = false; // Roll/Drill deal contact damage; plain Dash does not
     this.dashDmg = 22;
@@ -77,14 +81,17 @@ BB.Blob = class {
   // all abilities fire at the match's chosen power level (menu "Ability power" mode)
   level(id) { return this.game.abilityLevel || BB.ABILITY_LEVEL; }
 
-  // no HP: a "hit" only launches you — the sole way to die is a ring-out
+  // Smash-style: no instant death — damage raises your % and every hit launches
+  // you further the higher your % is. Ring-out is still the only way to die.
   hurt(dmg, kx, ky, source) {
     if (this.dead || this.invuln > 0) return;
     if (this.shield > 0) { this.hitFlash = 0.1; BB.Particles.burst(this.x, this.y, "#8be0ff", 8, 140); BB.Audio.play("hit"); return; }
+    this.percent = Math.min(999, this.percent + dmg);
+    const kb = 1 + this.percent * 0.014;              // knockback grows with damage
     if (this.grow > 0) { kx *= 0.5; ky *= 0.5; }      // heavier: resists knockback
     if (this.shrink > 0) { kx *= 1.6; ky *= 1.6; }    // lighter: flies further
-    this.vx += kx;
-    this.vy += ky;
+    this.vx += kx * kb;
+    this.vy += ky * kb;
     this.frozen = false;
     this.invuln = 0.25;
     this.hitFlash = 0.15;
@@ -167,6 +174,7 @@ BB.Blob = class {
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.healFx = Math.max(0, this.healFx - dt);
     this.dashing = Math.max(0, this.dashing - dt);
+    this.drilling = Math.max(0, this.drilling - dt);
     this.slow = Math.max(0, this.slow - dt);
     this.grow = Math.max(0, this.grow - dt);
     this.shrink = Math.max(0, this.shrink - dt);
@@ -183,14 +191,16 @@ BB.Blob = class {
     else if (this.shrink > 0) scale = 0.62;
     this.r = this.baseR * scale;
 
-    // jump
+    // jump (and wall-jump: push off a clung surface)
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.jumpBuffer > 0 && this.jumps < MAX_JUMPS) {
       this.vy = -JUMP_V;
+      if (this.onWall && !this.onGround) this.vx += this.wallNx * 380; // kick away from the wall
       this.jumps++;
       this.jumpBuffer = 0;
       this.jumpCut = true;
       this.onGround = false;
+      this.onWall = false;
       this.squash = -0.5;
       BB.Particles.burst(this.x, this.y + this.r, "#ffffff", 6, 120, { gravity: 200, vy: 40 });
       BB.Audio.play("jump");
@@ -213,10 +223,12 @@ BB.Blob = class {
       }
     }
 
-    // gravity — suspended while frozen, so you hover at spawn until you move
+    // gravity — suspended while frozen; nearly cancelled while clinging to a wall
     if (this.dashing <= 0 && !this.frozen) {
       const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
-      this.vy += g * dt * ts;
+      const gmul = this.onWall && !this.onGround ? 0.12 : 1; // stick to island walls/ceilings
+      this.vy += g * dt * ts * gmul;
+      if (this.onWall && !this.onGround && this.vy > 130) this.vy = 130; // slow slide
     }
     this.vy = BB.clamp(this.vy, -900, 1100);
     if (this.dashing <= 0 && !this.grapple && !this.onGround) this.vx *= 1 - AIR_DRAG * dt;
@@ -225,9 +237,14 @@ BB.Blob = class {
     this.x += this.vx * dt * ts;
     this.y += this.vy * dt * ts;
 
-    // collide
+    // collide (while drilling you pass straight through terrain, Bopl-style)
     this.onGround = false;
-    for (const p of this.game.arena.platforms) this.collidePlatform(p);
+    this.onWall = false;
+    if (this.drilling <= 0) {
+      for (const p of this.game.arena.platforms) this.collidePlatform(p);
+    } else {
+      BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
+    }
 
     // Roll/Drill contact hit
     if (this.dashing > 0 && this.dashDamage) {
@@ -269,9 +286,15 @@ BB.Blob = class {
       this._inWater = inNow;
     }
 
-    // ring-out: the ONLY way to die is to leave the arena bounds
+    // ring-out. Going out the SIDES takes priority and gives a brief red-alert
+    // grace window to recover; water (bottom) and top are instant.
     const g = this.game, A = g.arena;
-    if (this.x < A.leftBound || this.x > A.rightBound || this.y - this.r > g.h + 40 || this.y < -560) this.die("fall");
+    if (this.x < A.leftBound || this.x > A.rightBound) {
+      this.oob += dt;
+      if (this.oob > 1.0) this.die("fall");
+    } else if (this.y - this.r > g.h + 40 || this.y < -560) {
+      this.die("fall");
+    } else this.oob = 0;
 
     // land juice
     if (this.onGround && this.vy >= 0 && this._wasAir) {
@@ -305,6 +328,7 @@ BB.Blob = class {
     const vn = this.vx * nx + this.vy * ny;
     if (vn < 0) { this.vx -= vn * nx; this.vy -= vn * ny; }
     if (ny < -0.5) { this.onGround = true; this.jumps = 0; this.vy = Math.min(this.vy, 0); }
+    else { this.onWall = true; this.wallNx = nx; this.wallNy = ny; this.jumps = 0; } // cling to walls/ceilings
   }
 
   draw(ctx) {
@@ -400,6 +424,15 @@ BB.Blob = class {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(this.x, this.y, r + 7, 0, Math.PI * 2); ctx.stroke();
     }
+
+    // Smash-style damage percent floating above the blob
+    const pct = Math.round(this.percent);
+    const col = pct < 60 ? "#ffffff" : pct < 120 ? "#ffd24b" : pct < 200 ? "#ff8a3c" : "#ff4b4b";
+    ctx.font = `bold ${13 + Math.min(pct / 18, 9)}px system-ui, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const ty = this.y - r - 16;
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillText(pct + "%", this.x + 1, ty + 1);
+    ctx.fillStyle = col; ctx.fillText(pct + "%", this.x, ty);
   }
 
   _drawFace(ctx, r, hitFace, surprised) {

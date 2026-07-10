@@ -378,69 +378,115 @@ BB.Game = class {
     this._button(ctx, L.reset, { font: 16 });
   }
 
-  /* ---------------- MAP EDITOR ---------------- */
-  editorEnter() { this.editorPlatforms = this.customMap ? this.customMap.platforms.map((p) => ({ ...p })) : []; this.editorR = 26; this.state = "editor"; }
+  /* ---------------- MAP EDITOR (freehand draw) ---------------- */
+  editorEnter() {
+    this.editorPlatforms = this.customMap ? this.customMap.platforms.map((p) => ({ ...p })) : [];
+    this.editorSpawns = this.customMap && this.customMap.spawns ? this.customMap.spawns.map((s) => ({ ...s })) : [];
+    this.editorR = 22;
+    this.editorTool = "draw"; // draw | erase | spawn
+    this.editorLast = null;
+    this._paintLock = false;
+    this.state = "editor";
+  }
 
   editorLayout() {
-    const cx = this.w / 2, barY = this.h - 44;
+    const cx = this.w / 2, barY = this.h - 42;
     return {
       barY,
-      sizeDown: { x: 20, y: barY, w: 42, h: 34, label: "–" },
-      sizeUp: { x: 68, y: barY, w: 42, h: 34, label: "+" },
-      clear: { x: cx - 170, y: barY, w: 120, h: 34, label: "CLEAR" },
-      save: { x: cx - 40, y: barY, w: 180, h: 34, label: "SAVE & USE" },
-      back: { x: this.w - 130, y: barY, w: 110, h: 34, label: "‹ BACK" },
+      draw: { x: 16, y: barY, w: 72, h: 32, label: "DRAW" },
+      erase: { x: 92, y: barY, w: 72, h: 32, label: "ERASE" },
+      spawn: { x: 168, y: barY, w: 86, h: 32, label: "SPAWNS" },
+      sizeDown: { x: 266, y: barY, w: 32, h: 32, label: "–" },
+      sizeUp: { x: 302, y: barY, w: 32, h: 32, label: "+" },
+      clear: { x: cx + 96, y: barY, w: 92, h: 32, label: "CLEAR" },
+      save: { x: cx + 196, y: barY, w: 150, h: 32, label: "SAVE & USE" },
+      back: { x: this.w - 112, y: barY, w: 96, h: 32, label: "‹ BACK" },
     };
   }
 
   updateEditor() {
-    if (!this.clicked()) return;
-    const L = this.editorLayout(), m = BB.Input.mouse;
-    if (this._hit(L.back, m.x, m.y)) { BB.Audio.play("click"); this.state = "menu"; return; }
-    if (this._hit(L.clear, m.x, m.y)) { this.editorPlatforms = []; BB.Audio.play("click"); return; }
-    if (this._hit(L.sizeDown, m.x, m.y)) { this.editorR = BB.clamp(this.editorR - 4, 12, 60); BB.Audio.play("click"); return; }
-    if (this._hit(L.sizeUp, m.x, m.y)) { this.editorR = BB.clamp(this.editorR + 4, 12, 60); BB.Audio.play("click"); return; }
-    if (this._hit(L.save, m.x, m.y)) {
-      if (this.editorPlatforms.length < 2) { BB.Audio.play("hit"); return; }
-      this.customMap = { platforms: this.editorPlatforms.map((p) => ({ ...p })) };
-      this._saveCustomMap();
-      this.mapChoice = BB.MAP_NAMES.length; // select the Custom slot
-      BB.Audio.play("click"); this.state = "menu"; return;
+    const m = BB.Input.mouse, L = this.editorLayout();
+    const inField = m.y > 78 && m.y < L.barY - 10;
+    if (this.lmbClick) {
+      if (this._hit(L.back, m.x, m.y)) { BB.Audio.play("click"); this.state = "menu"; this._paintLock = true; return; }
+      if (this._hit(L.draw, m.x, m.y)) { this.editorTool = "draw"; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.erase, m.x, m.y)) { this.editorTool = "erase"; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.spawn, m.x, m.y)) { this.editorTool = "spawn"; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.sizeDown, m.x, m.y)) { this.editorR = BB.clamp(this.editorR - 3, 10, 50); BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.sizeUp, m.x, m.y)) { this.editorR = BB.clamp(this.editorR + 3, 10, 50); BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.clear, m.x, m.y)) { this.editorPlatforms = []; this.editorSpawns = []; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.save, m.x, m.y)) { this._editorSave(); this._paintLock = true; return; }
+      if (inField) {
+        this._paintLock = false; this.editorLast = null;
+        if (this.editorTool === "spawn") { this.editorSpawns.push({ x: m.x, y: m.y }); while (this.editorSpawns.length > 2) this.editorSpawns.shift(); BB.Audio.play("click"); this._paintLock = true; }
+      } else this._paintLock = true;
     }
-    // place / remove islands on the field
-    if (m.y > 80 && m.y < L.barY - 10) {
-      const i = this.editorPlatforms.findIndex((p) => BB.dist(m.x, m.y, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2) < p.r + 6);
-      if (i >= 0) this.editorPlatforms.splice(i, 1);
-      else this.editorPlatforms.push({ x1: m.x, y1: m.y, x2: m.x, y2: m.y, r: this.editorR });
-      BB.Audio.play("click");
+    if (BB.Input.mouse.down && !this._paintLock && inField && this.editorTool !== "spawn") this._editorStroke(m.x, m.y);
+    if (!BB.Input.mouse.down) { this.editorLast = null; this._paintLock = false; }
+  }
+
+  _editorStroke(x, y) {
+    if (this.editorTool === "erase") {
+      for (let i = this.editorPlatforms.length - 1; i >= 0; i--) {
+        const p = this.editorPlatforms[i];
+        if (BB.dist(x, y, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2) < p.r + this.editorR) this.editorPlatforms.splice(i, 1);
+      }
+      return;
+    }
+    if (this.editorPlatforms.length > 500) return; // safety cap
+    if (!this.editorLast) { this.editorPlatforms.push({ x1: x, y1: y, x2: x, y2: y, r: this.editorR }); this.editorLast = { x, y }; return; }
+    if (BB.dist(this.editorLast.x, this.editorLast.y, x, y) > this.editorR * 0.6) {
+      this.editorPlatforms.push({ x1: this.editorLast.x, y1: this.editorLast.y, x2: x, y2: y, r: this.editorR });
+      this.editorLast = { x, y };
     }
   }
 
+  _editorSave() {
+    if (this.editorPlatforms.length < 1) { BB.Audio.play("hit"); return; }
+    const map = { platforms: this.editorPlatforms.map((p) => ({ ...p })) };
+    if (this.editorSpawns.length === 2) map.spawns = this.editorSpawns.map((s) => ({ ...s }));
+    this.customMap = map;
+    this._saveCustomMap();
+    this.mapChoice = BB.MAP_NAMES.length; // select the Custom slot
+    BB.Audio.play("click"); this.state = "menu";
+  }
+
   drawEditor(ctx) {
-    const cx = this.w / 2, A = this.arena;
-    this._text(ctx, "MAP EDITOR", cx, 40,32, "#ffffff", "bold");
-    this._text(ctx, "click to place an island · click one to remove it · place at least 2, then SAVE", cx, 66, 14, "#8fa3c8");
+    const cx = this.w / 2, A = this.arena, L = this.editorLayout();
+    this._text(ctx, "MAP EDITOR", cx, 32, 30, "#ffffff", "bold");
+    this._text(ctx, "DRAG to paint islands · ERASE removes · SPAWNS sets where the two fighters start", cx, 58, 13, "#8fa3c8");
     // bounds + water preview
     ctx.save();
-    ctx.strokeStyle = "rgba(255,90,110,0.4)"; ctx.setLineDash([6, 8]);
-    ctx.beginPath(); ctx.moveTo(A.leftBound, 80); ctx.lineTo(A.leftBound, this.h - 60); ctx.moveTo(A.rightBound, 80); ctx.lineTo(A.rightBound, this.h - 60); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,90,110,0.4)"; ctx.setLineDash([6, 8]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(A.leftBound, 72); ctx.lineTo(A.leftBound, this.h - 56); ctx.moveTo(A.rightBound, 72); ctx.lineTo(A.rightBound, this.h - 56); ctx.stroke();
     ctx.setLineDash([]); ctx.restore();
     ctx.strokeStyle = "rgba(120,180,230,0.45)"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, A.waterY); ctx.lineTo(this.w, A.waterY); ctx.stroke();
-    // placed islands
+    // islands
+    ctx.lineCap = "round";
     for (const p of this.editorPlatforms) {
-      const mx = (p.x1 + p.x2) / 2, my = (p.y1 + p.y2) / 2;
-      ctx.fillStyle = "#3f4b6b"; ctx.beginPath(); ctx.arc(mx, my, p.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#6fbf5b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(mx, my, p.r - 2, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+      if (p.x1 === p.x2 && p.y1 === p.y2) { ctx.fillStyle = "#3f4b6b"; ctx.beginPath(); ctx.arc(p.x1, p.y1, p.r, 0, Math.PI * 2); ctx.fill(); }
+      else { ctx.strokeStyle = "#3f4b6b"; ctx.lineWidth = p.r * 2; ctx.beginPath(); ctx.moveTo(p.x1, p.y1); ctx.lineTo(p.x2, p.y2); ctx.stroke(); }
     }
-    // ghost cursor
-    const m = BB.Input.mouse, L = this.editorLayout();
-    if (m.y > 80 && m.y < L.barY - 10) { ctx.strokeStyle = "rgba(111,191,91,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, this.editorR, 0, Math.PI * 2); ctx.stroke(); }
+    // spawn markers
+    this.editorSpawns.forEach((s, i) => {
+      ctx.fillStyle = i === 0 ? "#46c8ff" : "#ff6b6b";
+      ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, Math.PI * 2); ctx.fill();
+      this._text(ctx, i === 0 ? "P1" : "P2", s.x, s.y - 18, 12, i === 0 ? "#46c8ff" : "#ff6b6b", "bold");
+    });
+    // cursor
+    const m = BB.Input.mouse;
+    if (m.y > 78 && m.y < L.barY - 10) {
+      if (this.editorTool === "spawn") { ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, 10, 0, Math.PI * 2); ctx.stroke(); }
+      else { ctx.strokeStyle = this.editorTool === "erase" ? "rgba(255,90,110,0.7)" : "rgba(111,191,91,0.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, this.editorR, 0, Math.PI * 2); ctx.stroke(); }
+    }
     // toolbar
-    this._text(ctx, "size", 41, L.barY - 8, 12, "#8fa3c8");
-    this._button(ctx, L.sizeDown, { font: 22 }); this._button(ctx, L.sizeUp, { font: 22 });
-    this._button(ctx, L.clear, { font: 15 }); this._button(ctx, L.save, { font: 16 }); this._button(ctx, L.back, { font: 15 });
-    this._text(ctx, "islands: " + this.editorPlatforms.length, cx + 180, L.barY + 17, 13, this.editorPlatforms.length >= 2 ? "#5be08a" : "#ff9aa0", "bold");
+    this._button(ctx, L.draw, { active: this.editorTool === "draw", font: 14 });
+    this._button(ctx, L.erase, { active: this.editorTool === "erase", font: 14 });
+    this._button(ctx, L.spawn, { active: this.editorTool === "spawn", font: 13 });
+    this._text(ctx, "size", 284, L.barY - 8, 11, "#8fa3c8");
+    this._button(ctx, L.sizeDown, { font: 20 }); this._button(ctx, L.sizeUp, { font: 20 });
+    this._button(ctx, L.clear, { font: 14 }); this._button(ctx, L.save, { font: 15 }); this._button(ctx, L.back, { font: 14 });
   }
 
   /* ---------------- LOADOUT (icon grid grouped by role) ---------------- */
@@ -525,6 +571,7 @@ BB.Game = class {
       ctx.restore();
       // UI stays in screen space
       this.drawHUD(ctx);
+      this._drawOOBWarning(ctx);
       if (this.state === "playing" && this.roundIntro > 0) this.drawRoundIntro(ctx);
       if (this.state === "roundover") this.drawRoundBanner(ctx);
       if (this.state === "matchover") this.drawMatchOver(ctx);
@@ -544,6 +591,28 @@ BB.Game = class {
     ctx.beginPath();
     ctx.arc(a.x, a.y, s * 0.6, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // big red alert when a fighter is out past a side barrier (grace before ring-out)
+  _drawOOBWarning(ctx) {
+    for (const b of this.blobs) {
+      if (b.dead || b.oob <= 0) continue;
+      const left = b.x < this.arena.leftBound;
+      const frac = BB.clamp(b.oob / 1.0, 0, 1);
+      const flash = 0.45 + 0.55 * Math.abs(Math.sin(this.time * 18));
+      const gw = 150;
+      const grad = ctx.createLinearGradient(left ? 0 : this.w, 0, left ? gw : this.w - gw, 0);
+      grad.addColorStop(0, `rgba(255,40,50,${0.55 * flash})`);
+      grad.addColorStop(1, "rgba(255,40,50,0)");
+      ctx.fillStyle = grad; ctx.fillRect(left ? 0 : this.w - gw, 0, gw, this.h);
+      const sy = BB.clamp((b.y - this.cam.y) * this.cam.zoom + this.h / 2, 50, this.h - 50);
+      ctx.fillStyle = `rgba(255,70,70,${flash})`;
+      ctx.font = "bold 34px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(left ? "◄" : "►", left ? 34 : this.w - 34, sy);
+      this._text(ctx, b === this.player ? "RECOVER!" : "RING-OUT!", this.w / 2, 118, 40, `rgba(255,60,60,${flash})`, "bold");
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; BB.roundRect(ctx, this.w / 2 - 110, 146, 220, 10, 5); ctx.fill();
+      ctx.fillStyle = "#ff3b3b"; BB.roundRect(ctx, this.w / 2 - 110, 146, 220 * (1 - frac), 10, 5); ctx.fill();
+    }
   }
 
   // dotted side kill-barriers: calm blue normally, flashing red as a blob nears

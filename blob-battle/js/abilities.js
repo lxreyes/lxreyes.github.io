@@ -293,7 +293,7 @@ BB.makeBoomerang = (owner, x, y, vx, vy, level) => ({
       if (b === this.owner || b.dead || this.struck.includes(b)) continue;
       if (BB.dist(this.x, this.y, b.x, b.y) < this.r + b.r) {
         const n = BB.Vec.norm(this.vx, this.vy);
-        b.hurt(0, n.x * (360 + 40 * this.level), n.y * 200 - 150, this.owner);
+        b.hurt(9, n.x * (360 + 40 * this.level), n.y * 200 - 150, this.owner);
         this.struck.push(b); BB.Shake.add(5);
       }
     }
@@ -495,11 +495,11 @@ BB.Abilities = {
     },
   },
   drill: {
-    id: "drill", name: "Drill", desc: "Drill forward; connecting deals heavy knockback.",
+    id: "drill", name: "Drill", desc: "Drill straight THROUGH islands; connecting deals heavy knockback.",
     color: "#b0f0ff", cooldown: 2.4, role: "attack", botRange: 260,
     activate(blob, game, ax, ay, lvl) {
       const n = BB.Vec.norm(ax - blob.x, ay - blob.y);
-      blob.vx = n.x * 1000; blob.vy = n.y * 1000; blob.dashing = 0.3; blob.dashDamage = true; blob.dashDmg = 22; blob.dashKnock = 560; blob.dashLevel = lvl; blob.invuln = Math.max(blob.invuln, 0.3); blob.frozen = false;
+      blob.vx = n.x * 1050; blob.vy = n.y * 1050; blob.dashing = 0.36; blob.drilling = 0.36; blob.dashDamage = true; blob.dashDmg = 22; blob.dashKnock = 560; blob.dashLevel = lvl; blob.invuln = Math.max(blob.invuln, 0.36); blob.frozen = false;
       BB.Particles.burst(blob.x, blob.y, "#b0f0ff", 10, 160); BB.Audio.play("whoosh");
     },
   },
@@ -612,7 +612,7 @@ BB.Abilities = {
         if (BB.dist(blob.x, blob.y, b.x, b.y) > reach + b.r) continue;
         let da = Math.abs(Math.atan2(b.y - blob.y, b.x - blob.x) - ang);
         if (da > Math.PI) da = 2 * Math.PI - da;
-        if (da < 1.0) b.hurt(0, Math.cos(ang) * (560 + 70 * lvl), Math.sin(ang) * 260 - 200, blob);
+        if (da < 1.0) b.hurt(11, Math.cos(ang) * (560 + 70 * lvl), Math.sin(ang) * 260 - 200, blob);
       }
       game.spawn(BB.makeSlash(blob.x, blob.y, ang, reach, "#e8eefc"));
       BB.Shake.add(5); BB.Hit.add(0.04); BB.Audio.play("whoosh");

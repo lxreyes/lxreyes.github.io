@@ -33,9 +33,13 @@ BB.Arena = class {
     // custom map from the editor (platforms stored in absolute coords)
     if (this.forcedLayout >= BB.MAP_NAMES.length && this.customMap && this.customMap.platforms.length) {
       this.platforms = this.customMap.platforms.map((p) => ({ x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, r: p.r, life: Infinity }));
-      const sorted = [...this.platforms].sort((a, b) => (a.x1 + a.x2) - (b.x1 + b.x2));
-      const top = (p) => ({ x: (p.x1 + p.x2) / 2, y: Math.min(p.y1, p.y2) - p.r - 16 });
-      this.spawns = [top(sorted[0]), top(sorted[sorted.length - 1])];
+      if (this.customMap.spawns && this.customMap.spawns.length === 2) {
+        this.spawns = this.customMap.spawns.map((s) => ({ x: s.x, y: s.y }));
+      } else {
+        const sorted = [...this.platforms].sort((a, b) => (a.x1 + a.x2) - (b.x1 + b.x2));
+        const top = (p) => ({ x: (p.x1 + p.x2) / 2, y: Math.min(p.y1, p.y2) - p.r - 16 });
+        this.spawns = [top(sorted[0]), top(sorted[sorted.length - 1])];
+      }
       this._decorate(); this._buildBackdrop();
       return;
     }
