@@ -23,6 +23,26 @@ BB.approach = (v, target, step) => {
    No in-match leveling: every ability always fires at this level. */
 BB.ABILITY_LEVEL = 2;
 
+/* ---------- colour helpers (hex ↔ rgb, blend) ---------- */
+BB.hexToRgb = (h) => {
+  h = h.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+};
+BB.rgbToHex = (r, g, b) =>
+  "#" + [r, g, b].map((v) => { const s = Math.round(BB.clamp(v, 0, 255)).toString(16); return s.length < 2 ? "0" + s : s; }).join("");
+BB.mixHex = (a, b, t) => {
+  const A = BB.hexToRgb(a), B = BB.hexToRgb(b);
+  return BB.rgbToHex(A.r + (B.r - A.r) * t, A.g + (B.g - A.g) * t, A.b + (B.b - A.b) * t);
+};
+BB.avgHex = (hexes) => {
+  let r = 0, g = 0, b = 0;
+  for (const h of hexes) { const c = BB.hexToRgb(h); r += c.r; g += c.g; b += c.b; }
+  const n = hexes.length || 1;
+  return BB.rgbToHex(r / n, g / n, b / n);
+};
+
 /* ---------- 2D vector (lightweight, mostly plain {x,y}) ---------- */
 BB.Vec = {
   len: (x, y) => Math.hypot(x, y),

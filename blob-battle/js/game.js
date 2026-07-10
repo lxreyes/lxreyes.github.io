@@ -15,6 +15,7 @@ BB.Game = class {
     this.difficulty = "normal";
     this.winsNeeded = 3; // best of 5
     this.abilityLevel = BB.ABILITY_LEVEL; // "Ability power" mode (1..5); every ability fires at this level
+    this.mapChoice = -1; // -1 = Any (random each round); 0..4 = a specific map
     this.time = 0;
     this.dt = 1 / 60;
 
@@ -52,6 +53,8 @@ BB.Game = class {
     this.blobs = [this.player, this.enemy];
     this.bot = new BB.Bot(this.enemy, this.player, this, this.difficulty);
     this.selected = []; // ability ids the player is picking on the loadout screen
+    this.repicked = false;  // has the one match-point kit change been used yet?
+    this.repicking = false; // are we currently in a match-point re-pick?
     this.state = "loadout";
   }
 
@@ -63,15 +66,25 @@ BB.Game = class {
     return arr;
   }
 
-  // lock in the player's 3 picks, give the bot a random kit, and fight
+  // lock in the player's 3 picks, give the bot a random kit (fresh match only), and fight
   confirmLoadout() {
     this.player.abilities = this.selected.slice();
-    this.enemy.abilities = this._shuffle(BB.ABILITY_IDS.slice()).slice(0, 3);
+    if (!this.repicking) this.enemy.abilities = this._shuffle(BB.ABILITY_IDS.slice()).slice(0, 3);
+    this.repicking = false;
     this.startRound();
+  }
+
+  // match point reached — let the player swap their kit before the decider (once)
+  goToRepick() {
+    this.repicked = true;
+    this.repicking = true;
+    this.selected = this.player.abilities.slice();
+    this.state = "loadout";
   }
 
   startRound() {
     this.roundNumber++;
+    this.arena.forcedLayout = this.mapChoice; // honor the chosen map (or -1 = random)
     this.arena.reset();
     this.projectiles.length = 0;
     BB.Particles.clear();
@@ -97,6 +110,7 @@ BB.Game = class {
     if (this.player.roundWins >= this.winsNeeded || this.enemy.roundWins >= this.winsNeeded) {
       this.matchWinner = this.player.roundWins > this.enemy.roundWins ? this.player : this.enemy;
     }
+    this.atMatchPoint = this.player.roundWins === this.winsNeeded - 1 || this.enemy.roundWins === this.winsNeeded - 1;
   }
 
   /* ---------------- main loop ---------------- */
@@ -250,6 +264,7 @@ BB.Game = class {
     this.stateTimer -= dt;
     if (!isMatch && this.stateTimer <= 0) {
       if (this.matchWinner) this.state = "matchover";
+      else if (this.atMatchPoint && !this.repicked) this.goToRepick(); // decider: let the player adjust
       else this.startRound(); // same kits carry into the next round
     }
     if (isMatch && this.clicked()) this.state = "menu";
@@ -262,18 +277,22 @@ BB.Game = class {
       const out = [];
       const bw = 52, bg = 12, n = 5;
       let x = cx - (n * bw + (n - 1) * bg) / 2;
-      for (let i = 1; i <= n; i++) { out.push({ n: i, x, y, w: bw, h: 38, label: String(i) }); x += bw + bg; }
+      for (let i = 1; i <= n; i++) { out.push({ n: i, x, y, w: bw, h: 34, label: String(i) }); x += bw + bg; }
       return out;
     };
+    const maps = [];
+    { const bw = 64, bg = 8, n = 6; let x = cx - (n * bw + (n - 1) * bg) / 2;
+      for (let i = 0; i < n; i++) { maps.push({ v: i - 1, x, y: 370, w: bw, h: 34, label: i === 0 ? "Any" : String(i) }); x += bw + bg; } }
     return {
       diffs: [
-        { id: "easy", x: cx - 210, y: 210, w: 130, h: 44, label: "EASY" },
-        { id: "normal", x: cx - 65, y: 210, w: 130, h: 44, label: "NORMAL" },
-        { id: "hard", x: cx + 80, y: 210, w: 130, h: 44, label: "HARD" },
+        { id: "easy", x: cx - 207, y: 144, w: 130, h: 38, label: "EASY" },
+        { id: "normal", x: cx - 65, y: 144, w: 130, h: 38, label: "NORMAL" },
+        { id: "hard", x: cx + 77, y: 144, w: 130, h: 38, label: "HARD" },
       ],
-      wins: row(298),
-      powers: row(380),
-      start: { x: cx - 110, y: 436, w: 220, h: 52, label: "START" },
+      wins: row(222),
+      powers: row(296),
+      maps,
+      start: { x: cx - 110, y: 424, w: 220, h: 48, label: "START" },
     };
   }
 
@@ -284,6 +303,7 @@ BB.Game = class {
     for (const d of L.diffs) if (this._hit(d, m.x, m.y)) { this.difficulty = d.id; BB.Audio.play("click"); }
     for (const wb of L.wins) if (this._hit(wb, m.x, m.y)) { this.winsNeeded = wb.n; BB.Audio.play("click"); }
     for (const pb of L.powers) if (this._hit(pb, m.x, m.y)) { this.abilityLevel = pb.n; BB.Audio.play("click"); }
+    for (const mb of L.maps) if (this._hit(mb, m.x, m.y)) { this.mapChoice = mb.v; BB.Audio.play("click"); }
     if (this._hit(L.start, m.x, m.y)) { BB.Audio.play("click"); this.startMatch(); }
   }
 
@@ -442,24 +462,26 @@ BB.Game = class {
 
   drawMenu(ctx) {
     const cx = this.w / 2;
-    this._text(ctx, "BLOB BATTLE", cx, 78, 54, "#ffffff", "bold");
-    this._text(ctx, "a physics ability-brawler vs. a bot", cx, 118, 19, "#8fa3c8");
+    this._text(ctx, "BLOB BATTLE", cx, 60, 46, "#ffffff", "bold");
+    this._text(ctx, "a physics ability-brawler vs. a bot", cx, 94, 16, "#8fa3c8");
     const L = this.menuLayout();
-    this._text(ctx, "Difficulty", cx, 188, 17, "#8fa3c8");
-    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 20 });
-    this._text(ctx, "First to how many round wins?", cx, 278, 17, "#8fa3c8");
-    for (const wb of L.wins) this._button(ctx, wb, { active: this.winsNeeded === wb.n, font: 18 });
-    this._text(ctx, "Ability power  —  how strong all abilities are (Lv 1–5)", cx, 360, 17, "#8fa3c8");
-    for (const pb of L.powers) this._button(ctx, pb, { active: this.abilityLevel === pb.n, font: 18 });
-    this._button(ctx, L.start, { font: 26 });
+    this._text(ctx, "Difficulty", cx, 128, 16, "#8fa3c8");
+    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 18 });
+    this._text(ctx, "First to how many round wins?", cx, 206, 16, "#8fa3c8");
+    for (const wb of L.wins) this._button(ctx, wb, { active: this.winsNeeded === wb.n, font: 17 });
+    this._text(ctx, "Ability power (Lv 1–5)", cx, 280, 16, "#8fa3c8");
+    for (const pb of L.powers) this._button(ctx, pb, { active: this.abilityLevel === pb.n, font: 17 });
+    const mapName = this.mapChoice < 0 ? "Any (random each round)" : BB.MAP_NAMES[this.mapChoice];
+    this._text(ctx, "Map  —  " + mapName, cx, 354, 16, "#8fa3c8");
+    for (const mb of L.maps) this._button(ctx, mb, { active: this.mapChoice === mb.v, font: 16 });
+    this._button(ctx, L.start, { font: 24 });
 
     const help = [
-      "Move: A / D    Jump / Double-jump: W or Space    Aim: mouse",
-      "Abilities: keys 1·2·3 at the cursor  (also Left-click · Right-click · Shift)",
-      "Pick ANY 3 abilities, or a quick-combo preset. Knock the bot into the void!",
+      "Move: A / D    Jump: W or Space    Aim: mouse    Abilities: 1·2·3 / LMB·RMB·Shift",
+      "Pick ANY 3 abilities or a quick-combo preset. Knock the bot into the void!",
       "(press M to toggle music)",
     ];
-    let y = 512;
+    let y = 496;
     for (const line of help) { this._text(ctx, line, cx, y, 14, "#7f92b6"); y += 20; }
   }
 
@@ -474,8 +496,13 @@ BB.Game = class {
 
   drawLoadout(ctx) {
     const cx = this.w / 2;
-    this._text(ctx, "CHOOSE YOUR 3 ABILITIES", cx, 42, 34, "#ffffff", "bold");
-    this._text(ctx, `pick any 3, or tap a quick-combo  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
+    if (this.repicking) {
+      this._text(ctx, "MATCH POINT — ADJUST YOUR KIT", cx, 42, 30, "#ffd24b", "bold");
+      this._text(ctx, `swap any abilities, then fight the decider  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
+    } else {
+      this._text(ctx, "CHOOSE YOUR 3 ABILITIES", cx, 42, 34, "#ffffff", "bold");
+      this._text(ctx, `pick any 3, or tap a quick-combo  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
+    }
 
     const L = this.loadoutLayout();
 

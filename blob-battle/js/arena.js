@@ -9,6 +9,7 @@ BB.Arena = class {
     this.w = w;
     this.h = h;
     this.platforms = [];
+    this.forcedLayout = -1; // -1 = random each round; 0..4 = a chosen map
     this.reset();
   }
 
@@ -25,7 +26,7 @@ BB.Arena = class {
 
     // every layout has a distinct LEFT and RIGHT ground island so both fighters
     // spawn on solid ground, spread apart (never perched on a tiny floating disc)
-    const layout = BB.randInt(0, 4);
+    const layout = this.forcedLayout >= 0 ? this.forcedLayout : BB.randInt(0, 4);
     if (layout === 0) {
       add(0.14, 0.64, 0.34, 0.64, 30);       // left bean
       add(0.66, 0.64, 0.86, 0.64, 30);       // right bean
@@ -188,6 +189,9 @@ BB.Arena = class {
     }
   }
 };
+
+/* names for the five island layouts (index = layout id) */
+BB.MAP_NAMES = ["Twin Isles", "The Gap", "Staircase", "Twin Moons", "Sky Steps"];
 
 /* rounded-rect helper shared by UI */
 BB.roundRect = (ctx, x, y, w, h, r) => {

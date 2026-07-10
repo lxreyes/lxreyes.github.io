@@ -59,6 +59,10 @@ BB.Blob = class {
     this.hitFlash = 0;
     this.healFx = 0;
     this.r = this.baseR;
+    // team colour, nudged slightly toward the average colour of your kit
+    this.bodyColor = this.abilities.length
+      ? BB.mixHex(this.color, BB.avgHex(this.abilities.map((id) => BB.Abilities[id].color)), 0.28)
+      : this.color;
     this.cooldowns = {};
     for (const id of this.abilities) this.cooldowns[id] = 0;
     this.squash = 0;
@@ -308,7 +312,7 @@ BB.Blob = class {
     if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.r + 4, 0, Math.PI * 2); ctx.stroke(); }
     if (this.grow > 0) { ctx.strokeStyle = "rgba(255,200,90,0.8)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.r + 3, 0, Math.PI * 2); ctx.stroke(); }
     if (this.shrink > 0) { ctx.strokeStyle = "rgba(255,120,200,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.r + 3, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.fillStyle = flashing ? "#ffffff" : this.healFx > 0 ? "#7dffb0" : this.color;
+    ctx.fillStyle = flashing ? "#ffffff" : this.healFx > 0 ? "#7dffb0" : (this.bodyColor || this.color);
     ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,0.25)";
     ctx.beginPath(); ctx.arc(-this.r * 0.35, -this.r * 0.35, this.r * 0.4, 0, Math.PI * 2); ctx.fill();
