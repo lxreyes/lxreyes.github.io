@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surgical Strike</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="hud">
+    <div id="logo">SURGICAL<span>STRIKE</span></div>
+    <div id="xpBox">
+      <div id="cashLabel" title="Contract pay — spend it on hires and upgrades in the CREW panel">$0</div>
+    </div>
+    <div id="missionLabel">—</div>
+    <div id="badges"></div>
+    <button id="btnHome" class="btn" title="Train crew-wide skills and heal the wounded">🏠 HOMEBASE</button>
+    <button id="btnLegend" class="btn" title="What do the map symbols mean?">? LEGEND</button>
+    <button id="btnMissions" class="btn">MISSIONS</button>
+  </header>
+
+  <main id="layout">
+    <div id="stage">
+      <div id="coach" class="hidden"></div>
+      <div id="devPanel" class="hidden">
+        <div class="devPanel__title">🧀 DEV · PLAYTEST</div>
+        <button class="devToggle" data-dev="revealMap" title="Clear the fog and show every hostile, cone, and route — see the whole building.">🗺 SEE BUILDING: ON</button>
+        <button class="devToggle" data-dev="invincible" title="Your operatives can't be killed or wounded (takes effect on the next run).">🛡 INVINCIBLE: OFF</button>
+        <button class="devToggle" data-dev="freezeEnemies" title="Enemies hold position — no patrols, no reactions (takes effect on the next run).">⏸ FREEZE FOES: OFF</button>
+      </div>
+      <canvas id="game" width="960" height="640"></canvas>
+    </div>
+
+    <aside id="panel">
+      <!-- Planning controls -->
+      <section id="planPanel">
+        <h3>MISSION PLAN <span id="attemptLabel"></span></h3>
+        <div class="row" id="modeTabs">
+          <button id="tabRecon" class="btn small" title="Case the site with your watchers — free, no shot. Intel only counts once a watcher slips back out to report (or you down the 📡 jammer for a live feed)">🔭 RECON OP</button>
+          <button id="tabHit" class="btn small active" title="Plan the real thing — full crew, one bullet">🎯 THE HIT</button>
+        </div>
+        <div class="row" id="unitButtons"></div>
+        <div class="row hidden" id="shotControls"></div>
+        <div class="row" id="scoutControls">
+          <button id="btnLegMode" class="btn small" title="Sneaking is slow but quiet; walking is fast but enemies hear it">MOVE: SNEAK</button>
+          <button id="btnTap" class="btn small" title="Scout knocks on arrival at the last waypoint — targets back away, guards investigate">TAP WALL ♪</button>
+          <button id="btnPoison" class="btn small hidden" title="Dose a target's routine stop (☠ marks) on arrival — silent kill, no gunshot">POISON ☠</button>
+          <button id="btnSmoke" class="btn small hidden" title="Pop smoke on arrival — nobody sees through the cloud for 8 seconds">SMOKE 💨</button>
+        </div>
+        <div class="row hidden" id="assassinControls">
+          <button id="btnAttack" class="btn small" title="Send the assassin to ATTACK: click a located enemy to mark them. The assassin breaks off its route to hunt them down the moment they're reachable. Click again to clear.">⚔ ATTACK</button>
+          <button id="btnDefend" class="btn small" title="Send the assassin to DEFEND a teammate: click to cycle who they bodyguard. They shadow the ward and cut down anyone who charges. Click through to OFF.">🛡 DEFEND</button>
+        </div>
+        <div class="row" id="decoyControls">
+          <button id="btnDecoyOrder" class="btn small" title="MOVE paths the decoy; THROW schedules a noisemaker at the preview time">ORDER: MOVE</button>
+        </div>
+        <div class="row hidden" id="gunnerControls">
+          <button id="btnGunnerOrder" class="btn small" title="MOVE paths the gunner; SUPPRESS schedules a pinning burst at the preview time">ORDER: MOVE</button>
+        </div>
+        <div class="row hidden" id="sapperControls">
+          <button id="btnBreach" class="btn small" title="Blow a hole in the nearest wall when the Sapper reaches the last waypoint">BREACH 💥</button>
+        </div>
+        <div class="row hidden" id="droneControls">
+          <button id="btnBlare" class="btn small" title="Schedule a 14m blast of noise from wherever the drone is at that moment">📢 BLARE @ PREVIEW</button>
+          <button id="btnBlareClear" class="btn small" title="Cancel all scheduled blares">CLEAR 📢</button>
+        </div>
+        <div class="row" id="hackerControls">
+          <button id="btnBlackout" class="btn small" title="Cut the power at the preview time — the Hacker must be at a ⚡ box">⚡ BLACKOUT @ PREVIEW</button>
+          <button id="btnBlackoutClear" class="btn small" title="Cancel the scheduled blackout">CLEAR ⚡</button>
+        </div>
+        <div class="row" id="holdControls">
+          <button id="btnHoldPlus" class="btn small" title="Wait at the last waypoint — sync arrivals with the fire time">HOLD +5s</button>
+          <button id="btnHoldMinus" class="btn small" title="Shorten the wait at the last waypoint">HOLD −5s</button>
+        </div>
+        <div class="row hidden" id="stanceControls">
+          <button id="btnStance" class="btn small" title="If this unit gets spotted and charged: RUN sprints them along their route to escape (loud); HOLD keeps them calm, quiet, and on-plan. Either way they still defend themselves if they can.">IF SEEN: RUN</button>
+        </div>
+        <div class="row">
+          <button id="btnUndo" class="btn small" title="Remove the last order (right-click on the map also works)">UNDO</button>
+          <button id="btnClear" class="btn small" title="Clear every order for the selected unit">CLEAR UNIT</button>
+        </div>
+        <div id="planStatus"></div>
+        <canvas id="timeline" width="620" height="150"></canvas>
+        <div id="fireRow">
+          <label class="sliderLabel">FIRE TIME <span id="fireLabel">—</span></label>
+          <input type="range" id="fireSlider" min="0" max="45" step="0.1" value="20">
+        </div>
+        <label class="sliderLabel">PREVIEW TIME <span id="scrubLabel">0.0s</span></label>
+        <input type="range" id="scrubSlider" min="0" max="45" step="0.1" value="0">
+        <button id="btnExecute" class="btn primary">▶ EXECUTE MISSION</button>
+        <div id="hintText"></div>
+      </section>
+
+      <!-- Execution controls -->
+      <section id="execPanel" class="hidden">
+        <h3 id="execTitle">MISSION LIVE</h3>
+        <div id="execTime">T+0.0s</div>
+        <div class="row">
+          <button id="btnSpeed1" class="btn small active">1×</button>
+          <button id="btnSpeed2" class="btn small">2×</button>
+          <button id="btnSpeed4" class="btn small">4×</button>
+          <button id="btnAbort" class="btn small danger">ABORT</button>
+        </div>
+        <div id="ticker"></div>
+      </section>
+
+      <!-- Crew shop: hiring and per-unit upgrades -->
+      <section id="unitsPanel">
+        <h3>CREW &amp; HIRING</h3>
+        <div id="mercyNote" class="hidden"></div>
+        <div id="unitCards"></div>
+      </section>
+
+      <!-- Weapons & gear shop -->
+      <section id="armoryPanel">
+        <h3>ARMORY</h3>
+        <div id="gearCards"></div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Mission select -->
+  <div id="missionOverlay" class="overlay">
+    <div class="modal wide">
+      <h2>CONTRACTS</h2>
+      <div id="missionList"></div>
+      <button id="btnReset" class="btn small danger" style="margin-top:14px" title="Wipe the save and start from nothing">HARD RESET — WIPE SAVE</button>
+    </div>
+  </div>
+
+  <!-- Briefing -->
+  <div id="briefOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2 id="briefTitle"></h2>
+      <p id="briefBody"></p>
+      <p id="briefHint" class="hint"></p>
+      <button id="btnDeploy" class="btn primary">DEPLOY</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="resultOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2 id="resultTitle"></h2>
+      <p id="resultDetail"></p>
+      <p id="resultTip" class="hint hidden"></p>
+      <div id="resultXP"></div>
+      <div id="resultEvents"></div>
+      <div class="row">
+        <button id="btnRetry" class="btn primary">ADJUST PLAN</button>
+        <button id="btnNext" class="btn primary hidden">NEXT CONTRACT</button>
+        <button id="btnToMissions" class="btn">CONTRACTS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Homebase -->
+  <div id="homeOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2>🏠 HOMEBASE</h2>
+      <p class="hint">Crew-wide training and the infirmary. Skills apply to everyone; the wounded can't deploy until healed.</p>
+      <div id="homeCards"></div>
+      <button id="btnHomeClose" class="btn primary">BACK TO WORK</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div id="legendOverlay" class="overlay hidden">
+    <div class="modal">
+      <h2>MAP LEGEND</h2>
+      <div class="legendGrid">
+        <div><span class="sw" style="color:#4ade80">●</span> Scout — your eyes on the ground</div>
+        <div><span class="sw" style="color:#f43f5e">●</span> Assassin — knifes targets in reach; still = unseen</div>
+        <div><span class="sw" style="color:#2dd4bf">●</span> Spotter — sees your aim point, steadies the shot</div>
+        <div><span class="sw" style="color:#22d3ee">✕</span> Drone — flies over walls, reveals from above</div>
+        <div><span class="sw" style="color:#c084fc">●</span> Decoy — throws noisemakers on schedule</div>
+        <div><span class="sw" style="color:#60a5fa">●</span> Hacker — cuts power from ⚡ junction boxes</div>
+        <div><span class="sw" style="color:#fb923c">●</span> Sapper — breach charges blow holes in walls</div>
+        <div><span class="sw" style="color:#a78bfa">●</span> Gunner — scheduled bursts pin guards face-down</div>
+        <div><span class="sw" style="color:#f87171">✛</span> Sniper perch — click to place your shooter</div>
+        <div><span class="sw" style="color:#fbbf24">◆</span> The target — the only person you're paid to hit</div>
+        <div><span class="sw" style="color:#f87171">●</span> Guard — spots ground units, investigates noise</div>
+        <div><span class="sw" style="color:#60a5fa">📡</span> Radio jammer — while alive, your watchers must exfil to deliver intel; kill or suppress it for a live feed</div>
+        <div><span class="sw" style="color:#cbd5e1">●</span> Civilian — screams if they see you; kill one and the contract is VOID (no pay)</div>
+        <div><span class="sw" style="color:#fbbf24">◠</span> Vision cone — stay out, or stay behind it</div>
+        <div><span class="sw" style="color:#7dd3fc">◌</span> Hearing ring (Crew L3+) — noise inside is heard</div>
+        <div><span class="sw" style="color:#7dd3fc">▬</span> Window — bullets and eyes pass, bodies don't</div>
+        <div><span class="sw" style="color:#c3cede">▬</span> Wall — blocks everything (muffles sound)</div>
+        <div><span class="sw" style="color:#facc15">⚡</span> Junction box — where blackouts happen</div>
+        <div><span class="sw" style="color:#f59e0b">▬</span> Locked door — hack it, force it slowly, or lift the 🔑 keyholder's card</div>
+        <div><span class="sw" style="color:#5b6b83">■</span> Dark fog — unexplored; send someone to look</div>
+        <div><span class="sw" style="color:#e8eef8">♪</span> Noise — ripples show how far it carries</div>
+      </div>
+      <button id="btnLegendClose" class="btn primary">GOT IT</button>
+    </div>
+  </div>
+
+  <script src="js/geometry.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
