@@ -578,9 +578,15 @@ BB.Abilities = {
     },
   },
   timestop: {
-    id: "timestop", name: "Time Stop", desc: "Slow the enemy to a crawl.",
-    color: "#8be0ff", cooldown: 6.0, role: "control", botRange: 560,
-    activate(blob, game, ax, ay, lvl) { for (const b of game.blobs) { if (b === blob || b.dead) continue; b.slow = Math.max(b.slow, 1.6 + 0.5 * (lvl - 1)); BB.Particles.burst(b.x, b.y, "#8be0ff", 16, 160); } BB.Audio.play("whoosh"); },
+    id: "timestop", name: "Time Stop", desc: "Freeze time — everything but you stops dead for a moment.",
+    color: "#8be0ff", cooldown: 6.5, role: "control", botRange: 999,
+    activate(blob, game, ax, ay, lvl) {
+      game.timeFreeze = 1.7 + 0.4 * (lvl - 1);
+      game.timeFreezeOwner = blob;
+      for (const b of game.blobs) if (b !== blob) BB.Particles.burst(b.x, b.y, "#8be0ff", 16, 160);
+      BB.Particles.burst(blob.x, blob.y, "#8be0ff", 20, 220);
+      BB.Audio.play("whoosh");
+    },
   },
   shrink: {
     id: "shrink", name: "Shrink Ray", desc: "Aimed ray — shrinks whatever blob it hits. Aim at the foe to make them tiny and easy to fling.",

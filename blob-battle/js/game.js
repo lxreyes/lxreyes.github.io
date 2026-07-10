@@ -107,6 +107,7 @@ BB.Game = class {
     this.enemy.reset(this.arena.spawns[1]);
     this.roundIntro = 1.5;
     this._fightPlayed = false;
+    this.timeFreeze = 0;
     BB.Hit.stop = 0;
     // snap the camera to the fresh arena so it doesn't lerp across the map
     this.cam.x = (this.arena.spawns[0].x + this.arena.spawns[1].x) / 2;
@@ -242,6 +243,10 @@ BB.Game = class {
 
     this.arena.update(dt);
 
+    // Time Stop (Bopl-style): everything but the caster freezes in place
+    this.timeFreeze = Math.max(0, (this.timeFreeze || 0) - dt);
+    const frozen = this.timeFreeze > 0 ? (this.timeFreezeOwner === this.player ? this.enemy : this.player) : null;
+
     const inp = BB.Input;
     const K = this.keys;
     let dir = 0;
@@ -249,7 +254,7 @@ BB.Game = class {
     if (inp.key(K.right) || inp.key("arrowright")) dir += 1;
     const jump = inp.pressed(K.jump) || inp.pressed(" ") || inp.pressed("arrowup");
     const jumpHeld = inp.key(K.jump) || inp.key(" ") || inp.key("arrowup");
-    if (!this.player.dead) {
+    if (!this.player.dead && this.player !== frozen) {
       this.player.control(dir, jump, jumpHeld);
       const aim = this.screenToWorld(inp.mouse.x, inp.mouse.y); // aim in world space
       const ax = aim.x, ay = aim.y;
@@ -262,11 +267,12 @@ BB.Game = class {
       if (inp.pressed("shift")) this.player.tryAbility(2, ax, ay);
     }
 
-    if (this.bot) this.bot.update(dt);
-    for (const b of this.blobs) b.update(dt);
+    if (this.bot && this.enemy !== frozen) this.bot.update(dt);
+    for (const b of this.blobs) if (b !== frozen) b.update(dt);
     this.resolveBlobs();
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      if (this.timeFreeze > 0) continue; // projectiles are frozen in time
       if (this.projectiles[i].update(dt, this) === false) this.projectiles.splice(i, 1);
     }
 
@@ -572,6 +578,10 @@ BB.Game = class {
       // UI stays in screen space
       this.drawHUD(ctx);
       this._drawOOBWarning(ctx);
+      if (this.timeFreeze > 0) {
+        ctx.fillStyle = "rgba(139,224,255,0.09)"; ctx.fillRect(0, 0, this.w, this.h);
+        this._text(ctx, "◷ TIME STOP", this.w / 2, 92, 26, "rgba(160,230,255,0.85)", "bold");
+      }
       if (this.state === "playing" && this.roundIntro > 0) this.drawRoundIntro(ctx);
       if (this.state === "roundover") this.drawRoundBanner(ctx);
       if (this.state === "matchover") this.drawMatchOver(ctx);

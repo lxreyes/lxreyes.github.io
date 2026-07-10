@@ -38,6 +38,7 @@ BB.Blob = class {
     this.oob = 0;     // time spent past a side barrier (grace before ring-out)
     this.onGround = false;
     this.onWall = false; this.wallNx = 0; this.wallNy = 0;
+    this.wallStick = 0; this.wallStickNx = 0; this.wallStickNy = 0; // grace + magnet so cling is hands-free
     this.jumps = 0;
     this.jumpBuffer = 0;
     this.jumpCut = false;
@@ -175,6 +176,7 @@ BB.Blob = class {
     this.healFx = Math.max(0, this.healFx - dt);
     this.dashing = Math.max(0, this.dashing - dt);
     this.drilling = Math.max(0, this.drilling - dt);
+    this.wallStick = Math.max(0, this.wallStick - dt);
     this.slow = Math.max(0, this.slow - dt);
     this.grow = Math.max(0, this.grow - dt);
     this.shrink = Math.max(0, this.shrink - dt);
@@ -195,7 +197,7 @@ BB.Blob = class {
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.jumpBuffer > 0 && this.jumps < MAX_JUMPS) {
       this.vy = -JUMP_V;
-      if (this.onWall && !this.onGround) this.vx += this.wallNx * 380; // kick away from the wall
+      if ((this.onWall || this.wallStick > 0) && !this.onGround) { this.vx += this.wallStickNx * 380; this.wallStick = 0; } // kick away from the wall
       this.jumps++;
       this.jumpBuffer = 0;
       this.jumpCut = true;
@@ -224,12 +226,15 @@ BB.Blob = class {
     }
 
     // gravity — suspended while frozen; nearly cancelled while clinging to a wall
+    const clinging = this.wallStick > 0 && !this.onGround && !this.frozen;
     if (this.dashing <= 0 && !this.frozen) {
       const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
-      const gmul = this.onWall && !this.onGround ? 0.12 : 1; // stick to island walls/ceilings
+      const gmul = clinging ? 0.08 : 1; // cling to island walls/ceilings
       this.vy += g * dt * ts * gmul;
-      if (this.onWall && !this.onGround && this.vy > 130) this.vy = 130; // slow slide
+      if (clinging && this.vy > 70) this.vy = 70; // slow slide down the surface
     }
+    // wall magnet: gently press into the surface so you cling hands-free
+    if (clinging && this.dashing <= 0) this.vx += -this.wallStickNx * 320 * dt;
     this.vy = BB.clamp(this.vy, -900, 1100);
     if (this.dashing <= 0 && !this.grapple && !this.onGround) this.vx *= 1 - AIR_DRAG * dt;
 
@@ -328,7 +333,7 @@ BB.Blob = class {
     const vn = this.vx * nx + this.vy * ny;
     if (vn < 0) { this.vx -= vn * nx; this.vy -= vn * ny; }
     if (ny < -0.5) { this.onGround = true; this.jumps = 0; this.vy = Math.min(this.vy, 0); }
-    else { this.onWall = true; this.wallNx = nx; this.wallNy = ny; this.jumps = 0; } // cling to walls/ceilings
+    else { this.onWall = true; this.wallNx = nx; this.wallNy = ny; this.jumps = 0; this.wallStick = 0.2; this.wallStickNx = nx; this.wallStickNy = ny; } // cling to walls/ceilings
   }
 
   draw(ctx) {
