@@ -18,6 +18,10 @@ BB.Game = class {
     this.mapChoice = -1; // -1 = Any (random each round); 0..4 = a specific map
     this.botStyle = -1;  // -1 = Any (random each match); 0..4 = a specific playstyle
     this.botStyleResolved = 4;
+    this.kitSize = 3;    // how many abilities each fighter brings (3..5)
+    this.keys = this._loadKeys();
+    this.rebindAction = null;
+    this.customMap = this._loadCustomMap();
     this.time = 0;
     this.dt = 1 / 60;
 
@@ -81,7 +85,7 @@ BB.Game = class {
   // pick 3 abilities from the resolved playstyle's pool
   _botKit() {
     const style = BB.PLAYSTYLES[this.botStyleResolved] || BB.PLAYSTYLES[BB.PLAYSTYLES.length - 1];
-    return this._shuffle(style.pool.slice()).slice(0, 3);
+    return this._shuffle(style.pool.slice()).slice(0, this.kitSize);
   }
 
   // match point reached — let the player swap their kit before the decider (once)
@@ -95,6 +99,7 @@ BB.Game = class {
   startRound() {
     this.roundNumber++;
     this.arena.forcedLayout = this.mapChoice; // honor the chosen map (or -1 = random)
+    this.arena.customMap = this.customMap;
     this.arena.reset();
     this.projectiles.length = 0;
     BB.Particles.clear();
@@ -150,6 +155,8 @@ BB.Game = class {
     BB.Particles.update(dt);
     BB.Audio.tick(dt);
     if (this.state === "menu") this.updateMenu();
+    else if (this.state === "keybinds") this.updateKeybinds();
+    else if (this.state === "editor") this.updateEditor();
     else if (this.state === "loadout") this.updateLoadout();
     else if (this.state === "playing") this.updatePlaying(dt);
     else if (this.state === "roundover") this.updateInterlude(dt, false);
@@ -236,17 +243,19 @@ BB.Game = class {
     this.arena.update(dt);
 
     const inp = BB.Input;
+    const K = this.keys;
     let dir = 0;
-    if (inp.key("a") || inp.key("arrowleft")) dir -= 1;
-    if (inp.key("d") || inp.key("arrowright")) dir += 1;
-    const jump = inp.pressed("w") || inp.pressed(" ") || inp.pressed("arrowup");
-    const jumpHeld = inp.key("w") || inp.key(" ") || inp.key("arrowup");
+    if (inp.key(K.left) || inp.key("arrowleft")) dir -= 1;
+    if (inp.key(K.right) || inp.key("arrowright")) dir += 1;
+    const jump = inp.pressed(K.jump) || inp.pressed(" ") || inp.pressed("arrowup");
+    const jumpHeld = inp.key(K.jump) || inp.key(" ") || inp.key("arrowup");
     if (!this.player.dead) {
       this.player.control(dir, jump, jumpHeld);
       const aim = this.screenToWorld(inp.mouse.x, inp.mouse.y); // aim in world space
       const ax = aim.x, ay = aim.y;
+      const abKeys = [K.a1, K.a2, K.a3, K.a4, K.a5];
       for (let i = 0; i < this.player.abilities.length; i++) {
-        if (inp.pressed(String(i + 1))) this.player.tryAbility(i, ax, ay);
+        if (inp.pressed(abKeys[i])) this.player.tryAbility(i, ax, ay);
       }
       if (this.lmbClick) this.player.tryAbility(0, ax, ay);
       if (this.rmbClick) this.player.tryAbility(1, ax, ay);
@@ -281,21 +290,27 @@ BB.Game = class {
   }
 
   /* ---------------- MENU ---------------- */
+  mapMax() { return BB.MAP_NAMES.length - 1 + (this.customMap ? 1 : 0); }
+  mapName(v) { return v < 0 ? "Any (random)" : v >= BB.MAP_NAMES.length ? "★ Custom" : BB.MAP_NAMES[v]; }
+
   menuLayout() {
-    const cx = this.w / 2;
-    const mkRow = (y, items, bw, bg, h) => {
-      let x = cx - (items.length * bw + (items.length - 1) * bg) / 2;
+    const cx = this.w / 2, Lx = 258, Rx = 702;
+    const mkRow = (cx0, y, items, bw, bg, h) => {
+      let x = cx0 - (items.length * bw + (items.length - 1) * bg) / 2;
       return items.map((it) => { const r = { ...it, x, y, w: bw, h }; x += bw + bg; return r; });
     };
-    const num5 = [1, 2, 3, 4, 5].map((i) => ({ n: i, label: String(i) }));
-    const choice6 = [-1, 0, 1, 2, 3, 4].map((v, i) => ({ v, label: i === 0 ? "Any" : String(i) }));
+    const cyc = (cx0, y) => ({ left: { x: cx0 - 150, y, w: 28, h: 30, label: "‹" }, right: { x: cx0 + 122, y, w: 28, h: 30, label: "›" }, nameX: cx0, nameY: y + 15 });
+    const num5 = [1, 2, 3, 4, 5].map((n) => ({ n, label: String(n) }));
     return {
-      diffs: mkRow(124, [{ id: "easy", label: "EASY" }, { id: "normal", label: "NORMAL" }, { id: "hard", label: "HARD" }], 126, 12, 34),
-      wins: mkRow(194, num5, 52, 12, 30),
-      powers: mkRow(260, num5, 52, 12, 30),
-      maps: mkRow(326, choice6, 64, 8, 30),
-      styles: mkRow(392, choice6, 64, 8, 30),
-      start: { x: cx - 110, y: 440, w: 220, h: 44, label: "START" },
+      diffs: mkRow(Lx, 132, [{ id: "easy", label: "EASY" }, { id: "normal", label: "NORMAL" }, { id: "hard", label: "HARD" }], 108, 8, 34),
+      wins: mkRow(Lx, 208, num5, 40, 8, 30),
+      powers: mkRow(Lx, 280, num5, 40, 8, 30),
+      styleCyc: cyc(Rx, 132),
+      mapCyc: cyc(Rx, 208),
+      kits: mkRow(Rx, 280, [3, 4, 5].map((n) => ({ n, label: String(n) })), 56, 8, 30),
+      keybinds: { x: cx - 194, y: 356, w: 184, h: 40, label: "KEYBINDS" },
+      editor: { x: cx + 10, y: 356, w: 184, h: 40, label: "MAP EDITOR" },
+      start: { x: cx - 120, y: 414, w: 240, h: 50, label: "START" },
     };
   }
 
@@ -303,34 +318,157 @@ BB.Game = class {
     if (!this.clicked()) return;
     const L = this.menuLayout();
     const m = BB.Input.mouse;
+    const cyc = (v, d, lo, hi) => { let n = v + d; if (n > hi) n = lo; if (n < lo) n = hi; return n; };
     for (const d of L.diffs) if (this._hit(d, m.x, m.y)) { this.difficulty = d.id; BB.Audio.play("click"); }
     for (const wb of L.wins) if (this._hit(wb, m.x, m.y)) { this.winsNeeded = wb.n; BB.Audio.play("click"); }
     for (const pb of L.powers) if (this._hit(pb, m.x, m.y)) { this.abilityLevel = pb.n; BB.Audio.play("click"); }
-    for (const mb of L.maps) if (this._hit(mb, m.x, m.y)) { this.mapChoice = mb.v; BB.Audio.play("click"); }
-    for (const sb of L.styles) if (this._hit(sb, m.x, m.y)) { this.botStyle = sb.v; BB.Audio.play("click"); }
+    for (const kb of L.kits) if (this._hit(kb, m.x, m.y)) { this.kitSize = kb.n; BB.Audio.play("click"); }
+    if (this._hit(L.styleCyc.left, m.x, m.y)) { this.botStyle = cyc(this.botStyle, -1, -1, BB.PLAYSTYLES.length - 1); BB.Audio.play("click"); }
+    if (this._hit(L.styleCyc.right, m.x, m.y)) { this.botStyle = cyc(this.botStyle, 1, -1, BB.PLAYSTYLES.length - 1); BB.Audio.play("click"); }
+    if (this._hit(L.mapCyc.left, m.x, m.y)) { this.mapChoice = cyc(this.mapChoice, -1, -1, this.mapMax()); BB.Audio.play("click"); }
+    if (this._hit(L.mapCyc.right, m.x, m.y)) { this.mapChoice = cyc(this.mapChoice, 1, -1, this.mapMax()); BB.Audio.play("click"); }
+    if (this._hit(L.keybinds, m.x, m.y)) { BB.Audio.play("click"); this.state = "keybinds"; }
+    if (this._hit(L.editor, m.x, m.y)) { BB.Audio.play("click"); this.editorEnter(); }
     if (this._hit(L.start, m.x, m.y)) { BB.Audio.play("click"); this.startMatch(); }
   }
 
-  /* ---------------- LOADOUT (pick any 3, once) ---------------- */
+  /* ---------------- persistence (localStorage, guarded) ---------------- */
+  _defaultKeys() { return { left: "a", right: "d", jump: "w", a1: "1", a2: "2", a3: "3", a4: "4", a5: "5" }; }
+  _loadKeys() { try { if (typeof localStorage !== "undefined") { const s = localStorage.getItem("bb_keys"); if (s) return Object.assign(this._defaultKeys(), JSON.parse(s)); } } catch (e) {} return this._defaultKeys(); }
+  _saveKeys() { try { if (typeof localStorage !== "undefined") localStorage.setItem("bb_keys", JSON.stringify(this.keys)); } catch (e) {} }
+  _loadCustomMap() { try { if (typeof localStorage !== "undefined") { const s = localStorage.getItem("bb_custommap"); if (s) return JSON.parse(s); } } catch (e) {} return null; }
+  _saveCustomMap() { try { if (typeof localStorage !== "undefined") localStorage.setItem("bb_custommap", JSON.stringify(this.customMap)); } catch (e) {} }
+  _keyLabel(k) { if (k === " ") return "Space"; if (!k) return "?"; if (k.indexOf("arrow") === 0) return k.slice(5).toUpperCase(); return k.toUpperCase(); }
+
+  /* ---------------- KEYBINDS ---------------- */
+  keybindsLayout() {
+    const cx = this.w / 2;
+    const actions = [["left", "Move Left"], ["right", "Move Right"], ["jump", "Jump"], ["a1", "Ability 1"], ["a2", "Ability 2"], ["a3", "Ability 3"], ["a4", "Ability 4"], ["a5", "Ability 5"]];
+    const rows = actions.map(([k, label], i) => ({ k, label, x: cx + 30, y: 132 + i * 42, w: 150, h: 34 }));
+    return { rows, back: { x: cx - 230, y: 536, w: 150, h: 40, label: "‹ BACK" }, reset: { x: cx + 80, y: 536, w: 150, h: 40, label: "RESET" } };
+  }
+
+  updateKeybinds() {
+    if (this.rebindAction) {
+      const jp = Object.keys(BB.Input._justPressed);
+      if (BB.Input._justPressed["escape"]) { this.rebindAction = null; return; }
+      const key = jp.find((k) => k !== "escape");
+      if (key) { this.keys[this.rebindAction] = key; this.rebindAction = null; this._saveKeys(); BB.Audio.play("click"); }
+      return;
+    }
+    if (!this.clicked()) return;
+    const L = this.keybindsLayout(), m = BB.Input.mouse;
+    for (const r of L.rows) if (this._hit(r, m.x, m.y)) { this.rebindAction = r.k; BB.Audio.play("click"); return; }
+    if (this._hit(L.back, m.x, m.y)) { BB.Audio.play("click"); this.state = "menu"; }
+    if (this._hit(L.reset, m.x, m.y)) { this.keys = this._defaultKeys(); this._saveKeys(); BB.Audio.play("click"); }
+  }
+
+  drawKeybinds(ctx) {
+    const cx = this.w / 2;
+    this._text(ctx, "KEYBINDS", cx, 62, 40, "#ffffff", "bold");
+    this._text(ctx, "click a binding, then press the new key  ·  Esc cancels", cx, 98, 15, "#8fa3c8");
+    const L = this.keybindsLayout();
+    for (const r of L.rows) {
+      this._text(ctx, r.label, r.x - 18, r.y + r.h / 2, 15, "#c9d6f0", "normal", "right");
+      const rebinding = this.rebindAction === r.k;
+      this._button(ctx, { ...r, label: rebinding ? "press…" : this._keyLabel(this.keys[r.k]) }, { active: rebinding, font: 15 });
+    }
+    this._text(ctx, "LMB · RMB · Shift always fire abilities 1 · 2 · 3.  Arrows / Space also work.", cx, 500, 13, "#7f92b6");
+    this._button(ctx, L.back, { font: 16 });
+    this._button(ctx, L.reset, { font: 16 });
+  }
+
+  /* ---------------- MAP EDITOR ---------------- */
+  editorEnter() { this.editorPlatforms = this.customMap ? this.customMap.platforms.map((p) => ({ ...p })) : []; this.editorR = 26; this.state = "editor"; }
+
+  editorLayout() {
+    const cx = this.w / 2, barY = this.h - 44;
+    return {
+      barY,
+      sizeDown: { x: 20, y: barY, w: 42, h: 34, label: "–" },
+      sizeUp: { x: 68, y: barY, w: 42, h: 34, label: "+" },
+      clear: { x: cx - 170, y: barY, w: 120, h: 34, label: "CLEAR" },
+      save: { x: cx - 40, y: barY, w: 180, h: 34, label: "SAVE & USE" },
+      back: { x: this.w - 130, y: barY, w: 110, h: 34, label: "‹ BACK" },
+    };
+  }
+
+  updateEditor() {
+    if (!this.clicked()) return;
+    const L = this.editorLayout(), m = BB.Input.mouse;
+    if (this._hit(L.back, m.x, m.y)) { BB.Audio.play("click"); this.state = "menu"; return; }
+    if (this._hit(L.clear, m.x, m.y)) { this.editorPlatforms = []; BB.Audio.play("click"); return; }
+    if (this._hit(L.sizeDown, m.x, m.y)) { this.editorR = BB.clamp(this.editorR - 4, 12, 60); BB.Audio.play("click"); return; }
+    if (this._hit(L.sizeUp, m.x, m.y)) { this.editorR = BB.clamp(this.editorR + 4, 12, 60); BB.Audio.play("click"); return; }
+    if (this._hit(L.save, m.x, m.y)) {
+      if (this.editorPlatforms.length < 2) { BB.Audio.play("hit"); return; }
+      this.customMap = { platforms: this.editorPlatforms.map((p) => ({ ...p })) };
+      this._saveCustomMap();
+      this.mapChoice = BB.MAP_NAMES.length; // select the Custom slot
+      BB.Audio.play("click"); this.state = "menu"; return;
+    }
+    // place / remove islands on the field
+    if (m.y > 80 && m.y < L.barY - 10) {
+      const i = this.editorPlatforms.findIndex((p) => BB.dist(m.x, m.y, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2) < p.r + 6);
+      if (i >= 0) this.editorPlatforms.splice(i, 1);
+      else this.editorPlatforms.push({ x1: m.x, y1: m.y, x2: m.x, y2: m.y, r: this.editorR });
+      BB.Audio.play("click");
+    }
+  }
+
+  drawEditor(ctx) {
+    const cx = this.w / 2, A = this.arena;
+    this._text(ctx, "MAP EDITOR", cx, 40,32, "#ffffff", "bold");
+    this._text(ctx, "click to place an island · click one to remove it · place at least 2, then SAVE", cx, 66, 14, "#8fa3c8");
+    // bounds + water preview
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,90,110,0.4)"; ctx.setLineDash([6, 8]);
+    ctx.beginPath(); ctx.moveTo(A.leftBound, 80); ctx.lineTo(A.leftBound, this.h - 60); ctx.moveTo(A.rightBound, 80); ctx.lineTo(A.rightBound, this.h - 60); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+    ctx.strokeStyle = "rgba(120,180,230,0.45)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, A.waterY); ctx.lineTo(this.w, A.waterY); ctx.stroke();
+    // placed islands
+    for (const p of this.editorPlatforms) {
+      const mx = (p.x1 + p.x2) / 2, my = (p.y1 + p.y2) / 2;
+      ctx.fillStyle = "#3f4b6b"; ctx.beginPath(); ctx.arc(mx, my, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#6fbf5b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(mx, my, p.r - 2, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+    }
+    // ghost cursor
+    const m = BB.Input.mouse, L = this.editorLayout();
+    if (m.y > 80 && m.y < L.barY - 10) { ctx.strokeStyle = "rgba(111,191,91,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, this.editorR, 0, Math.PI * 2); ctx.stroke(); }
+    // toolbar
+    this._text(ctx, "size", 41, L.barY - 8, 12, "#8fa3c8");
+    this._button(ctx, L.sizeDown, { font: 22 }); this._button(ctx, L.sizeUp, { font: 22 });
+    this._button(ctx, L.clear, { font: 15 }); this._button(ctx, L.save, { font: 16 }); this._button(ctx, L.back, { font: 15 });
+    this._text(ctx, "islands: " + this.editorPlatforms.length, cx + 180, L.barY + 17, 13, this.editorPlatforms.length >= 2 ? "#5be08a" : "#ff9aa0", "bold");
+  }
+
+  /* ---------------- LOADOUT (icon grid grouped by role) ---------------- */
   loadoutLayout() {
     // quick-combo chips
     const presets = BB.LOADOUT_PRESETS;
     const pw = 148, pgap = 8;
     const ptot = presets.length * pw + (presets.length - 1) * pgap;
     let px = (this.w - ptot) / 2;
-    const chips = presets.map((p) => { const r = { ...p, x: px, y: 104, w: pw, h: 28 }; px += pw + pgap; return r; });
+    const chips = presets.map((p) => { const r = { ...p, x: px, y: 92, w: pw, h: 26 }; px += pw + pgap; return r; });
 
-    // full ability grid
-    const ids = BB.ABILITY_IDS;
-    const cols = 6, cw = 143, ch = 78, gx = 10, gy = 8;
-    const totalW = cols * cw + (cols - 1) * gx;
-    const startX = (this.w - totalW) / 2;
-    const startY = 150;
-    const cards = ids.map((id, i) => {
-      const c = i % cols, r = Math.floor(i / cols);
-      return { id, x: startX + c * (cw + gx), y: startY + r * (ch + gy), w: cw, h: ch };
-    });
-    return { chips, cards, fight: { x: this.w / 2 - 120, y: this.h - 46, w: 240, h: 38, label: "FIGHT ▸" } };
+    // ability tiles grouped by role
+    const roles = ["attack", "mobility", "control", "defense"];
+    const byRole = { attack: [], mobility: [], control: [], defense: [] };
+    for (const id of BB.ABILITY_IDS) (byRole[BB.Abilities[id].role] || byRole.attack).push(id);
+    const ts = 40, gap = 6;
+    const groups = [];
+    const tiles = [];
+    let y = 142;
+    for (const role of roles) {
+      const ids = byRole[role];
+      const rowW = ids.length * ts + (ids.length - 1) * gap;
+      let x = (this.w - rowW) / 2;
+      groups.push({ role, y: y - 8 });
+      for (const id of ids) { tiles.push({ id, x, y, w: ts, h: ts }); x += ts + gap; }
+      y += 66;
+    }
+    return { chips, tiles, groups, fight: { x: this.w / 2 - 120, y: this.h - 44, w: 240, h: 38, label: "FIGHT ▸" } };
   }
 
   _isPreset(ids) {
@@ -342,18 +480,18 @@ BB.Game = class {
     const L = this.loadoutLayout();
     const m = BB.Input.mouse;
     for (const chip of L.chips) {
-      if (this._hit(chip, m.x, m.y)) { this.selected = chip.ids.slice(); BB.Audio.play("click"); return; }
+      if (this._hit(chip, m.x, m.y)) { this.selected = chip.ids.slice(0, this.kitSize); BB.Audio.play("click"); return; }
     }
-    for (const c of L.cards) {
-      if (this._hit(c, m.x, m.y)) {
-        const idx = this.selected.indexOf(c.id);
-        if (idx >= 0) this.selected.splice(idx, 1);       // deselect
-        else if (this.selected.length < 3) this.selected.push(c.id); // select (max 3)
+    for (const t of L.tiles) {
+      if (this._hit(t, m.x, m.y)) {
+        const idx = this.selected.indexOf(t.id);
+        if (idx >= 0) this.selected.splice(idx, 1);
+        else if (this.selected.length < this.kitSize) this.selected.push(t.id);
         BB.Audio.play("click");
         return;
       }
     }
-    if (this.selected.length === 3 && this._hit(L.fight, m.x, m.y)) {
+    if (this.selected.length === this.kitSize && this._hit(L.fight, m.x, m.y)) {
       BB.Audio.play("click");
       this.confirmLoadout();
     }
@@ -370,6 +508,8 @@ BB.Game = class {
     this._drawBackground(ctx);
 
     if (this.state === "menu") this.drawMenu(ctx);
+    else if (this.state === "keybinds") this.drawKeybinds(ctx);
+    else if (this.state === "editor") this.drawEditor(ctx);
     else if (this.state === "loadout") this.drawLoadout(ctx);
     else {
       // world through the dynamic camera
@@ -379,6 +519,7 @@ BB.Game = class {
       for (const p of this.projectiles) p.draw(ctx);
       for (const b of this.blobs) b.draw(ctx);
       BB.Particles.draw(ctx);
+      this._drawBounds(ctx);
       this._drawWater(ctx);
       this.drawReticle(ctx);
       ctx.restore();
@@ -403,6 +544,30 @@ BB.Game = class {
     ctx.beginPath();
     ctx.arc(a.x, a.y, s * 0.6, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // dotted side kill-barriers: calm blue normally, flashing red as a blob nears
+  _drawBounds(ctx) {
+    const A = this.arena;
+    const alive = this.blobs.filter((b) => !b.dead);
+    const yTop = -300, yBot = A.waterY + 30;
+    for (const bx of [A.leftBound, A.rightBound]) {
+      let md = 1e9;
+      for (const b of alive) md = Math.min(md, Math.abs(b.x - bx));
+      const danger = BB.clamp(1 - md / 170, 0, 1);
+      const flash = danger > 0 ? 0.5 + 0.5 * Math.sin(this.time * (6 + danger * 22)) : 0;
+      const alpha = BB.clamp(0.26 + danger * (0.15 + 0.6 * flash), 0, 1);
+      const rC = Math.round(120 + (255 - 120) * danger);
+      const gC = Math.round(160 + (55 - 160) * danger);
+      const bC = Math.round(220 + (55 - 220) * danger);
+      ctx.save();
+      ctx.setLineDash([7, 9]);
+      ctx.lineDashOffset = -(this.time * 40) % 16;
+      ctx.strokeStyle = `rgba(${rC},${gC},${bC},${alpha})`;
+      ctx.lineWidth = 3 + danger * 2;
+      ctx.beginPath(); ctx.moveTo(bx, yTop); ctx.lineTo(bx, yBot); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // reflective water across the bottom: mirrors islands, blobs and projectiles
@@ -521,27 +686,41 @@ BB.Game = class {
     ctx.fillText(txt, x, y);
   }
 
+  _cycleControl(ctx, cyc, name) {
+    this._button(ctx, cyc.left, { font: 18 });
+    this._button(ctx, cyc.right, { font: 18 });
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    BB.roundRect(ctx, cyc.left.x + 34, cyc.left.y, 240, 30, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1.5;
+    BB.roundRect(ctx, cyc.left.x + 34, cyc.left.y, 240, 30, 8); ctx.stroke();
+    this._text(ctx, name, cyc.nameX, cyc.nameY, 15, "#eaf2ff", "bold");
+  }
+
   drawMenu(ctx) {
-    const cx = this.w / 2;
+    const cx = this.w / 2, Lx = 258, Rx = 702;
     this._text(ctx, "BLOB BATTLE", cx, 46, 42, "#ffffff", "bold");
     this._text(ctx, "a physics ability-brawler vs. a bot", cx, 78, 15, "#8fa3c8");
     const L = this.menuLayout();
-    this._text(ctx, "Difficulty", cx, 110, 15, "#8fa3c8");
-    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 17 });
-    this._text(ctx, "First to how many round wins?", cx, 180, 15, "#8fa3c8");
+
+    this._text(ctx, "Difficulty", Lx, 116, 14, "#8fa3c8");
+    for (const d of L.diffs) this._button(ctx, d, { active: this.difficulty === d.id, font: 16 });
+    this._text(ctx, "First to how many wins?", Lx, 192, 14, "#8fa3c8");
     for (const wb of L.wins) this._button(ctx, wb, { active: this.winsNeeded === wb.n, font: 16 });
-    this._text(ctx, "Ability power (Lv 1–5)", cx, 246, 15, "#8fa3c8");
+    this._text(ctx, "Ability power (Lv)", Lx, 264, 14, "#8fa3c8");
     for (const pb of L.powers) this._button(ctx, pb, { active: this.abilityLevel === pb.n, font: 16 });
-    const mapName = this.mapChoice < 0 ? "Any (random each round)" : BB.MAP_NAMES[this.mapChoice];
-    this._text(ctx, "Map  —  " + mapName, cx, 312, 15, "#8fa3c8");
-    for (const mb of L.maps) this._button(ctx, mb, { active: this.mapChoice === mb.v, font: 15 });
-    const styleName = this.botStyle < 0 ? "Any (random each match)" : BB.PLAYSTYLES[this.botStyle].name;
-    this._text(ctx, "Bot style  —  " + styleName, cx, 378, 15, "#8fa3c8");
-    for (const sb of L.styles) this._button(ctx, sb, { active: this.botStyle === sb.v, font: 15 });
+
+    this._text(ctx, "Bot style", Rx, 116, 14, "#8fa3c8");
+    this._cycleControl(ctx, L.styleCyc, this.botStyle < 0 ? "Any (random)" : BB.PLAYSTYLES[this.botStyle].name);
+    this._text(ctx, "Map", Rx, 192, 14, "#8fa3c8");
+    this._cycleControl(ctx, L.mapCyc, this.mapName(this.mapChoice));
+    this._text(ctx, "Kit size (abilities)", Rx, 264, 14, "#8fa3c8");
+    for (const kb of L.kits) this._button(ctx, kb, { active: this.kitSize === kb.n, font: 16 });
+
+    this._button(ctx, L.keybinds, { font: 16 });
+    this._button(ctx, L.editor, { font: 16 });
     this._button(ctx, L.start, { font: 24 });
 
-    this._text(ctx, "Move A/D · Jump W/Space · Aim mouse · Abilities 1·2·3 / LMB·RMB·Shift", cx, 506, 13, "#7f92b6");
-    this._text(ctx, "Pick ANY 3 abilities or a quick-combo. Ring the bot out!   (M toggles music)", cx, 526, 13, "#7f92b6");
+    this._text(ctx, "Move A/D · Jump W/Space · Aim mouse · Abilities 1–5 / LMB·RMB·Shift   (M toggles music)", cx, 500, 13, "#7f92b6");
   }
 
   // a rounded tile with the ability's vector symbol — used on cards and the HUD
@@ -555,48 +734,70 @@ BB.Game = class {
 
   drawLoadout(ctx) {
     const cx = this.w / 2;
+    const m = BB.Input.mouse;
+    const need = this.kitSize;
     if (this.repicking) {
-      this._text(ctx, "MATCH POINT — ADJUST YOUR KIT", cx, 42, 30, "#ffd24b", "bold");
-      this._text(ctx, `swap any abilities, then fight the decider  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
+      this._text(ctx, "MATCH POINT — ADJUST YOUR KIT", cx, 34, 28, "#ffd24b", "bold");
+      this._text(ctx, `swap any abilities, then fight  —  selected ${this.selected.length}/${need}`, cx, 62, 15, "#8fa3c8");
     } else {
-      this._text(ctx, "CHOOSE YOUR 3 ABILITIES", cx, 42, 34, "#ffffff", "bold");
-      this._text(ctx, `pick any 3, or tap a quick-combo  —  selected ${this.selected.length}/3`, cx, 74, 16, "#8fa3c8");
+      this._text(ctx, `CHOOSE YOUR ${need} ABILITIES`, cx, 34, 30, "#ffffff", "bold");
+      this._text(ctx, `hover to read · click to pick  —  selected ${this.selected.length}/${need}`, cx, 62, 15, "#8fa3c8");
     }
-    this._text(ctx, "opponent: " + BB.PLAYSTYLES[this.botStyleResolved].name + " bot", this.w - 18, 22, 13, "#ff9aa0", "normal", "right");
+    this._text(ctx, "opponent: " + BB.PLAYSTYLES[this.botStyleResolved].name + " bot", this.w - 16, 20, 13, "#ff9aa0", "normal", "right");
 
     const L = this.loadoutLayout();
 
     // quick-combo chips
     for (const chip of L.chips) {
       const active = this._isPreset(chip.ids);
-      const hover = this._hit(chip, BB.Input.mouse.x, BB.Input.mouse.y);
+      const hover = this._hit(chip, m.x, m.y);
       ctx.fillStyle = active ? "rgba(70,200,255,0.22)" : hover ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)";
       BB.roundRect(ctx, chip.x, chip.y, chip.w, chip.h, 8); ctx.fill();
       ctx.strokeStyle = active ? "#46c8ff" : "rgba(255,255,255,0.22)"; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
-      this._text(ctx, chip.name, chip.x + chip.w / 2, chip.y + chip.h / 2 + 1, 14, active ? "#eaf2ff" : "#c9d6f0", "bold");
+      this._text(ctx, chip.name, chip.x + chip.w / 2, chip.y + chip.h / 2 + 1, 13, active ? "#eaf2ff" : "#c9d6f0", "bold");
     }
-    for (const c of L.cards) {
-      const ab = BB.Abilities[c.id];
-      const sel = this.selected.indexOf(c.id);
-      const hover = this._hit(c, BB.Input.mouse.x, BB.Input.mouse.y);
-      ctx.fillStyle = sel >= 0 ? "rgba(70,200,255,0.18)" : hover ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)";
-      BB.roundRect(ctx, c.x, c.y, c.w, c.h, 10); ctx.fill();
-      ctx.strokeStyle = sel >= 0 ? "#46c8ff" : hover ? "rgba(255,255,255,0.40)" : "rgba(255,255,255,0.15)";
-      ctx.lineWidth = sel >= 0 ? 3 : 2; ctx.stroke();
 
-      this._abilityTile(ctx, ab, c.x + 12, c.y + 12, 28);
-      this._text(ctx, ab.name, c.x + 50, c.y + 21, 15, "#ffffff", "bold", "left");
-      this._text(ctx, ab.role.toUpperCase(), c.x + 50, c.y + 39, 10, ab.color, "bold", "left");
-      this._wrapText(ctx, ab.desc.split(" (")[0], c.x + 12, c.y + 58, c.w - 22, 13, 11, "#9fb0d0");
+    // group headers
+    for (const g of L.groups) this._text(ctx, g.role.toUpperCase(), cx, g.y - 2, 11, "#6b7ea3", "bold");
 
+    // ability tiles (icon only)
+    let hovered = null;
+    for (const t of L.tiles) {
+      const ab = BB.Abilities[t.id];
+      const sel = this.selected.indexOf(t.id);
+      const hover = this._hit(t, m.x, m.y);
+      if (hover) hovered = ab;
+      ctx.globalAlpha = sel >= 0 || hover ? 1 : 0.9;
+      this._abilityTile(ctx, ab, t.x, t.y, t.w);
+      ctx.globalAlpha = 1;
       if (sel >= 0) {
+        ctx.strokeStyle = "#46c8ff"; ctx.lineWidth = 3;
+        BB.roundRect(ctx, t.x - 1, t.y - 1, t.w + 2, t.h + 2, t.w * 0.24); ctx.stroke();
         ctx.fillStyle = "#46c8ff";
-        ctx.beginPath(); ctx.arc(c.x + c.w - 16, c.y + 16, 11, 0, Math.PI * 2); ctx.fill();
-        this._text(ctx, String(sel + 1), c.x + c.w - 16, c.y + 17, 13, "#08111d", "bold");
+        ctx.beginPath(); ctx.arc(t.x + t.w - 4, t.y + 4, 8, 0, Math.PI * 2); ctx.fill();
+        this._text(ctx, String(sel + 1), t.x + t.w - 4, t.y + 5, 11, "#08111d", "bold");
+      } else if (hover) {
+        ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 2;
+        BB.roundRect(ctx, t.x - 1, t.y - 1, t.w + 2, t.h + 2, t.w * 0.24); ctx.stroke();
       }
     }
 
-    const ready = this.selected.length === 3;
+    // detail panel for the hovered ability
+    const py = this.h - 128, pw = 560, pxx = cx - pw / 2;
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    BB.roundRect(ctx, pxx, py, pw, 58, 10); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 1.5;
+    BB.roundRect(ctx, pxx, py, pw, 58, 10); ctx.stroke();
+    if (hovered) {
+      this._abilityTile(ctx, hovered, pxx + 12, py + 13, 32);
+      this._text(ctx, hovered.name, pxx + 56, py + 18, 16, "#ffffff", "bold", "left");
+      this._text(ctx, hovered.role.toUpperCase() + "  ·  cooldown " + hovered.cooldown + "s", pxx + 56, py + 36, 11, hovered.color, "bold", "left");
+      this._wrapText(ctx, hovered.desc.split(" (")[0], pxx + 200, py + 20, pw - 214, 14, 12, "#c9d6f0");
+    } else {
+      this._text(ctx, "hover an ability to see what it does", cx, py + 29, 14, "#6b7ea3");
+    }
+
+    const ready = this.selected.length === need;
     ctx.globalAlpha = ready ? 1 : 0.4;
     this._button(ctx, L.fight, { font: 22, active: ready });
     ctx.globalAlpha = 1;

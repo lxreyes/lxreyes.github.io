@@ -263,6 +263,74 @@ BB.makeBlinkOrb = (owner, x, y, vx, vy) => ({
   },
 });
 
+BB.makeSlash = (x, y, ang, reach, color) => ({
+  kind: "slash", owner: null, x, y, ang, reach, color, life: 0.18,
+  update(dt) { this.life -= dt; return this.life > 0; },
+  draw(ctx) {
+    const a = BB.clamp(this.life / 0.18, 0, 1);
+    ctx.globalAlpha = a; ctx.lineCap = "round";
+    ctx.strokeStyle = this.color; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.reach, this.ang - 0.95, this.ang + 0.95); ctx.stroke();
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.reach, this.ang - 0.95, this.ang + 0.95); ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+});
+
+BB.makeBoomerang = (owner, x, y, vx, vy, level) => ({
+  kind: "boomerang", owner, x, y, vx, vy, r: 9, t: 0, phase: "out", life: 2.6, spin: 0, level: level || 1, struck: [],
+  update(dt, game) {
+    this.t += dt; this.life -= dt; this.spin += dt * 20;
+    if (this.phase === "out" && this.t > 0.45) this.phase = "back";
+    if (this.phase === "back" && !this.owner.dead) {
+      const n = BB.Vec.norm(this.owner.x - this.x, this.owner.y - this.y);
+      const k = Math.min(1, 6 * dt);
+      this.vx = BB.lerp(this.vx, n.x * 620, k); this.vy = BB.lerp(this.vy, n.y * 620, k);
+      if (BB.dist(this.x, this.y, this.owner.x, this.owner.y) < this.owner.r + 12) return false;
+    }
+    this.x += this.vx * dt; this.y += this.vy * dt;
+    for (const b of game.blobs) {
+      if (b === this.owner || b.dead || this.struck.includes(b)) continue;
+      if (BB.dist(this.x, this.y, b.x, b.y) < this.r + b.r) {
+        const n = BB.Vec.norm(this.vx, this.vy);
+        b.hurt(0, n.x * (360 + 40 * this.level), n.y * 200 - 150, this.owner);
+        this.struck.push(b); BB.Shake.add(5);
+      }
+    }
+    return this.life > 0;
+  },
+  draw(ctx) {
+    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.spin);
+    ctx.strokeStyle = "#ffd24b"; ctx.lineWidth = 4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-9, -3); ctx.lineTo(2, -9); ctx.moveTo(-9, 3); ctx.lineTo(2, 9); ctx.stroke();
+    ctx.restore();
+  },
+});
+
+BB.makeTrampoline = (owner, x, y, level) => ({
+  kind: "trampoline", owner, x, y, vx: 0, vy: 0, r: 11, life: 6 + (level - 1), squish: 0, level: level || 1,
+  update(dt, game) {
+    this.vy += 900 * dt; this.x += this.vx * dt; this.y += this.vy * dt;
+    for (const p of game.arena.platforms) if (BB.landOnPlatform(this, p)) { this.vx *= 0.5; this.vy = 0; }
+    this.life -= dt; this.squish = Math.max(0, this.squish - dt * 4);
+    for (const b of game.blobs) {
+      if (b.dead) continue;
+      if (BB.dist(this.x, this.y - 6, b.x, b.y) < this.r + b.r && b.vy > -60) {
+        b.vy = -820 - 60 * (this.level - 1); b.jumps = 0; b.frozen = false;
+        this.squish = 1; BB.Audio.play("jump");
+        BB.Particles.burst(this.x, this.y - this.r, "#4be0c0", 8, 160);
+      }
+    }
+    return this.life > 0;
+  },
+  draw(ctx) {
+    const w = this.r * 2.4, sq = this.squish;
+    ctx.fillStyle = "#2f6f66"; BB.roundRect(ctx, this.x - w / 2, this.y - 3 + sq * 4, w, 8, 4); ctx.fill();
+    ctx.strokeStyle = "#4be0c0"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(this.x - w / 2, this.y - 3 + sq * 4); ctx.quadraticCurveTo(this.x, this.y - 14 + sq * 12, this.x + w / 2, this.y - 3 + sq * 4); ctx.stroke();
+  },
+});
+
 BB.makeShock = (x, y, maxR, color) => ({
   kind: "shock", owner: null, x, y, r: 6, maxR, life: 0.35,
   update(dt) { this.r += (this.maxR - this.r) * Math.min(1, 10 * dt); this.life -= dt; return this.life > 0; },
@@ -531,6 +599,53 @@ BB.Abilities = {
     color: "#5be08a", cooldown: 10.0, role: "defense", botRange: 0,
     activate(blob) { blob.reviveArmed = true; BB.Particles.burst(blob.x, blob.y, "#5be08a", 14, 160); BB.Audio.play("heal"); },
   },
+
+  /* --- new abilities --- */
+  sword: {
+    id: "sword", name: "Sword", desc: "Slash an arc in front of you — strong close-range knockback.",
+    color: "#e8eefc", cooldown: 0.75, role: "attack", botRange: 110,
+    activate(blob, game, ax, ay, lvl) {
+      const ang = Math.atan2(ay - blob.y, ax - blob.x);
+      const reach = blob.r + 40 + 6 * (lvl - 1);
+      for (const b of game.blobs) {
+        if (b === blob || b.dead) continue;
+        if (BB.dist(blob.x, blob.y, b.x, b.y) > reach + b.r) continue;
+        let da = Math.abs(Math.atan2(b.y - blob.y, b.x - blob.x) - ang);
+        if (da > Math.PI) da = 2 * Math.PI - da;
+        if (da < 1.0) b.hurt(0, Math.cos(ang) * (560 + 70 * lvl), Math.sin(ang) * 260 - 200, blob);
+      }
+      game.spawn(BB.makeSlash(blob.x, blob.y, ang, reach, "#e8eefc"));
+      BB.Shake.add(5); BB.Hit.add(0.04); BB.Audio.play("whoosh");
+    },
+  },
+  boomerang: {
+    id: "boomerang", name: "Boomerang", desc: "Throw a boomerang that flies out and curves back.",
+    color: "#ffd24b", cooldown: 2.2, role: "attack", botRange: 560,
+    activate(blob, game, ax, ay, lvl) { const n = BB.Vec.norm(ax - blob.x, ay - blob.y); game.spawn(BB.makeBoomerang(blob, blob.x + n.x * 20, blob.y + n.y * 20, n.x * 680, n.y * 680, lvl)); BB.Audio.play("shoot"); },
+  },
+  magnet: {
+    id: "magnet", name: "Magnet", desc: "Yank the enemy sharply toward you.",
+    color: "#ff9a3c", cooldown: 3.0, role: "control", botRange: 460,
+    activate(blob, game, ax, ay, lvl) {
+      for (const b of game.blobs) { if (b === blob || b.dead) continue; const n = BB.Vec.norm(blob.x - b.x, blob.y - b.y); const f = 560 + 130 * (lvl - 1); b.vx += n.x * f; b.vy += n.y * f - 60; b.frozen = false; }
+      game.spawn(BB.makeShock(blob.x, blob.y, 150, "#ff9a3c")); BB.Audio.play("whoosh");
+    },
+  },
+  freeze: {
+    id: "freeze", name: "Freeze", desc: "Freeze the enemy solid — they can't move or act.",
+    color: "#bfe3ff", cooldown: 6.0, role: "control", botRange: 520,
+    activate(blob, game, ax, ay, lvl) { for (const b of game.blobs) { if (b === blob || b.dead) continue; b.stun = Math.max(b.stun, 1.1 + 0.3 * lvl); BB.Particles.burst(b.x, b.y, "#bfe3ff", 16, 160); } BB.Audio.play("whoosh"); },
+  },
+  shield: {
+    id: "shield", name: "Shield", desc: "Raise a bubble that blocks all knockback for a moment.",
+    color: "#8be0ff", cooldown: 6.5, role: "defense", botRange: 0,
+    activate(blob, game, ax, ay, lvl) { blob.shield = Math.max(blob.shield, 1.5 + 0.4 * lvl); blob.invuln = Math.max(blob.invuln, 0.2); BB.Particles.burst(blob.x, blob.y, "#8be0ff", 14, 180); BB.Audio.play("heal"); },
+  },
+  trampoline: {
+    id: "trampoline", name: "Trampoline", desc: "Drop a springy pad that bounces blobs high into the air.",
+    color: "#4be0c0", cooldown: 4.0, role: "mobility", botRange: 200,
+    activate(blob, game, ax, ay, lvl) { game.spawn(BB.makeTrampoline(blob, blob.x, blob.y - 2, lvl)); BB.Audio.play("click"); },
+  },
 };
 
 /* ---------------- ability symbols ----------------
@@ -597,6 +712,18 @@ BB.drawAbilityIcon = (ctx, id, cx, cy, s, color) => {
       line(u * 0.35, 0, u * 0.95, 0); poly([[u * 0.95, 0], [u * 0.6, -u * 0.3], [u * 0.6, u * 0.3]], true);
       break;
     case "revival": ctx.save(); ctx.lineWidth = s * 0.16; line(0, -u * 0.85, 0, u * 0.85); line(-u * 0.85, 0, u * 0.85, 0); ctx.restore(); break;
+    case "sword":
+      line(-u * 0.6, u * 0.6, u * 0.7, -u * 0.7);          // blade
+      line(-u * 0.75, u * 0.35, -u * 0.35, u * 0.75);      // crossguard
+      break;
+    case "boomerang": ctx.beginPath(); ctx.moveTo(-u * 0.2, -u * 0.8); ctx.lineTo(u * 0.7, u * 0.1); ctx.lineTo(-u * 0.2, u * 0.35); ctx.stroke(); break;
+    case "magnet":
+      arc(u * 0.6, Math.PI * 0.15, Math.PI * 0.85);
+      line(-u * 0.6, u * 0.35, -u * 0.6, u * 0.85); line(u * 0.6, u * 0.35, u * 0.6, u * 0.85);
+      break;
+    case "freeze": for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3; line(-Math.cos(a) * u * 0.9, -Math.sin(a) * u * 0.9, Math.cos(a) * u * 0.9, Math.sin(a) * u * 0.9); } break;
+    case "shield": poly([[0, -u * 0.85], [u * 0.75, -u * 0.4], [u * 0.55, u * 0.75], [0, u * 0.95], [-u * 0.55, u * 0.75], [-u * 0.75, -u * 0.4]], false); break;
+    case "trampoline": ctx.save(); ctx.lineWidth = s * 0.12; arc(u * 0.8, Math.PI * 1.15, Math.PI * 1.85); ctx.restore(); line(-u * 0.55, u * 0.35, -u * 0.55, u * 0.85); line(u * 0.55, u * 0.35, u * 0.55, u * 0.85); break;
     default: circ(0, 0, u * 0.6, false);
   }
   ctx.restore();

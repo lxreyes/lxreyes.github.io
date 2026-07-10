@@ -9,8 +9,11 @@ BB.Arena = class {
     this.w = w;
     this.h = h;
     this.platforms = [];
-    this.forcedLayout = -1; // -1 = random each round; 0..4 = a chosen map
+    this.forcedLayout = -1; // -1 = random each round; 0..N = a chosen map; >=MAP_NAMES.length = custom
+    this.customMap = null;  // { platforms:[{x1,y1,x2,y2,r}] } from the map editor
     this.waterY = h - 70;   // world y of the reflective water surface at the bottom
+    this.leftBound = -20;   // world x of the left kill barrier
+    this.rightBound = w + 20; // world x of the right kill barrier
     this.reset();
   }
 
@@ -27,7 +30,17 @@ BB.Arena = class {
 
     // every layout has a distinct LEFT and RIGHT ground island so both fighters
     // spawn on solid ground, spread apart (never perched on a tiny floating disc)
-    const layout = this.forcedLayout >= 0 ? this.forcedLayout : BB.randInt(0, 4);
+    // custom map from the editor (platforms stored in absolute coords)
+    if (this.forcedLayout >= BB.MAP_NAMES.length && this.customMap && this.customMap.platforms.length) {
+      this.platforms = this.customMap.platforms.map((p) => ({ x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, r: p.r, life: Infinity }));
+      const sorted = [...this.platforms].sort((a, b) => (a.x1 + a.x2) - (b.x1 + b.x2));
+      const top = (p) => ({ x: (p.x1 + p.x2) / 2, y: Math.min(p.y1, p.y2) - p.r - 16 });
+      this.spawns = [top(sorted[0]), top(sorted[sorted.length - 1])];
+      this._decorate(); this._buildBackdrop();
+      return;
+    }
+
+    const layout = this.forcedLayout >= 0 ? Math.min(this.forcedLayout, BB.MAP_NAMES.length - 1) : BB.randInt(0, BB.MAP_NAMES.length - 1);
     if (layout === 0) {
       add(0.14, 0.64, 0.34, 0.64, 30);       // left bean
       add(0.66, 0.64, 0.86, 0.64, 30);       // right bean
@@ -42,10 +55,31 @@ BB.Arena = class {
     } else if (layout === 3) {
       add(0.22, 0.62, 0.22, 0.62, 40);       // two big round islands
       add(0.78, 0.62, 0.78, 0.62, 40);
-    } else {
+    } else if (layout === 4) {
       add(0.10, 0.66, 0.34, 0.66, 28);       // offset beans + floating center circle
       add(0.66, 0.56, 0.90, 0.56, 28);
       add(0.5, 0.40, 0.5, 0.40, 20);
+    } else if (layout === 5) {
+      add(0.20, 0.52, 0.20, 0.92, 18);       // three tall pillars
+      add(0.50, 0.46, 0.50, 0.92, 18);
+      add(0.80, 0.52, 0.80, 0.92, 18);
+    } else if (layout === 6) {
+      add(0.20, 0.74, 0.80, 0.74, 22);       // long low bridge + high side beans
+      add(0.10, 0.48, 0.24, 0.48, 22);
+      add(0.76, 0.48, 0.90, 0.48, 22);
+    } else if (layout === 7) {
+      add(0.10, 0.62, 0.24, 0.62, 22);       // archipelago of four beans
+      add(0.34, 0.70, 0.46, 0.70, 22);
+      add(0.54, 0.70, 0.66, 0.70, 22);
+      add(0.76, 0.62, 0.90, 0.62, 22);
+    } else if (layout === 8) {
+      add(0.30, 0.70, 0.70, 0.70, 34);       // huge center island + two side beans
+      add(0.08, 0.56, 0.20, 0.56, 24);
+      add(0.80, 0.56, 0.92, 0.56, 24);
+    } else {
+      add(0.10, 0.76, 0.28, 0.76, 22);       // ascending diagonal steps
+      add(0.41, 0.62, 0.59, 0.62, 22);
+      add(0.72, 0.48, 0.90, 0.48, 22);
     }
 
     // spawn resting ON the leftmost & rightmost islands (small blob radius clearance)
@@ -187,8 +221,9 @@ BB.Arena = class {
   }
 };
 
-/* names for the five island layouts (index = layout id) */
-BB.MAP_NAMES = ["Twin Isles", "The Gap", "Staircase", "Twin Moons", "Sky Steps"];
+/* names for the island layouts (index = layout id) */
+BB.MAP_NAMES = ["Twin Isles", "The Gap", "Staircase", "Twin Moons", "Sky Steps",
+  "Pillars", "Bridge", "Archipelago", "Big Top", "Ascent"];
 
 /* rounded-rect helper shared by UI */
 BB.roundRect = (ctx, x, y, w, h, r) => {

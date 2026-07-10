@@ -51,6 +51,8 @@ BB.Blob = class {
     this.grow = 0;
     this.growLevel = 1;
     this.shrink = 0;
+    this.shield = 0; // blocks all knockback while > 0
+    this.stun = 0;   // frozen: can't move or act
     this.spikeTime = 0;
     this._spikeCd = 0;
     this.reviveArmed = false;
@@ -78,6 +80,7 @@ BB.Blob = class {
   // no HP: a "hit" only launches you — the sole way to die is a ring-out
   hurt(dmg, kx, ky, source) {
     if (this.dead || this.invuln > 0) return;
+    if (this.shield > 0) { this.hitFlash = 0.1; BB.Particles.burst(this.x, this.y, "#8be0ff", 8, 140); BB.Audio.play("hit"); return; }
     if (this.grow > 0) { kx *= 0.5; ky *= 0.5; }      // heavier: resists knockback
     if (this.shrink > 0) { kx *= 1.6; ky *= 1.6; }    // lighter: flies further
     this.vx += kx;
@@ -124,6 +127,7 @@ BB.Blob = class {
   timeScale() { return this.slow > 0 ? 0.4 : 1; }
 
   control(moveDir, wantJump, jumpHeld) {
+    if (this.stun > 0) { this.jumpHeld = false; return; } // frozen: no input
     const ts = this.timeScale();
     const accel = (this.onGround ? ACCEL_GROUND : ACCEL_AIR) * ts;
     const target = moveDir * MAX_SPEED;
@@ -166,6 +170,8 @@ BB.Blob = class {
     this.slow = Math.max(0, this.slow - dt);
     this.grow = Math.max(0, this.grow - dt);
     this.shrink = Math.max(0, this.shrink - dt);
+    this.shield = Math.max(0, this.shield - dt);
+    this.stun = Math.max(0, this.stun - dt);
     this.spikeTime = Math.max(0, this.spikeTime - dt);
     this._spikeCd = Math.max(0, this._spikeCd - dt);
     this.squash = BB.approach(this.squash, 0, dt * 3);
@@ -264,8 +270,8 @@ BB.Blob = class {
     }
 
     // ring-out: the ONLY way to die is to leave the arena bounds
-    const g = this.game;
-    if (this.x < -220 || this.x > g.w + 220 || this.y - this.r > g.h + 40 || this.y < -560) this.die("fall");
+    const g = this.game, A = g.arena;
+    if (this.x < A.leftBound || this.x > A.rightBound || this.y - this.r > g.h + 40 || this.y < -560) this.die("fall");
 
     // land juice
     if (this.onGround && this.vy >= 0 && this._wasAir) {
@@ -345,6 +351,16 @@ BB.Blob = class {
     if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke(); }
     if (this.grow > 0) { ctx.strokeStyle = "rgba(255,200,90,0.8)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke(); }
     if (this.shrink > 0) { ctx.strokeStyle = "rgba(255,120,200,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke(); }
+    if (this.shield > 0) {
+      ctx.fillStyle = `rgba(139,224,255,${0.12 + 0.06 * Math.sin(this.game.time * 10)})`;
+      ctx.beginPath(); ctx.arc(0, 0, r + 7, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(139,224,255,${0.6 + 0.3 * Math.sin(this.game.time * 12)})`; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, r + 7, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (this.stun > 0) {
+      ctx.strokeStyle = "rgba(191,227,255,0.9)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + this.game.time; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); ctx.lineTo(Math.cos(a) * (r + 6), Math.sin(a) * (r + 6)); ctx.stroke(); }
+    }
 
     ctx.scale(sx, sy);
 
