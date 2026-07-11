@@ -55,7 +55,8 @@ BB.makeArrow = (owner, x, y, vx, vy) => ({
       if (b === this.owner || b.dead) continue;
       if (BB.dist(this.x, this.y, b.x, b.y) < this.r + b.r) {
         const n = BB.Vec.norm(this.vx, this.vy);
-        b.hurt(13, n.x * 260, n.y * 200 - 90, this.owner);
+        const sp = Math.hypot(this.vx, this.vy); // charged arrows fly faster → hit harder
+        b.hurt(8 + sp * 0.006, n.x * sp * 0.42, n.y * sp * 0.34 - 80, this.owner);
         BB.Particles.burst(this.x, this.y, "#e8e8ff", 8, 160); BB.Shake.add(4); return false;
       }
     }
@@ -418,11 +419,13 @@ BB.Abilities = {
     },
   },
   bow: {
-    id: "bow", name: "Bow", desc: "Fast flat arrow. Precise.",
-    color: "#dfe6ff", cooldown: 0.55, role: "attack", botRange: 640,
-    activate(blob, game, ax, ay, lvl) {
-      const base = Math.atan2(ay - blob.y, ax - blob.x);
-      for (const a of BB.fan(base, lvl, 0.08)) { const dx = Math.cos(a), dy = Math.sin(a); game.spawn(BB.makeArrow(blob, blob.x + dx * (blob.r + 8), blob.y + dy * (blob.r + 8), dx * 1000, dy * 1000)); }
+    id: "bow", name: "Bow", desc: "Hold to draw the bow, release for a faster, harder-hitting arrow.",
+    color: "#dfe6ff", cooldown: 0.5, role: "attack", botRange: 640, charge: true, maxCharge: 0.9,
+    activate(blob, game, ax, ay, lvl, charge) {
+      const c = charge === undefined ? 1 : charge;
+      const n = BB.Vec.norm(ax - blob.x, ay - blob.y);
+      const sp = 600 + 820 * c;
+      game.spawn(BB.makeArrow(blob, blob.x + n.x * (blob.r + 8), blob.y + n.y * (blob.r + 8), n.x * sp, n.y * sp));
       BB.Audio.play("shoot");
     },
   },
@@ -496,11 +499,13 @@ BB.Abilities = {
     },
   },
   roll: {
-    id: "roll", name: "Roll", desc: "Become a rolling ball — keep your momentum, steer, and bowl foes over.",
-    color: "#b8c8e8", cooldown: 2.4, role: "attack", botRange: 300,
-    activate(blob, game, ax, ay, lvl) {
+    id: "roll", name: "Roll", desc: "Hold to wind up, release to rocket off as a rolling ball — carries across gaps.",
+    color: "#b8c8e8", cooldown: 2.0, role: "attack", botRange: 320, charge: true, maxCharge: 0.7,
+    activate(blob, game, ax, ay, lvl, charge) {
+      const c = charge === undefined ? 1 : charge;
       const dir = BB.sign(ax - blob.x) || blob.facing || 1;
-      blob.vx = dir * 720; blob.rolling = 1.0 + 0.15 * (lvl - 1); blob.dashDamage = true; blob.dashDmg = 15; blob.dashKnock = 440; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
+      const sp = 520 + 820 * c; // full charge ≈ 1300 → really fast
+      blob.vx = dir * sp; blob.vy = -60 - 60 * c; blob.rolling = 0.9 + 0.6 * c; blob.dashDamage = true; blob.dashDmg = 12 + 8 * c; blob.dashKnock = 380 + 340 * c; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
       BB.Particles.burst(blob.x, blob.y, "#b8c8e8", 10, 160); BB.Audio.play("whoosh");
     },
   },

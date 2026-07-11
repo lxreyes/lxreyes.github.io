@@ -36,6 +36,8 @@ BB.Game = class {
 
     this.prevLMB = false;
     this.prevRMB = false;
+    this.chargeSlot = -1; // which ability slot is being charged (hold-to-charge)
+    this.chargeTime = 0;
     this.cam = { x: this.w / 2, y: this.h / 2, zoom: 1.35 };
 
     BB.Input.init(canvas);
@@ -108,6 +110,7 @@ BB.Game = class {
     this.roundIntro = 1.5;
     this._fightPlayed = false;
     this.timeFreeze = 0;
+    this.chargeSlot = -1; this.chargeTime = 0;
     BB.Hit.stop = 0;
     // snap the camera to the fresh arena so it doesn't lerp across the map
     this.cam.x = (this.arena.spawns[0].x + this.arena.spawns[1].x) / 2;
@@ -259,13 +262,22 @@ BB.Game = class {
       const aim = this.screenToWorld(inp.mouse.x, inp.mouse.y); // aim in world space
       const ax = aim.x, ay = aim.y;
       const abKeys = [K.a1, K.a2, K.a3, K.a4, K.a5];
+      const heldSlot = (i) => inp.key(abKeys[i]) || (i === 0 && inp.mouse.down) || (i === 1 && inp.mouse.rdown) || (i === 2 && inp.key("shift"));
+      const pressedSlot = (i) => inp.pressed(abKeys[i]) || (i === 0 && this.lmbClick) || (i === 1 && this.rmbClick) || (i === 2 && inp.pressed("shift"));
       for (let i = 0; i < this.player.abilities.length; i++) {
-        if (inp.pressed(abKeys[i])) this.player.tryAbility(i, ax, ay);
+        const id = this.player.abilities[i], ab = BB.Abilities[id];
+        if (ab.charge) {
+          const maxC = ab.maxCharge || 1;
+          if (this.chargeSlot === -1 && pressedSlot(i) && (this.player.cooldowns[id] || 0) <= 0) { this.chargeSlot = i; this.chargeTime = 0; }
+          if (this.chargeSlot === i) {
+            if (heldSlot(i)) this.chargeTime = Math.min(maxC, this.chargeTime + dt);
+            else { this.player.tryAbility(i, ax, ay, BB.clamp(this.chargeTime / maxC, 0, 1)); this.chargeSlot = -1; this.chargeTime = 0; }
+          }
+        } else if (pressedSlot(i)) {
+          this.player.tryAbility(i, ax, ay);
+        }
       }
-      if (this.lmbClick) this.player.tryAbility(0, ax, ay);
-      if (this.rmbClick) this.player.tryAbility(1, ax, ay);
-      if (inp.pressed("shift")) this.player.tryAbility(2, ax, ay);
-    }
+    } else { this.chargeSlot = -1; }
 
     if (this.bot && this.enemy !== frozen) this.bot.update(dt);
     for (const b of this.blobs) if (b !== frozen) b.update(dt);
@@ -571,6 +583,15 @@ BB.Game = class {
       for (const p of this.projectiles) p.draw(ctx);
       for (const b of this.blobs) b.draw(ctx);
       BB.Particles.draw(ctx);
+      if (this.chargeSlot >= 0 && this.player && !this.player.dead) {
+        const ab = BB.Abilities[this.player.abilities[this.chargeSlot]];
+        const frac = BB.clamp(this.chargeTime / (ab.maxCharge || 1), 0, 1);
+        const p = this.player;
+        ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 13, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = frac >= 1 ? "#ffd24b" : ab.color; ctx.lineWidth = 4; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 13, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
+      }
       this._drawBounds(ctx);
       this._drawWater(ctx);
       this.drawReticle(ctx);

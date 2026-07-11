@@ -13,6 +13,7 @@ const GRAV_DOWN = 1950;
 const AIR_DRAG = 0.2;
 const JUMP_BUFFER = 0.12;
 const MAX_JUMPS = 2;
+const GRIP_G = 2800; // "gravity" toward the island surface you're walking on (Bopl-style)
 
 BB.Blob = class {
   constructor(game, opts) {
@@ -37,8 +38,8 @@ BB.Blob = class {
     this.percent = 0; // Smash-style damage: higher % = you fly further
     this.oob = 0;     // time spent past a side barrier (grace before ring-out)
     this.onGround = false;
-    this.onWall = false; this.wallNx = 0; this.wallNy = 0;
-    this.wallStick = 0; this.wallStickNx = 0; this.wallStickNy = 0; // grace + magnet so cling is hands-free
+    this.grip = null;   // {nx,ny}: surface normal of the island you're walking on (Bopl surface-walk)
+    this.gripCd = 0;    // brief no-grip window after jumping off a surface
     this.jumps = 0;
     this.jumpBuffer = 0;
     this.jumpCut = false;
@@ -138,32 +139,39 @@ BB.Blob = class {
   control(moveDir, wantJump, jumpHeld) {
     if (this.stun > 0) { this.jumpHeld = false; return; } // frozen: no input
     const ts = this.timeScale();
-    const accel = (this.onGround ? ACCEL_GROUND : ACCEL_AIR) * ts;
+    const accel = (this.onGround || this.grip ? ACCEL_GROUND : ACCEL_AIR) * ts;
     const target = moveDir * MAX_SPEED;
     const dt = this.game.dt;
     if (this.rolling > 0) {
       // rolling ball: keep momentum, only gently steer
       if (moveDir !== 0) { this.vx = BB.clamp(this.vx + moveDir * 700 * dt, -900, 900); this.facing = BB.sign(moveDir); }
+    } else if (this.grip) {
+      // walk ALONG the island surface (works on walls & ceilings)
+      const n = this.grip, tx = -n.ny, ty = n.nx; // tangent to the surface
+      let vt = this.vx * tx + this.vy * ty;        // tangential speed
+      const vn = this.vx * n.nx + this.vy * n.ny;  // keep the normal part (stick/gravity)
+      vt = BB.approach(vt, target, accel * dt);    // accelerate along the surface
+      this.vx = vt * tx + vn * n.nx;
+      this.vy = vt * ty + vn * n.ny;
+      if (moveDir !== 0) this.facing = BB.sign(moveDir);
     } else if (moveDir !== 0) {
       if (!(BB.sign(this.vx) === BB.sign(target) && Math.abs(this.vx) > MAX_SPEED)) {
         this.vx = BB.approach(this.vx, target, accel * dt);
       }
       this.facing = BB.sign(moveDir);
-    } else if (this.onGround) {
-      this.vx = BB.approach(this.vx, 0, accel * dt);
     }
     if (moveDir !== 0 || wantJump) this.frozen = false; // acting on purpose = fair game for gravity
     if (wantJump) this.jumpBuffer = JUMP_BUFFER;
     this.jumpHeld = !!jumpHeld;
   }
 
-  tryAbility(index, aimX, aimY) {
+  tryAbility(index, aimX, aimY, charge) {
     const id = this.abilities[index];
     if (!id) return;
     if ((this.cooldowns[id] || 0) > 0) return;
     const ab = BB.Abilities[id];
     const lvl = this.level(id);
-    ab.activate(this, this.game, aimX, aimY, lvl);
+    ab.activate(this, this.game, aimX, aimY, lvl, charge === undefined ? 1 : charge);
     this.cooldowns[id] = ab.cooldown * Math.max(0.55, 1 - 0.07 * (lvl - 1));
   }
 
@@ -181,7 +189,7 @@ BB.Blob = class {
     this.dashing = Math.max(0, this.dashing - dt);
     this.drilling = Math.max(0, this.drilling - dt);
     this.rolling = Math.max(0, this.rolling - dt);
-    this.wallStick = Math.max(0, this.wallStick - dt);
+    this.gripCd = Math.max(0, this.gripCd - dt);
     this.slow = Math.max(0, this.slow - dt);
     this.grow = Math.max(0, this.grow - dt);
     this.shrink = Math.max(0, this.shrink - dt);
@@ -198,16 +206,15 @@ BB.Blob = class {
     else if (this.shrink > 0) scale = 0.62;
     this.r = this.baseR * scale;
 
-    // jump (and wall-jump: push off a clung surface)
+    // jump — launches away from whatever surface you're walking on
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.jumpBuffer > 0 && this.jumps < MAX_JUMPS) {
-      this.vy = -JUMP_V;
-      if ((this.onWall || this.wallStick > 0) && !this.onGround) { this.vx += this.wallStickNx * 380; this.wallStick = 0; } // kick away from the wall
+      if (this.grip) { this.vx += this.grip.nx * JUMP_V; this.vy += this.grip.ny * JUMP_V; this.grip = null; this.gripCd = 0.16; }
+      else this.vy = -JUMP_V;
       this.jumps++;
       this.jumpBuffer = 0;
       this.jumpCut = true;
       this.onGround = false;
-      this.onWall = false;
       this.squash = -0.5;
       BB.Particles.burst(this.x, this.y + this.r, "#ffffff", 6, 120, { gravity: 200, vy: 40 });
       BB.Audio.play("jump");
@@ -223,18 +230,19 @@ BB.Blob = class {
       if (this.grapple.t <= 0 || d < 30) this.grapple = null;
     }
 
-    // gravity — suspended while frozen; nearly cancelled while clinging to a wall
-    const clinging = this.wallStick > 0 && !this.onGround && !this.frozen;
+    // gravity — toward the island surface you're gripping (so you can walk on
+    // walls and ceilings), else straight down. Suspended while frozen.
     if (this.dashing <= 0 && !this.frozen) {
-      const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
-      const gmul = clinging ? 0.08 : 1; // cling to island walls/ceilings
-      this.vy += g * dt * ts * gmul;
-      if (clinging && this.vy > 70) this.vy = 70; // slow slide down the surface
+      if (this.grip) {
+        this.vx += -this.grip.nx * GRIP_G * dt * ts;
+        this.vy += -this.grip.ny * GRIP_G * dt * ts;
+      } else {
+        const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
+        this.vy += g * dt * ts;
+      }
     }
-    // wall magnet: gently press into the surface so you cling hands-free
-    if (clinging && this.dashing <= 0) this.vx += -this.wallStickNx * 320 * dt;
-    this.vy = BB.clamp(this.vy, -900, 1100);
-    if (this.dashing <= 0 && !this.grapple && !this.onGround) this.vx *= 1 - AIR_DRAG * dt;
+    this.vy = BB.clamp(this.vy, -1400, 1400);
+    if (this.dashing <= 0 && !this.grapple && !this.grip) this.vx *= 1 - AIR_DRAG * dt;
 
     // integrate
     this.x += this.vx * dt * ts;
@@ -255,7 +263,7 @@ BB.Blob = class {
 
     // collide (while drilling you pass straight through terrain, Bopl-style)
     this.onGround = false;
-    this.onWall = false;
+    this.grip = null;
     if (this.drilling <= 0) {
       for (const p of this.game.arena.platforms) this.collidePlatform(p);
     } else {
@@ -342,8 +350,12 @@ BB.Blob = class {
     this.y += ny * overlap;
     const vn = this.vx * nx + this.vy * ny;
     if (vn < 0) { this.vx -= vn * nx; this.vy -= vn * ny; }
-    if (ny < -0.5) { this.onGround = true; this.jumps = 0; this.vy = Math.min(this.vy, 0); }
-    else { this.onWall = true; this.wallNx = nx; this.wallNy = ny; this.jumps = 0; this.wallStick = 0.2; this.wallStickNx = nx; this.wallStickNy = ny; } // cling to walls/ceilings
+    // grip the surface so you can WALK along it (top, sides, or ceiling)
+    if (this.gripCd <= 0 && this.rolling <= 0) {
+      this.grip = { nx, ny };
+      this.jumps = 0;
+      if (ny < -0.35) this.onGround = true; // top-ish surface (for land juice / animation)
+    }
   }
 
   draw(ctx) {
