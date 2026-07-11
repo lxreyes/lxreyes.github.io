@@ -711,30 +711,32 @@ BB.Game = class {
     ctx.closePath();
     ctx.clip();
 
-    // the world flipped across the waterline. Before match point it's a faint
-    // reflection; at match point it turns SOLID — a real, upside-down second
-    // arena you fall into as a "second chance".
-    const flipped = this.atMatchPoint; // the mirror world is live
-    ctx.save();
-    ctx.translate(0, 2 * wy);
-    ctx.scale(1, -1);
-    ctx.globalAlpha = flipped ? 1 : 0.38;
-    this.arena.drawIslands(ctx, t); // the flipped islands ARE the mirror-world terrain
-    if (!flipped) { // decorative reflection of the real world into the still water
+    const live = this.atMatchPoint; // the mirror world is a real, playable space now
+    if (live) {
+      // the reversed world below, drawn RIGHT-SIDE-UP as solid terrain (murky)
+      this.arena.drawIslands(ctx, t, this.arena.mirrorPlatforms);
+      this.arena.drawHazards(ctx, t, this.arena.mirrorHazards);
+      const g = ctx.createLinearGradient(0, wy, 0, wy + 320);
+      g.addColorStop(0, "rgba(18,58,92,0.34)");
+      g.addColorStop(1, "rgba(8,32,60,0.5)"); // murky depth
+      ctx.fillStyle = g;
+      ctx.fillRect(left, wy - 4, right - left, this.h + 900);
+      for (const b of this.blobs) if (!b.dead && b.mirror) b.draw(ctx); // fighters down there, right-side-up
+    } else {
+      // still-water reflection of the real world above (decorative only)
+      ctx.save();
+      ctx.translate(0, 2 * wy); ctx.scale(1, -1);
+      ctx.globalAlpha = 0.38;
+      this.arena.drawIslands(ctx, t);
       for (const p of this.projectiles) p.draw(ctx);
       for (const b of this.blobs) if (!b.dead && !b.mirror) b.draw(ctx);
+      ctx.restore();
+      const g = ctx.createLinearGradient(0, wy, 0, wy + 240);
+      g.addColorStop(0, "rgba(44,116,156,0.30)");
+      g.addColorStop(1, "rgba(20,52,92,0.44)");
+      ctx.fillStyle = g;
+      ctx.fillRect(left, wy - 4, right - left, this.h + 900);
     }
-    ctx.restore();
-
-    // water wash — a heavy blue murk normally, just a light tint once it's a real world
-    const g = ctx.createLinearGradient(0, wy, 0, wy + 240);
-    if (flipped) { g.addColorStop(0, "rgba(70,150,190,0.16)"); g.addColorStop(1, "rgba(34,74,120,0.24)"); }
-    else { g.addColorStop(0, "rgba(44,116,156,0.30)"); g.addColorStop(1, "rgba(20,52,92,0.44)"); }
-    ctx.fillStyle = g;
-    ctx.fillRect(left, wy - 4, right - left, this.h + 900);
-
-    // the mirror-world fighters, drawn over the wash so they read clearly
-    for (const b of this.blobs) if (!b.dead && b.mirror) b.draw(ctx);
 
     // drifting ripple highlights
     ctx.strokeStyle = "rgba(150,205,255,0.12)";

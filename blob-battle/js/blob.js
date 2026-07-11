@@ -232,7 +232,7 @@ BB.Blob = class {
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.jumpBuffer > 0 && this.jumps < MAX_JUMPS) {
       if (this.grip) { this.vx += this.grip.nx * JUMP_V; this.vy += this.grip.ny * JUMP_V; this.grip = null; this.gripCd = 0.16; }
-      else this.vy = this.mirror ? JUMP_V : -JUMP_V; // jump "up" relative to your world
+      else this.vy = -JUMP_V;
       this.jumps++;
       this.jumpBuffer = 0;
       this.jumpCut = true;
@@ -259,9 +259,8 @@ BB.Blob = class {
         this.vx += -this.grip.nx * GRIP_G * dt * ts;
         this.vy += -this.grip.ny * GRIP_G * dt * ts;
       } else {
-        const gdir = this.mirror ? -1 : 1;                 // gravity is UP in the mirror world
-        const g = this.vy * gdir > 0 ? GRAV_DOWN : GRAV_UP; // faster when "falling"
-        this.vy += gdir * g * dt * ts;
+        const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
+        this.vy += g * dt * ts; // the mirror world is right-side-up: gravity still pulls down
       }
     }
     this.vy = BB.clamp(this.vy, -1400, 1400);
@@ -453,7 +452,6 @@ BB.Blob = class {
 
     ctx.save();
     ctx.translate(this.x, this.y - bounce);
-    if (this.mirror) ctx.scale(1, -1); // upside-down in the mirror world
     ctx.rotate(lean * 0.5);
     if (this.rolling > 0) ctx.rotate(this.animT * 16 * (this.rollHand < 0 ? 1 : -1)); // spin like a ball (consistent around corners)
 

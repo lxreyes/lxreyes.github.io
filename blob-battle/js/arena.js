@@ -175,8 +175,8 @@ BB.Arena = class {
 
   draw(ctx, time = 0) { this.drawIslands(ctx, time); this.drawHazards(ctx, time); }
 
-  drawHazards(ctx, time) {
-    for (const hz of this.hazards) {
+  drawHazards(ctx, time, hazards) {
+    for (const hz of (hazards || this.hazards)) {
       ctx.save(); ctx.translate(hz.x, hz.y); ctx.rotate(time * 0.7);
       ctx.fillStyle = "#ff4b5b";
       const N = 9;
@@ -194,9 +194,9 @@ BB.Arena = class {
     }
   }
 
-  // just the islands + decor (also re-used, flipped, for the water reflection)
-  drawIslands(ctx, time = 0) {
-    for (const p of this.platforms) {
+  // just the islands + decor (also re-used for the mirror-world terrain)
+  drawIslands(ctx, time = 0, plats) {
+    for (const p of (plats || this.platforms)) {
       if (p.temp) {
         const blink = p.life < 1.2 ? 0.4 + 0.5 * Math.abs(Math.sin(p.life * 14)) : 1;
         ctx.globalAlpha = blink;
