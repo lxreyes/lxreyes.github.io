@@ -711,20 +711,25 @@ BB.Game = class {
     ctx.closePath();
     ctx.clip();
 
-    // mirror the world about the waterline, faded
+    // the world flipped across the waterline. Before match point it's a faint
+    // reflection; at match point it turns SOLID — a real, upside-down second
+    // arena you fall into as a "second chance".
+    const flipped = this.atMatchPoint; // the mirror world is live
     ctx.save();
     ctx.translate(0, 2 * wy);
     ctx.scale(1, -1);
-    ctx.globalAlpha = 0.38;
+    ctx.globalAlpha = flipped ? 1 : 0.38;
     this.arena.drawIslands(ctx, t); // the flipped islands ARE the mirror-world terrain
-    for (const p of this.projectiles) p.draw(ctx);
-    for (const b of this.blobs) if (!b.dead && !b.mirror) b.draw(ctx); // reflect only real-world fighters
+    if (!flipped) { // decorative reflection of the real world into the still water
+      for (const p of this.projectiles) p.draw(ctx);
+      for (const b of this.blobs) if (!b.dead && !b.mirror) b.draw(ctx);
+    }
     ctx.restore();
 
-    // blue depth wash — light enough to see into the mirror world you can play in
+    // water wash — a heavy blue murk normally, just a light tint once it's a real world
     const g = ctx.createLinearGradient(0, wy, 0, wy + 240);
-    g.addColorStop(0, "rgba(44,116,156,0.30)");
-    g.addColorStop(1, "rgba(20,52,92,0.44)");
+    if (flipped) { g.addColorStop(0, "rgba(70,150,190,0.16)"); g.addColorStop(1, "rgba(34,74,120,0.24)"); }
+    else { g.addColorStop(0, "rgba(44,116,156,0.30)"); g.addColorStop(1, "rgba(20,52,92,0.44)"); }
     ctx.fillStyle = g;
     ctx.fillRect(left, wy - 4, right - left, this.h + 900);
 
