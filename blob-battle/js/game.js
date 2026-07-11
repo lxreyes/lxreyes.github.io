@@ -63,6 +63,7 @@ BB.Game = class {
     this.botStyleResolved = this.botStyle >= 0 ? this.botStyle : BB.randInt(0, BB.PLAYSTYLES.length - 1);
     this.bot = new BB.Bot(this.enemy, this.player, this, this.difficulty);
     this.selected = []; // ability ids the player is picking on the loadout screen
+    this.atMatchPoint = false; // becomes true (and opens the water portal) at match point
     this.repicked = false;  // has the one match-point kit change been used yet?
     this.repicking = false; // are we currently in a match-point re-pick?
     this.state = "loadout";
@@ -949,8 +950,10 @@ BB.Game = class {
     this._text(ctx, "YOU", 24, 52, 14, "#46c8ff", "bold", "left");
     this._text(ctx, "BOT", this.w - 24, 52, 14, "#ff6b6b", "bold", "right");
     this._text(ctx, BB.PLAYSTYLES[this.botStyleResolved].name, this.w - 24, 70, 11, "#ff9aa0", "normal", "right");
-    this._portalPip(ctx, this.player, 62, 50, false);
-    this._portalPip(ctx, this.enemy, this.w - 62, 50, true);
+    if (this.atMatchPoint && this.state === "playing") {
+      const a = 0.55 + 0.45 * Math.sin(this.time * 6);
+      this._text(ctx, "◈ MATCH POINT — the water is a MIRROR PORTAL", this.w / 2, 52, 15, `rgba(139,224,255,${a})`, "bold");
+    }
     this._text(ctx, `ROUND ${this.roundNumber}`, this.w / 2, 26, 18, "#c9d6f0", "bold");
 
     const aliases = ["LMB", "RMB", "Shift"];
@@ -997,19 +1000,6 @@ BB.Game = class {
       ctx.fillStyle = i < blob.roundWins ? blob.color : "rgba(255,255,255,0.15)";
       ctx.fill();
     }
-  }
-
-  // little water-portal meter: dip the water enough and the mirror world opens
-  _portalPip(ctx, blob, x, y, right) {
-    if (blob.portalOpen) {
-      const a = 0.6 + 0.4 * Math.sin(this.time * 8);
-      this._text(ctx, "◈ PORTAL", x, y, 11, `rgba(139,224,255,${a})`, "bold", right ? "right" : "left");
-      return;
-    }
-    if (!blob.waterDips) return;
-    const bw = 46, bx = right ? x - bw : x;
-    ctx.fillStyle = "rgba(0,0,0,0.4)"; BB.roundRect(ctx, bx, y - 4, bw, 6, 3); ctx.fill();
-    ctx.fillStyle = "#8be0ff"; BB.roundRect(ctx, bx, y - 4, bw * BB.clamp(blob.waterDips / 4, 0, 1), 6, 3); ctx.fill();
   }
 
   drawRoundIntro(ctx) {

@@ -14,9 +14,7 @@ const AIR_DRAG = 0.2;
 const JUMP_BUFFER = 0.12;
 const MAX_JUMPS = 2;
 const GRIP_G = 4600; // "gravity" toward the island surface you're walking on (Bopl-style)
-const WATER_BUOY = 4600;        // upthrust that bobs you back out of the water
-const WATER_DEATH_DEPTH = 130;  // sink past this (before the portal opens) and you drown
-const PORTAL_DIPS = 4;          // dip the water this many times to open the mirror-world portal
+const WATER_DEATH_DEPTH = 44;   // before match point, sink past this and you drown
 
 BB.Blob = class {
   constructor(game, opts) {
@@ -37,9 +35,7 @@ BB.Blob = class {
     this.vy = 0;
     this.frozen = true; // hover at spawn — you don't fall until you move
     this._inWater = false;
-    this.mirror = false;      // below the waterline WITH the portal open = mirror world
-    this.waterDips = 0;       // times you've bobbed the water this round
-    this.portalOpen = false;  // once you've dipped enough, the water becomes a portal
+    this.mirror = false; // below the waterline once the mirror portal is open (at match point)
     this.dead = false;
     this.percent = 0; // Smash-style damage: higher % = you fly further
     this.oob = 0;     // time spent past a side barrier (grace before ring-out)
@@ -202,7 +198,8 @@ BB.Blob = class {
     if (this.dead) return;
     const ts = this.timeScale();
     const A = this.game.arena, wy = A.waterY;
-    this.mirror = this.portalOpen && this.y > wy; // mirror world only once the portal is open
+    const portal = !!this.game.atMatchPoint; // the water is a mirror portal at match point
+    this.mirror = portal && this.y > wy;
 
     // spawn-hover ends the instant you actually move (walk, jump, dash, knockback…)
     if (this.frozen && (Math.abs(this.vx) > 6 || Math.abs(this.vy) > 6)) this.frozen = false;
@@ -267,9 +264,6 @@ BB.Blob = class {
         this.vy += gdir * g * dt * ts;
       }
     }
-    // buoyancy: before the portal opens, the water bobs you back out (a light
-    // walk-in survives; only a hard plunge sinks past the drown depth)
-    if (!this.portalOpen && !this.grip && this.y > wy) this.vy -= WATER_BUOY * dt * ts;
     this.vy = BB.clamp(this.vy, -1400, 1400);
     if (this.dashing <= 0 && !this.grapple && !this.grip) this.vx *= 1 - AIR_DRAG * dt;
 
@@ -297,7 +291,7 @@ BB.Blob = class {
         }
       }
       if (this.drilling <= 0) {
-        this.mirror = this.portalOpen && this.y > wy;
+        this.mirror = portal && this.y > wy;
         const plats = this.mirror ? A.mirrorPlatforms : A.platforms;
         for (const p of plats) this.collidePlatform(p);
       }
@@ -356,23 +350,13 @@ BB.Blob = class {
       }
     }
 
-    // break the surface: splash + count a "dip". Dip enough times and the water
-    // becomes a PORTAL to the mirror world.
+    // break the surface: splash + ripples (a portal shimmer at match point)
     const inNow = this.y + this.r > wy;
     if (inNow && !this._inWater) {
-      BB.Particles.burst(this.x, wy, "#dff2ff", 24, 340, { gravity: 320, life: 0.6 });
+      BB.Particles.burst(this.x, wy, portal ? "#8be0ff" : "#dff2ff", portal ? 34 : 24, 360, { gravity: 320, life: 0.6 });
       BB.Particles.burst(this.x, wy, "#bfe3ff", 12, 150, { gravity: -140, vy: -180, life: 0.55 });
-      for (let i = 0; i < 3; i++) this.game.spawn(BB.makeRipple(this.x, wy, 4 + i * 12));
-      BB.Shake.add(5); BB.Audio.play("whoosh");
-      if (!this.portalOpen) {
-        this.waterDips++;
-        if (this.waterDips >= PORTAL_DIPS) {
-          this.portalOpen = true;
-          BB.Particles.burst(this.x, wy, "#8be0ff", 44, 420, { life: 1.0 });
-          for (let i = 0; i < 6; i++) this.game.spawn(BB.makeRipple(this.x, wy, i * 22));
-          BB.Shake.add(16); BB.Audio.play("fight");
-        }
-      }
+      for (let i = 0; i < (portal ? 5 : 3); i++) this.game.spawn(BB.makeRipple(this.x, wy, 4 + i * 12));
+      BB.Shake.add(portal ? 8 : 5); BB.Audio.play("whoosh");
     }
     if (inNow && this.mirror && Math.random() < 0.3) BB.Particles.burst(this.x + BB.rand(-8, 8), this.y, "#bfe3ff", 1, 40, { gravity: -220, life: 0.6 });
     this._inWater = inNow;
@@ -387,8 +371,8 @@ BB.Blob = class {
       if (this.oob > 1.0) this.die("fall");
     } else if (this.y < -560 || this.y - this.r > mirrorBottom) {
       this.die("fall"); // off the top of the real world / bottom of the mirror world
-    } else if (!this.portalOpen && this.y - this.r > wy + WATER_DEATH_DEPTH) {
-      this.die("fall"); // drowned — plunged in before the portal opened
+    } else if (!portal && this.y - this.r > wy + WATER_DEATH_DEPTH) {
+      this.die("fall"); // drowned — the water is deadly until match point
     } else this.oob = 0;
 
     // land juice
@@ -471,7 +455,7 @@ BB.Blob = class {
     ctx.translate(this.x, this.y - bounce);
     if (this.mirror) ctx.scale(1, -1); // upside-down in the mirror world
     ctx.rotate(lean * 0.5);
-    if (this.rolling > 0) ctx.rotate(this.animT * 16 * (this.vx >= 0 ? 1 : -1)); // spin like a ball
+    if (this.rolling > 0) ctx.rotate(this.animT * 16 * (this.rollHand < 0 ? 1 : -1)); // spin like a ball (consistent around corners)
 
     // status rings (unscaled)
     if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke(); }
