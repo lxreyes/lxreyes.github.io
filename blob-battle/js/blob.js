@@ -13,7 +13,10 @@ const GRAV_DOWN = 1950;
 const AIR_DRAG = 0.2;
 const JUMP_BUFFER = 0.12;
 const MAX_JUMPS = 2;
-const GRIP_G = 2800; // "gravity" toward the island surface you're walking on (Bopl-style)
+const GRIP_G = 4600; // "gravity" toward the island surface you're walking on (Bopl-style)
+const WATER_BUOY = 4600;        // upthrust that bobs you back out of the water
+const WATER_DEATH_DEPTH = 130;  // sink past this (before the portal opens) and you drown
+const PORTAL_DIPS = 4;          // dip the water this many times to open the mirror-world portal
 
 BB.Blob = class {
   constructor(game, opts) {
@@ -34,6 +37,9 @@ BB.Blob = class {
     this.vy = 0;
     this.frozen = true; // hover at spawn — you don't fall until you move
     this._inWater = false;
+    this.mirror = false;      // below the waterline WITH the portal open = mirror world
+    this.waterDips = 0;       // times you've bobbed the water this round
+    this.portalOpen = false;  // once you've dipped enough, the water becomes a portal
     this.dead = false;
     this.percent = 0; // Smash-style damage: higher % = you fly further
     this.oob = 0;     // time spent past a side barrier (grace before ring-out)
@@ -51,6 +57,7 @@ BB.Blob = class {
     this.drilling = 0; // drilling through terrain (ignores platform collision)
     this.rolling = 0;  // Bopl-style roll: a momentum ball you steer
     this.rollSpeed = 0; this.rollHand = -1; // roll follows surfaces at this speed / handedness
+    this.drillSpeed = 0;
     this.dashLevel = 1;
     this.dashDamage = false; // Roll/Drill deal contact damage; plain Dash does not
     this.dashDmg = 22;
@@ -139,6 +146,16 @@ BB.Blob = class {
 
   control(moveDir, wantJump, jumpHeld) {
     if (this.stun > 0) { this.jumpHeld = false; return; } // frozen: no input
+    if (this.drilling > 0) {
+      // steer the drill left/right as you bore through terrain
+      if (moveDir !== 0) {
+        const sp = Math.hypot(this.vx, this.vy) || this.drillSpeed;
+        const ang = Math.atan2(this.vy, this.vx) + moveDir * 3.0 * this.game.dt;
+        this.vx = Math.cos(ang) * sp; this.vy = Math.sin(ang) * sp;
+      }
+      this.facing = BB.sign(this.vx) || this.facing;
+      return;
+    }
     const ts = this.timeScale();
     const accel = (this.onGround || this.grip ? ACCEL_GROUND : ACCEL_AIR) * ts;
     const target = moveDir * MAX_SPEED;
@@ -175,6 +192,7 @@ BB.Blob = class {
     if (!id) return;
     if ((this.cooldowns[id] || 0) > 0) return;
     const ab = BB.Abilities[id];
+    if (ab.canUse && !ab.canUse(this)) return; // e.g. drill only from the ground
     const lvl = this.level(id);
     ab.activate(this, this.game, aimX, aimY, lvl, charge === undefined ? 1 : charge);
     this.cooldowns[id] = ab.cooldown * Math.max(0.55, 1 - 0.07 * (lvl - 1));
@@ -183,6 +201,8 @@ BB.Blob = class {
   update(dt) {
     if (this.dead) return;
     const ts = this.timeScale();
+    const A = this.game.arena, wy = A.waterY;
+    this.mirror = this.portalOpen && this.y > wy; // mirror world only once the portal is open
 
     // spawn-hover ends the instant you actually move (walk, jump, dash, knockback…)
     if (this.frozen && (Math.abs(this.vx) > 6 || Math.abs(this.vy) > 6)) this.frozen = false;
@@ -215,7 +235,7 @@ BB.Blob = class {
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.jumpBuffer > 0 && this.jumps < MAX_JUMPS) {
       if (this.grip) { this.vx += this.grip.nx * JUMP_V; this.vy += this.grip.ny * JUMP_V; this.grip = null; this.gripCd = 0.16; }
-      else this.vy = -JUMP_V;
+      else this.vy = this.mirror ? JUMP_V : -JUMP_V; // jump "up" relative to your world
       this.jumps++;
       this.jumpBuffer = 0;
       this.jumpCut = true;
@@ -242,49 +262,58 @@ BB.Blob = class {
         this.vx += -this.grip.nx * GRIP_G * dt * ts;
         this.vy += -this.grip.ny * GRIP_G * dt * ts;
       } else {
-        const g = this.vy > 0 ? GRAV_DOWN : GRAV_UP;
-        this.vy += g * dt * ts;
+        const gdir = this.mirror ? -1 : 1;                 // gravity is UP in the mirror world
+        const g = this.vy * gdir > 0 ? GRAV_DOWN : GRAV_UP; // faster when "falling"
+        this.vy += gdir * g * dt * ts;
       }
     }
+    // buoyancy: before the portal opens, the water bobs you back out (a light
+    // walk-in survives; only a hard plunge sinks past the drown depth)
+    if (!this.portalOpen && !this.grip && this.y > wy) this.vy -= WATER_BUOY * dt * ts;
     this.vy = BB.clamp(this.vy, -1400, 1400);
     if (this.dashing <= 0 && !this.grapple && !this.grip) this.vx *= 1 - AIR_DRAG * dt;
 
-    // integrate
-    this.x += this.vx * dt * ts;
-    this.y += this.vy * dt * ts;
-
-    // grapple rope constraint — pendulum swing + reel-in
-    if (this.grapple) {
-      const dx = this.x - this.grapple.x, dy = this.y - this.grapple.y;
-      const d = Math.hypot(dx, dy) || 0.001;
-      if (d > this.grapple.len) {
-        const nx = dx / d, ny = dy / d;
-        this.x = this.grapple.x + nx * this.grapple.len;
-        this.y = this.grapple.y + ny * this.grapple.len;
-        const vr = this.vx * nx + this.vy * ny; // kill only outward velocity → keep the swing
-        if (vr > 0) { this.vx -= vr * nx; this.vy -= vr * ny; }
-      }
-    }
-
-    // collide (while drilling you pass straight through terrain, Bopl-style)
+    // integrate + collide, SUB-STEPPED by speed so you can't tunnel through thin
+    // walls at high velocity, and a fast roll can hug tight curves.
     this.onGround = false;
     this.grip = null;
-    if (this.drilling <= 0) {
-      for (const p of this.game.arena.platforms) this.collidePlatform(p);
-    } else {
-      BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
+    const stepLen = Math.hypot(this.vx, this.vy) * dt * ts;
+    const steps = BB.clamp(Math.ceil(stepLen / (this.r * 0.45)), 1, 12);
+    const sdt = (dt * ts) / steps;
+    for (let s = 0; s < steps; s++) {
+      this.onGround = false; this.grip = null;
+      this.x += this.vx * sdt;
+      this.y += this.vy * sdt;
+      // grapple rope constraint — pendulum swing + reel-in
+      if (this.grapple) {
+        const dx = this.x - this.grapple.x, dy = this.y - this.grapple.y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d > this.grapple.len) {
+          const nx = dx / d, ny = dy / d;
+          this.x = this.grapple.x + nx * this.grapple.len;
+          this.y = this.grapple.y + ny * this.grapple.len;
+          const vr = this.vx * nx + this.vy * ny;
+          if (vr > 0) { this.vx -= vr * nx; this.vy -= vr * ny; }
+        }
+      }
+      if (this.drilling <= 0) {
+        this.mirror = this.portalOpen && this.y > wy;
+        const plats = this.mirror ? A.mirrorPlatforms : A.platforms;
+        for (const p of plats) this.collidePlatform(p);
+      }
+      // rolling ball hugs the surface and rolls AROUND it (floor→wall→ceiling),
+      // re-aimed each sub-step so a fast roll tracks tight curves. In a gap
+      // (no grip) it just arcs across under normal gravity.
+      if (this.rolling > 0 && this.grip) {
+        const n = this.grip;
+        const tx = this.rollHand < 0 ? -n.ny : n.ny;
+        const ty = this.rollHand < 0 ? n.nx : -n.nx;
+        const stick = 820;
+        this.vx = tx * this.rollSpeed - n.nx * stick;
+        this.vy = ty * this.rollSpeed - n.ny * stick;
+      }
     }
-
-    // a rolling ball hugs the surface it's touching and rolls AROUND it
-    // (floor -> wall -> ceiling), keeping the same rotational direction. In a
-    // gap (no grip) it just arcs across under normal gravity.
-    if (this.rolling > 0 && this.grip) {
-      const n = this.grip;
-      const tx = this.rollHand < 0 ? -n.ny : n.ny;
-      const ty = this.rollHand < 0 ? n.nx : -n.nx;
-      this.vx = tx * this.rollSpeed;
-      this.vy = ty * this.rollSpeed;
-    }
+    if (this.drilling > 0) BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
 
     // Roll/Drill/Dash contact hit
     if ((this.dashing > 0 || this.rolling > 0) && this.dashDamage) {
@@ -314,25 +343,52 @@ BB.Blob = class {
       }
     }
 
-    // splash when you break the water surface (on your way out of bounds)
-    const wy = this.game.arena.waterY;
-    if (wy != null) {
-      const inNow = this.y + this.r > wy;
-      if (inNow && !this._inWater) {
-        BB.Particles.burst(this.x, wy, "#bfe3ff", 16, 240, { gravity: 260, life: 0.5 });
-        BB.Audio.play("whoosh");
+    // hazards (editor spikes): knock you away + build damage on contact
+    const hz = this.mirror ? A.mirrorHazards : A.hazards;
+    if (hz && hz.length && this.invuln <= 0) {
+      for (const h of hz) {
+        if (BB.dist(this.x, this.y, h.x, h.y) < h.r + this.r) {
+          const n = BB.Vec.norm((this.x - h.x) || 0.01, (this.y - h.y) || -0.01);
+          this.hurt(16, n.x * 560, n.y * 560 - 120, null);
+          BB.Particles.burst(this.x, this.y, "#ff5b5b", 10, 220);
+          break;
+        }
       }
-      this._inWater = inNow;
     }
 
-    // ring-out. Going out the SIDES takes priority and gives a brief red-alert
-    // grace window to recover; water (bottom) and top are instant.
-    const g = this.game, A = g.arena;
+    // break the surface: splash + count a "dip". Dip enough times and the water
+    // becomes a PORTAL to the mirror world.
+    const inNow = this.y + this.r > wy;
+    if (inNow && !this._inWater) {
+      BB.Particles.burst(this.x, wy, "#dff2ff", 24, 340, { gravity: 320, life: 0.6 });
+      BB.Particles.burst(this.x, wy, "#bfe3ff", 12, 150, { gravity: -140, vy: -180, life: 0.55 });
+      for (let i = 0; i < 3; i++) this.game.spawn(BB.makeRipple(this.x, wy, 4 + i * 12));
+      BB.Shake.add(5); BB.Audio.play("whoosh");
+      if (!this.portalOpen) {
+        this.waterDips++;
+        if (this.waterDips >= PORTAL_DIPS) {
+          this.portalOpen = true;
+          BB.Particles.burst(this.x, wy, "#8be0ff", 44, 420, { life: 1.0 });
+          for (let i = 0; i < 6; i++) this.game.spawn(BB.makeRipple(this.x, wy, i * 22));
+          BB.Shake.add(16); BB.Audio.play("fight");
+        }
+      }
+    }
+    if (inNow && this.mirror && Math.random() < 0.3) BB.Particles.burst(this.x + BB.rand(-8, 8), this.y, "#bfe3ff", 1, 40, { gravity: -220, life: 0.6 });
+    this._inWater = inNow;
+
+    // ring-out. Water is now a PORTAL, not a kill — you die only at the outer
+    // edges: off the top of the real world, the bottom of the mirror world, or
+    // out the sides (with a brief red-alert grace on the sides).
+    const g = this.game;
+    const mirrorBottom = 2 * wy + 560;
     if (this.x < A.leftBound || this.x > A.rightBound) {
       this.oob += dt;
       if (this.oob > 1.0) this.die("fall");
-    } else if (this.y - this.r > g.h + 40 || this.y < -560) {
-      this.die("fall");
+    } else if (this.y < -560 || this.y - this.r > mirrorBottom) {
+      this.die("fall"); // off the top of the real world / bottom of the mirror world
+    } else if (!this.portalOpen && this.y - this.r > wy + WATER_DEATH_DEPTH) {
+      this.die("fall"); // drowned — plunged in before the portal opened
     } else this.oob = 0;
 
     // land juice
@@ -413,6 +469,7 @@ BB.Blob = class {
 
     ctx.save();
     ctx.translate(this.x, this.y - bounce);
+    if (this.mirror) ctx.scale(1, -1); // upside-down in the mirror world
     ctx.rotate(lean * 0.5);
     if (this.rolling > 0) ctx.rotate(this.animT * 16 * (this.vx >= 0 ? 1 : -1)); // spin like a ball
 

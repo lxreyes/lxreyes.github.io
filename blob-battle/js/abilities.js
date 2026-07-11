@@ -342,6 +342,17 @@ BB.makeTrampoline = (owner, x, y, level) => ({
   },
 });
 
+BB.makeRipple = (x, y, r0) => ({
+  kind: "ripple", owner: null, x, y, r: r0 || 4, life: 1.0, max: 1.0,
+  update(dt) { this.r += 150 * dt; this.life -= dt; return this.life > 0; },
+  draw(ctx) {
+    ctx.globalAlpha = BB.clamp(this.life / this.max, 0, 1) * 0.6;
+    ctx.strokeStyle = "#bfe3ff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(this.x, this.y, this.r, this.r * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+});
+
 BB.makeShock = (x, y, maxR, color) => ({
   kind: "shock", owner: null, x, y, r: 6, maxR, life: 0.35,
   update(dt) { this.r += (this.maxR - this.r) * Math.min(1, 10 * dt); this.life -= dt; return this.life > 0; },
@@ -504,19 +515,22 @@ BB.Abilities = {
     activate(blob, game, ax, ay, lvl, charge) {
       const c = charge === undefined ? 1 : charge;
       const dir = BB.sign(ax - blob.x) || blob.facing || 1;
-      const sp = 520 + 820 * c; // full charge ≈ 1300 → really fast
-      blob.vx = dir * sp; blob.vy = -60 - 60 * c; blob.rolling = 0.9 + 0.6 * c;
+      const sp = 780 + 820 * c; // full charge ≈ 1600 → very fast (sub-stepping keeps it gripped)
+      blob.vx = dir * sp; blob.vy = -30 - 40 * c; blob.rolling = 1.1 + 0.9 * c;
       blob.rollSpeed = sp; blob.rollHand = -dir; // roll clockwise/counter around islands
-      blob.dashDamage = true; blob.dashDmg = 12 + 8 * c; blob.dashKnock = 380 + 340 * c; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
+      blob.dashDamage = true; blob.dashDmg = 12 + 11 * c; blob.dashKnock = 400 + 420 * c; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
       BB.Particles.burst(blob.x, blob.y, "#b8c8e8", 10, 160); BB.Audio.play("whoosh");
     },
   },
   drill: {
-    id: "drill", name: "Drill", desc: "Drill straight THROUGH islands; connecting deals heavy knockback.",
+    id: "drill", name: "Drill", desc: "From the ground, bore THROUGH islands — steer as you dig. Connecting knocks hard.",
     color: "#b0f0ff", cooldown: 2.4, role: "attack", botRange: 260,
+    canUse: (blob) => !!(blob.grip || blob.onGround), // can only start from a surface
     activate(blob, game, ax, ay, lvl) {
       const n = BB.Vec.norm(ax - blob.x, ay - blob.y);
-      blob.vx = n.x * 1050; blob.vy = n.y * 1050; blob.dashing = 0.36; blob.drilling = 0.36; blob.dashDamage = true; blob.dashDmg = 22; blob.dashKnock = 560; blob.dashLevel = lvl; blob.invuln = Math.max(blob.invuln, 0.36); blob.frozen = false;
+      const sp = 620; // slower than before, but steerable and lasts longer
+      blob.drillSpeed = sp;
+      blob.vx = n.x * sp; blob.vy = n.y * sp; blob.dashing = 0.75; blob.drilling = 0.75; blob.dashDamage = true; blob.dashDmg = 20; blob.dashKnock = 540; blob.dashLevel = lvl; blob.invuln = Math.max(blob.invuln, 0.4); blob.frozen = false; blob.grip = null;
       BB.Particles.burst(blob.x, blob.y, "#b0f0ff", 10, 160); BB.Audio.play("whoosh");
     },
   },

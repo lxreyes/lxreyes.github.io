@@ -10,7 +10,8 @@ BB.Arena = class {
     this.h = h;
     this.platforms = [];
     this.forcedLayout = -1; // -1 = random each round; 0..N = a chosen map; >=MAP_NAMES.length = custom
-    this.customMap = null;  // { platforms:[{x1,y1,x2,y2,r}] } from the map editor
+    this.customMap = null;  // { platforms:[{x1,y1,x2,y2,r}], spawns, hazards } from the map editor
+    this.hazards = [];      // spike balls that knock blobs away on contact
     this.waterY = h - 70;   // world y of the reflective water surface at the bottom
     this.leftBound = -20;   // world x of the left kill barrier
     this.rightBound = w + 20; // world x of the right kill barrier
@@ -24,6 +25,7 @@ BB.Arena = class {
   buildLayout() {
     const w = this.w, h = this.h;
     this.platforms = [];
+    this.hazards = [];
     // capsule: segment (x1,y1)-(x2,y2) + radius r. horizontal => flat top.
     const add = (x1, y1, x2, y2, r) =>
       this.platforms.push({ x1: x1 * w, y1: y1 * h, x2: x2 * w, y2: y2 * h, r, life: Infinity });
@@ -40,7 +42,8 @@ BB.Arena = class {
         const top = (p) => ({ x: (p.x1 + p.x2) / 2, y: Math.min(p.y1, p.y2) - p.r - 16 });
         this.spawns = [top(sorted[0]), top(sorted[sorted.length - 1])];
       }
-      this._decorate(); this._buildBackdrop();
+      this.hazards = (this.customMap.hazards || []).map((h) => ({ x: h.x, y: h.y, r: h.r }));
+      this._decorate(); this._buildBackdrop(); this._buildMirror();
       return;
     }
 
@@ -93,6 +96,15 @@ BB.Arena = class {
 
     this._decorate();
     this._buildBackdrop();
+    this._buildMirror();
+  }
+
+  // the mirror world: islands + hazards reflected across the waterline. Fall
+  // through the water and you play down here as your upside-down self.
+  _buildMirror() {
+    const wy = this.waterY;
+    this.mirrorPlatforms = this.platforms.map((p) => ({ x1: p.x1, y1: 2 * wy - p.y1, x2: p.x2, y2: 2 * wy - p.y2, r: p.r, life: Infinity, mirror: true }));
+    this.mirrorHazards = this.hazards.map((h) => ({ x: h.x, y: 2 * wy - h.y, r: h.r }));
   }
 
   // scatter grass tufts / flowers / pebbles along each island's rim (once per round)
@@ -161,7 +173,26 @@ BB.Arena = class {
     ctx.stroke();
   }
 
-  draw(ctx, time = 0) { this.drawIslands(ctx, time); }
+  draw(ctx, time = 0) { this.drawIslands(ctx, time); this.drawHazards(ctx, time); }
+
+  drawHazards(ctx, time) {
+    for (const hz of this.hazards) {
+      ctx.save(); ctx.translate(hz.x, hz.y); ctx.rotate(time * 0.7);
+      ctx.fillStyle = "#ff4b5b";
+      const N = 9;
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * hz.r * 0.55, Math.sin(a) * hz.r * 0.55);
+        ctx.lineTo(Math.cos(a + Math.PI / N) * hz.r, Math.sin(a + Math.PI / N) * hz.r);
+        ctx.lineTo(Math.cos(a + 2 * Math.PI / N) * hz.r * 0.55, Math.sin(a + 2 * Math.PI / N) * hz.r * 0.55);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#8a1f2a"; ctx.beginPath(); ctx.arc(0, 0, hz.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ff9098"; ctx.beginPath(); ctx.arc(0, 0, hz.r * 0.26, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
 
   // just the islands + decor (also re-used, flipped, for the water reflection)
   drawIslands(ctx, time = 0) {

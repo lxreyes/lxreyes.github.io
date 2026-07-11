@@ -186,7 +186,7 @@ BB.Game = class {
     zoom = BB.clamp(zoom, 0.85, 1.9);
     const k = BB.clamp(dt * 4, 0, 1);
     this.cam.x = BB.lerp(this.cam.x, cx, k);
-    this.cam.y = BB.lerp(this.cam.y, BB.clamp(cy, 140, this.h - 120), k);
+    this.cam.y = BB.lerp(this.cam.y, BB.clamp(cy, 120, 2 * this.arena.waterY - 60), k); // follow into the mirror world
     this.cam.zoom = BB.lerp(this.cam.zoom, zoom, k);
   }
 
@@ -400,8 +400,9 @@ BB.Game = class {
   editorEnter() {
     this.editorPlatforms = this.customMap ? this.customMap.platforms.map((p) => ({ ...p })) : [];
     this.editorSpawns = this.customMap && this.customMap.spawns ? this.customMap.spawns.map((s) => ({ ...s })) : [];
+    this.editorHazards = this.customMap && this.customMap.hazards ? this.customMap.hazards.map((h) => ({ ...h })) : [];
     this.editorR = 22;
-    this.editorTool = "draw"; // draw | erase | spawn
+    this.editorTool = "draw"; // draw | erase | spawn | spikes
     this.editorLast = null;
     this._paintLock = false;
     this.state = "editor";
@@ -411,11 +412,12 @@ BB.Game = class {
     const cx = this.w / 2, barY = this.h - 42;
     return {
       barY,
-      draw: { x: 16, y: barY, w: 72, h: 32, label: "DRAW" },
-      erase: { x: 92, y: barY, w: 72, h: 32, label: "ERASE" },
-      spawn: { x: 168, y: barY, w: 86, h: 32, label: "SPAWNS" },
-      sizeDown: { x: 266, y: barY, w: 32, h: 32, label: "–" },
-      sizeUp: { x: 302, y: barY, w: 32, h: 32, label: "+" },
+      draw: { x: 14, y: barY, w: 58, h: 32, label: "DRAW" },
+      erase: { x: 76, y: barY, w: 58, h: 32, label: "ERASE" },
+      spawn: { x: 138, y: barY, w: 72, h: 32, label: "SPAWNS" },
+      spikes: { x: 214, y: barY, w: 66, h: 32, label: "SPIKES" },
+      sizeDown: { x: 286, y: barY, w: 28, h: 32, label: "–" },
+      sizeUp: { x: 318, y: barY, w: 28, h: 32, label: "+" },
       clear: { x: cx + 96, y: barY, w: 92, h: 32, label: "CLEAR" },
       save: { x: cx + 196, y: barY, w: 150, h: 32, label: "SAVE & USE" },
       back: { x: this.w - 112, y: barY, w: 96, h: 32, label: "‹ BACK" },
@@ -430,9 +432,10 @@ BB.Game = class {
       if (this._hit(L.draw, m.x, m.y)) { this.editorTool = "draw"; BB.Audio.play("click"); this._paintLock = true; return; }
       if (this._hit(L.erase, m.x, m.y)) { this.editorTool = "erase"; BB.Audio.play("click"); this._paintLock = true; return; }
       if (this._hit(L.spawn, m.x, m.y)) { this.editorTool = "spawn"; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.spikes, m.x, m.y)) { this.editorTool = "spikes"; BB.Audio.play("click"); this._paintLock = true; return; }
       if (this._hit(L.sizeDown, m.x, m.y)) { this.editorR = BB.clamp(this.editorR - 3, 10, 50); BB.Audio.play("click"); this._paintLock = true; return; }
       if (this._hit(L.sizeUp, m.x, m.y)) { this.editorR = BB.clamp(this.editorR + 3, 10, 50); BB.Audio.play("click"); this._paintLock = true; return; }
-      if (this._hit(L.clear, m.x, m.y)) { this.editorPlatforms = []; this.editorSpawns = []; BB.Audio.play("click"); this._paintLock = true; return; }
+      if (this._hit(L.clear, m.x, m.y)) { this.editorPlatforms = []; this.editorSpawns = []; this.editorHazards = []; BB.Audio.play("click"); this._paintLock = true; return; }
       if (this._hit(L.save, m.x, m.y)) { this._editorSave(); this._paintLock = true; return; }
       if (inField) {
         this._paintLock = false; this.editorLast = null;
@@ -449,6 +452,17 @@ BB.Game = class {
         const p = this.editorPlatforms[i];
         if (BB.dist(x, y, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2) < p.r + this.editorR) this.editorPlatforms.splice(i, 1);
       }
+      for (let i = this.editorHazards.length - 1; i >= 0; i--) {
+        const h = this.editorHazards[i];
+        if (BB.dist(x, y, h.x, h.y) < h.r + this.editorR) this.editorHazards.splice(i, 1);
+      }
+      return;
+    }
+    if (this.editorTool === "spikes") {
+      if (this.editorHazards.length > 120) return;
+      if (this.editorLast && BB.dist(this.editorLast.x, this.editorLast.y, x, y) < this.editorR * 1.3) return;
+      this.editorHazards.push({ x, y, r: Math.max(14, this.editorR) });
+      this.editorLast = { x, y };
       return;
     }
     if (this.editorPlatforms.length > 500) return; // safety cap
@@ -463,6 +477,7 @@ BB.Game = class {
     if (this.editorPlatforms.length < 1) { BB.Audio.play("hit"); return; }
     const map = { platforms: this.editorPlatforms.map((p) => ({ ...p })) };
     if (this.editorSpawns.length === 2) map.spawns = this.editorSpawns.map((s) => ({ ...s }));
+    if (this.editorHazards.length) map.hazards = this.editorHazards.map((h) => ({ ...h }));
     this.customMap = map;
     this._saveCustomMap();
     this.mapChoice = BB.MAP_NAMES.length; // select the Custom slot
@@ -486,6 +501,12 @@ BB.Game = class {
       if (p.x1 === p.x2 && p.y1 === p.y2) { ctx.fillStyle = "#3f4b6b"; ctx.beginPath(); ctx.arc(p.x1, p.y1, p.r, 0, Math.PI * 2); ctx.fill(); }
       else { ctx.strokeStyle = "#3f4b6b"; ctx.lineWidth = p.r * 2; ctx.beginPath(); ctx.moveTo(p.x1, p.y1); ctx.lineTo(p.x2, p.y2); ctx.stroke(); }
     }
+    // hazards (spike balls)
+    for (const h of this.editorHazards) {
+      ctx.fillStyle = "#ff4b5b";
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(h.x + Math.cos(a) * h.r * 0.5, h.y + Math.sin(a) * h.r * 0.5); ctx.lineTo(h.x + Math.cos(a + 0.4) * h.r, h.y + Math.sin(a + 0.4) * h.r); ctx.lineTo(h.x + Math.cos(a + 0.8) * h.r * 0.5, h.y + Math.sin(a + 0.8) * h.r * 0.5); ctx.fill(); }
+      ctx.fillStyle = "#8a1f2a"; ctx.beginPath(); ctx.arc(h.x, h.y, h.r * 0.55, 0, Math.PI * 2); ctx.fill();
+    }
     // spawn markers
     this.editorSpawns.forEach((s, i) => {
       ctx.fillStyle = i === 0 ? "#46c8ff" : "#ff6b6b";
@@ -496,14 +517,15 @@ BB.Game = class {
     const m = BB.Input.mouse;
     if (m.y > 78 && m.y < L.barY - 10) {
       if (this.editorTool === "spawn") { ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, 10, 0, Math.PI * 2); ctx.stroke(); }
-      else { ctx.strokeStyle = this.editorTool === "erase" ? "rgba(255,90,110,0.7)" : "rgba(111,191,91,0.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, this.editorR, 0, Math.PI * 2); ctx.stroke(); }
+      else { ctx.strokeStyle = this.editorTool === "erase" ? "rgba(255,90,110,0.7)" : this.editorTool === "spikes" ? "rgba(255,75,91,0.8)" : "rgba(111,191,91,0.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, this.editorR, 0, Math.PI * 2); ctx.stroke(); }
     }
     // toolbar
-    this._button(ctx, L.draw, { active: this.editorTool === "draw", font: 14 });
-    this._button(ctx, L.erase, { active: this.editorTool === "erase", font: 14 });
-    this._button(ctx, L.spawn, { active: this.editorTool === "spawn", font: 13 });
-    this._text(ctx, "size", 284, L.barY - 8, 11, "#8fa3c8");
-    this._button(ctx, L.sizeDown, { font: 20 }); this._button(ctx, L.sizeUp, { font: 20 });
+    this._button(ctx, L.draw, { active: this.editorTool === "draw", font: 13 });
+    this._button(ctx, L.erase, { active: this.editorTool === "erase", font: 13 });
+    this._button(ctx, L.spawn, { active: this.editorTool === "spawn", font: 12 });
+    this._button(ctx, L.spikes, { active: this.editorTool === "spikes", font: 13 });
+    this._text(ctx, "size", 302, L.barY - 8, 10, "#8fa3c8");
+    this._button(ctx, L.sizeDown, { font: 18 }); this._button(ctx, L.sizeUp, { font: 18 });
     this._button(ctx, L.clear, { font: 14 }); this._button(ctx, L.save, { font: 15 }); this._button(ctx, L.back, { font: 14 });
   }
 
@@ -581,7 +603,7 @@ BB.Game = class {
       this.applyCamera(ctx);
       this.arena.draw(ctx, this.time);
       for (const p of this.projectiles) p.draw(ctx);
-      for (const b of this.blobs) b.draw(ctx);
+      for (const b of this.blobs) if (!b.mirror) b.draw(ctx); // mirror-world blobs drawn in _drawWater
       BB.Particles.draw(ctx);
       if (this.chargeSlot >= 0 && this.player && !this.player.dead) {
         const ab = BB.Abilities[this.player.abilities[this.chargeSlot]];
@@ -693,17 +715,20 @@ BB.Game = class {
     ctx.translate(0, 2 * wy);
     ctx.scale(1, -1);
     ctx.globalAlpha = 0.38;
-    this.arena.drawIslands(ctx, t);
+    this.arena.drawIslands(ctx, t); // the flipped islands ARE the mirror-world terrain
     for (const p of this.projectiles) p.draw(ctx);
-    for (const b of this.blobs) if (!b.dead) b.draw(ctx);
+    for (const b of this.blobs) if (!b.dead && !b.mirror) b.draw(ctx); // reflect only real-world fighters
     ctx.restore();
 
-    // blue depth wash over the reflection
-    const g = ctx.createLinearGradient(0, wy, 0, wy + 150);
-    g.addColorStop(0, "rgba(44,116,156,0.34)");
-    g.addColorStop(1, "rgba(8,26,54,0.82)");
+    // blue depth wash — light enough to see into the mirror world you can play in
+    const g = ctx.createLinearGradient(0, wy, 0, wy + 240);
+    g.addColorStop(0, "rgba(44,116,156,0.30)");
+    g.addColorStop(1, "rgba(20,52,92,0.44)");
     ctx.fillStyle = g;
-    ctx.fillRect(left, wy - 4, right - left, this.h + 60);
+    ctx.fillRect(left, wy - 4, right - left, this.h + 900);
+
+    // the mirror-world fighters, drawn over the wash so they read clearly
+    for (const b of this.blobs) if (!b.dead && b.mirror) b.draw(ctx);
 
     // drifting ripple highlights
     ctx.strokeStyle = "rgba(150,205,255,0.12)";
@@ -924,6 +949,8 @@ BB.Game = class {
     this._text(ctx, "YOU", 24, 52, 14, "#46c8ff", "bold", "left");
     this._text(ctx, "BOT", this.w - 24, 52, 14, "#ff6b6b", "bold", "right");
     this._text(ctx, BB.PLAYSTYLES[this.botStyleResolved].name, this.w - 24, 70, 11, "#ff9aa0", "normal", "right");
+    this._portalPip(ctx, this.player, 62, 50, false);
+    this._portalPip(ctx, this.enemy, this.w - 62, 50, true);
     this._text(ctx, `ROUND ${this.roundNumber}`, this.w / 2, 26, 18, "#c9d6f0", "bold");
 
     const aliases = ["LMB", "RMB", "Shift"];
@@ -970,6 +997,19 @@ BB.Game = class {
       ctx.fillStyle = i < blob.roundWins ? blob.color : "rgba(255,255,255,0.15)";
       ctx.fill();
     }
+  }
+
+  // little water-portal meter: dip the water enough and the mirror world opens
+  _portalPip(ctx, blob, x, y, right) {
+    if (blob.portalOpen) {
+      const a = 0.6 + 0.4 * Math.sin(this.time * 8);
+      this._text(ctx, "◈ PORTAL", x, y, 11, `rgba(139,224,255,${a})`, "bold", right ? "right" : "left");
+      return;
+    }
+    if (!blob.waterDips) return;
+    const bw = 46, bx = right ? x - bw : x;
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; BB.roundRect(ctx, bx, y - 4, bw, 6, 3); ctx.fill();
+    ctx.fillStyle = "#8be0ff"; BB.roundRect(ctx, bx, y - 4, bw * BB.clamp(blob.waterDips / 4, 0, 1), 6, 3); ctx.fill();
   }
 
   drawRoundIntro(ctx) {
