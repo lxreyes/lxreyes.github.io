@@ -29,6 +29,9 @@ BB.Game = class {
     this.blobs = [];
     this.projectiles = [];
     this.bot = null;
+    this.reflection = null;     // enemy's AI reflection-clone during a match-point mirror duel
+    this.reflectionBot = null;
+    this._benchedEnemy = null;  // the real enemy, set aside topside while the reflection fights
     this.stateTimer = 0;
     this.roundIntro = 0;
     this.roundNumber = 0;
@@ -101,6 +104,10 @@ BB.Game = class {
 
   startRound() {
     this.roundNumber++;
+    // clear any leftover reflection duel from last round
+    if (this._benchedEnemy) this.enemy = this._benchedEnemy;
+    this.reflection = null; this.reflectionBot = null; this._benchedEnemy = null;
+    this.blobs = [this.player, this.enemy];
     this.arena.forcedLayout = this.mapChoice; // honor the chosen map (or -1 = random)
     this.arena.customMap = this.customMap;
     this.arena.reset();
@@ -247,6 +254,10 @@ BB.Game = class {
 
     this.arena.update(dt);
 
+    // match-point mirror duel: once you've dropped into the reversed world, you
+    // swap with your reflection and a reflection-clone of the enemy fights you
+    if (this.atMatchPoint && !this.reflection && !this.player.dead && this.player.mirror) this._spawnReflection();
+
     // Time Stop (Bopl-style): everything but the caster freezes in place
     this.timeFreeze = Math.max(0, (this.timeFreeze || 0) - dt);
     const frozen = this.timeFreeze > 0 ? (this.timeFreezeOwner === this.player ? this.enemy : this.player) : null;
@@ -280,7 +291,8 @@ BB.Game = class {
       }
     } else { this.chargeSlot = -1; }
 
-    if (this.bot && this.enemy !== frozen) this.bot.update(dt);
+    if (this.reflection) { if (this.reflection !== frozen) this.reflectionBot.update(dt); }
+    else if (this.bot && this.enemy !== frozen) this.bot.update(dt);
     for (const b of this.blobs) if (b !== frozen) b.update(dt);
     this.resolveBlobs();
 
@@ -290,7 +302,30 @@ BB.Game = class {
     }
 
     const alive = this.blobs.filter((b) => !b.dead);
-    if (alive.length <= 1) this.endRound(alive.length === 1 ? alive[0] : null);
+    if (alive.length <= 1) {
+      if (this.reflection) this._endMirrorDuel(!this.player.dead); // beat the clone = you win
+      else this.endRound(alive.length === 1 ? alive[0] : null);
+    }
+  }
+
+  // spawn the enemy's reflection-clone in the reversed world; bench the real enemy
+  _spawnReflection() {
+    const e = this.enemy, wy = this.arena.waterY;
+    const ref = new BB.Blob(this, { name: "REFLECTION", color: e.color, abilities: e.abilities.slice(), spawn: { x: e.x, y: 2 * wy - e.y }, isBot: true });
+    ref.isReflection = true; ref.frozen = false;
+    this.reflection = ref;
+    this.reflectionBot = new BB.Bot(ref, this.player, this, this.difficulty);
+    this._benchedEnemy = this.enemy;
+    this.blobs = [this.player, ref];
+    BB.Particles.burst(ref.x, ref.y, e.color, 30, 300, { life: 0.8 });
+    BB.Shake.add(12); BB.Audio.play("fight");
+  }
+
+  _endMirrorDuel(playerWon) {
+    this.enemy = this._benchedEnemy;
+    this.blobs = [this.player, this.enemy];
+    this.reflection = null; this.reflectionBot = null; this._benchedEnemy = null;
+    this.endRound(playerWon ? this.player : this.enemy);
   }
 
   updateInterlude(dt, isMatch) {
@@ -605,6 +640,7 @@ BB.Game = class {
       this.arena.draw(ctx, this.time);
       for (const p of this.projectiles) p.draw(ctx);
       for (const b of this.blobs) if (!b.mirror) b.draw(ctx); // mirror-world blobs drawn in _drawWater
+      if (this._benchedEnemy && !this._benchedEnemy.dead) { ctx.globalAlpha = 0.3; this._benchedEnemy.draw(ctx); ctx.globalAlpha = 1; } // real enemy watches from above
       BB.Particles.draw(ctx);
       if (this.chargeSlot >= 0 && this.player && !this.player.dead) {
         const ab = BB.Abilities[this.player.abilities[this.chargeSlot]];

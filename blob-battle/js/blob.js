@@ -93,7 +93,7 @@ BB.Blob = class {
   hurt(dmg, kx, ky, source) {
     if (this.dead || this.invuln > 0) return;
     if (this.shield > 0) { this.hitFlash = 0.1; BB.Particles.burst(this.x, this.y, "#8be0ff", 8, 140); BB.Audio.play("hit"); return; }
-    this.percent = Math.min(999, this.percent + dmg);
+    this.percent = Math.min(9999, this.percent + dmg);
     const kb = 1 + this.percent * 0.014;              // knockback grows with damage
     if (this.grow > 0) { kx *= 0.5; ky *= 0.5; }      // heavier: resists knockback
     if (this.shrink > 0) { kx *= 1.6; ky *= 1.6; }    // lighter: flies further
@@ -263,7 +263,7 @@ BB.Blob = class {
         this.vy += g * dt * ts; // the mirror world is right-side-up: gravity still pulls down
       }
     }
-    this.vy = BB.clamp(this.vy, -1400, 1400);
+    this.vy = BB.clamp(this.vy, -2600, 2600); // high cap so big-damage launches really fly (sub-stepping stops tunneling)
     if (this.dashing <= 0 && !this.grapple && !this.grip) this.vx *= 1 - AIR_DRAG * dt;
 
     // integrate + collide, SUB-STEPPED by speed so you can't tunnel through thin
@@ -507,6 +507,12 @@ BB.Blob = class {
       ctx.strokeStyle = `rgba(91,184,255,${0.4 + 0.4 * Math.sin(this.game.time * 20)})`;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(this.x, this.y, r + 7, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    if (this.isReflection) { // the enemy's reflection-clone: a shimmering ghost
+      ctx.strokeStyle = `rgba(200,230,255,${0.4 + 0.35 * Math.sin(this.game.time * 6)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(this.x, this.y, r + 5, 0, Math.PI * 2); ctx.stroke();
     }
 
     // Smash-style damage percent floating above the blob
