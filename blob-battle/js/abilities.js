@@ -505,7 +505,9 @@ BB.Abilities = {
       const c = charge === undefined ? 1 : charge;
       const dir = BB.sign(ax - blob.x) || blob.facing || 1;
       const sp = 520 + 820 * c; // full charge ≈ 1300 → really fast
-      blob.vx = dir * sp; blob.vy = -60 - 60 * c; blob.rolling = 0.9 + 0.6 * c; blob.dashDamage = true; blob.dashDmg = 12 + 8 * c; blob.dashKnock = 380 + 340 * c; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
+      blob.vx = dir * sp; blob.vy = -60 - 60 * c; blob.rolling = 0.9 + 0.6 * c;
+      blob.rollSpeed = sp; blob.rollHand = -dir; // roll clockwise/counter around islands
+      blob.dashDamage = true; blob.dashDmg = 12 + 8 * c; blob.dashKnock = 380 + 340 * c; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
       BB.Particles.burst(blob.x, blob.y, "#b8c8e8", 10, 160); BB.Audio.play("whoosh");
     },
   },

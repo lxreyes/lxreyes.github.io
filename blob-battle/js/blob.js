@@ -50,6 +50,7 @@ BB.Blob = class {
     this.dashing = 0;
     this.drilling = 0; // drilling through terrain (ignores platform collision)
     this.rolling = 0;  // Bopl-style roll: a momentum ball you steer
+    this.rollSpeed = 0; this.rollHand = -1; // roll follows surfaces at this speed / handedness
     this.dashLevel = 1;
     this.dashDamage = false; // Roll/Drill deal contact damage; plain Dash does not
     this.dashDmg = 22;
@@ -147,7 +148,11 @@ BB.Blob = class {
       if (moveDir !== 0) { this.vx = BB.clamp(this.vx + moveDir * 700 * dt, -900, 900); this.facing = BB.sign(moveDir); }
     } else if (this.grip) {
       // walk ALONG the island surface (works on walls & ceilings)
-      const n = this.grip, tx = -n.ny, ty = n.nx; // tangent to the surface
+      const n = this.grip;
+      let tx = -n.ny, ty = n.nx; // tangent to the surface
+      // keep controls screen-relative: "right" stays +x on the floor AND ceiling
+      // (otherwise the ceiling feels inverted); on walls, "right" climbs up
+      if (tx < -0.001 || (Math.abs(tx) < 0.001 && ty > 0)) { tx = -tx; ty = -ty; }
       let vt = this.vx * tx + this.vy * ty;        // tangential speed
       const vn = this.vx * n.nx + this.vy * n.ny;  // keep the normal part (stick/gravity)
       vt = BB.approach(vt, target, accel * dt);    // accelerate along the surface
@@ -270,6 +275,17 @@ BB.Blob = class {
       BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
     }
 
+    // a rolling ball hugs the surface it's touching and rolls AROUND it
+    // (floor -> wall -> ceiling), keeping the same rotational direction. In a
+    // gap (no grip) it just arcs across under normal gravity.
+    if (this.rolling > 0 && this.grip) {
+      const n = this.grip;
+      const tx = this.rollHand < 0 ? -n.ny : n.ny;
+      const ty = this.rollHand < 0 ? n.nx : -n.nx;
+      this.vx = tx * this.rollSpeed;
+      this.vy = ty * this.rollSpeed;
+    }
+
     // Roll/Drill/Dash contact hit
     if ((this.dashing > 0 || this.rolling > 0) && this.dashDamage) {
       const lv = this.dashLevel || 1;
@@ -350,8 +366,9 @@ BB.Blob = class {
     this.y += ny * overlap;
     const vn = this.vx * nx + this.vy * ny;
     if (vn < 0) { this.vx -= vn * nx; this.vy -= vn * ny; }
-    // grip the surface so you can WALK along it (top, sides, or ceiling)
-    if (this.gripCd <= 0 && this.rolling <= 0) {
+    // grip the surface so you can WALK along it (top, sides, or ceiling);
+    // a rolling ball grips too, so it can roll floor -> wall -> ceiling
+    if (this.gripCd <= 0) {
       this.grip = { nx, ny };
       this.jumps = 0;
       if (ny < -0.35) this.onGround = true; // top-ish surface (for land juice / animation)
