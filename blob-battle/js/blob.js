@@ -48,6 +48,7 @@ BB.Blob = class {
     this.shieldFx = 0;
     this.dashing = 0;
     this.drilling = 0; // drilling through terrain (ignores platform collision)
+    this.rolling = 0;  // Bopl-style roll: a momentum ball you steer
     this.dashLevel = 1;
     this.dashDamage = false; // Roll/Drill deal contact damage; plain Dash does not
     this.dashDmg = 22;
@@ -140,7 +141,10 @@ BB.Blob = class {
     const accel = (this.onGround ? ACCEL_GROUND : ACCEL_AIR) * ts;
     const target = moveDir * MAX_SPEED;
     const dt = this.game.dt;
-    if (moveDir !== 0) {
+    if (this.rolling > 0) {
+      // rolling ball: keep momentum, only gently steer
+      if (moveDir !== 0) { this.vx = BB.clamp(this.vx + moveDir * 700 * dt, -900, 900); this.facing = BB.sign(moveDir); }
+    } else if (moveDir !== 0) {
       if (!(BB.sign(this.vx) === BB.sign(target) && Math.abs(this.vx) > MAX_SPEED)) {
         this.vx = BB.approach(this.vx, target, accel * dt);
       }
@@ -176,6 +180,7 @@ BB.Blob = class {
     this.healFx = Math.max(0, this.healFx - dt);
     this.dashing = Math.max(0, this.dashing - dt);
     this.drilling = Math.max(0, this.drilling - dt);
+    this.rolling = Math.max(0, this.rolling - dt);
     this.wallStick = Math.max(0, this.wallStick - dt);
     this.slow = Math.max(0, this.slow - dt);
     this.grow = Math.max(0, this.grow - dt);
@@ -210,19 +215,12 @@ BB.Blob = class {
     if (this.jumpCut && !this.jumpHeld && this.vy < -160) { this.vy *= 0.5; this.jumpCut = false; }
     if (this.vy >= 0) this.jumpCut = false;
 
-    // grapple pull
+    // grapple: reel the rope in over time; the swing constraint runs after integrate
     if (this.grapple) {
       this.grapple.t -= dt;
+      this.grapple.len = Math.max(28, this.grapple.len - this.grapple.reel * dt);
       const d = BB.dist(this.x, this.y, this.grapple.x, this.grapple.y);
-      if (this.grapple.t <= 0 || d < 40) {
-        this.grapple = null;
-      } else {
-        const n = BB.Vec.norm(this.grapple.x - this.x, this.grapple.y - this.y);
-        const power = this.grapple.power || 1900;
-        this.vx += n.x * power * dt;
-        this.vy += n.y * power * dt;
-        this.vx *= 0.9;
-      }
+      if (this.grapple.t <= 0 || d < 30) this.grapple = null;
     }
 
     // gravity — suspended while frozen; nearly cancelled while clinging to a wall
@@ -242,6 +240,19 @@ BB.Blob = class {
     this.x += this.vx * dt * ts;
     this.y += this.vy * dt * ts;
 
+    // grapple rope constraint — pendulum swing + reel-in
+    if (this.grapple) {
+      const dx = this.x - this.grapple.x, dy = this.y - this.grapple.y;
+      const d = Math.hypot(dx, dy) || 0.001;
+      if (d > this.grapple.len) {
+        const nx = dx / d, ny = dy / d;
+        this.x = this.grapple.x + nx * this.grapple.len;
+        this.y = this.grapple.y + ny * this.grapple.len;
+        const vr = this.vx * nx + this.vy * ny; // kill only outward velocity → keep the swing
+        if (vr > 0) { this.vx -= vr * nx; this.vy -= vr * ny; }
+      }
+    }
+
     // collide (while drilling you pass straight through terrain, Bopl-style)
     this.onGround = false;
     this.onWall = false;
@@ -251,18 +262,17 @@ BB.Blob = class {
       BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
     }
 
-    // Roll/Drill contact hit
-    if (this.dashing > 0 && this.dashDamage) {
+    // Roll/Drill/Dash contact hit
+    if ((this.dashing > 0 || this.rolling > 0) && this.dashDamage) {
+      const lv = this.dashLevel || 1;
       for (const b of this.game.blobs) {
         if (b === this || b.dead) continue;
         if (BB.dist(this.x, this.y, b.x, b.y) < this.r + b.r + 4) {
           const n = BB.Vec.norm(b.x - this.x, b.y - this.y);
-          const lv = this.dashLevel || 1;
           b.hurt(this.dashDmg + 4 * (lv - 1), n.x * (this.dashKnock + 70 * (lv - 1)), -240, this);
-          this.dashing = 0;
-          this.vx *= -0.3;
-          BB.Shake.add(10);
-          BB.Hit.add(0.07);
+          BB.Shake.add(10); BB.Hit.add(0.07);
+          if (this.dashing > 0) { this.dashing = 0; this.vx *= -0.3; } // dash/drill stop on hit
+          else { this.vx *= 0.8; } // a roll bowls through and keeps going
         }
       }
     }
@@ -375,6 +385,7 @@ BB.Blob = class {
     ctx.save();
     ctx.translate(this.x, this.y - bounce);
     ctx.rotate(lean * 0.5);
+    if (this.rolling > 0) ctx.rotate(this.animT * 16 * (this.vx >= 0 ? 1 : -1)); // spin like a ball
 
     // status rings (unscaled)
     if (this.slow > 0) { ctx.strokeStyle = "rgba(139,224,255,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 4, 0, Math.PI * 2); ctx.stroke(); }

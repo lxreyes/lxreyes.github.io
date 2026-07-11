@@ -123,6 +123,16 @@ BB.makeBlackhole = (owner, x, y, level) => {
           if (d < this.r + b.r && this.hitCd <= 0) { b.hurt(this.dmg, n.x * -80, -180, this.owner); this.hitCd = 0.35; }
         }
       }
+      // also drag in flying projectiles (Bopl-style)
+      for (const pr of game.projectiles) {
+        if (pr === this || pr.vx === undefined || pr.vy === undefined) continue;
+        const d = BB.dist(this.x, this.y, pr.x, pr.y);
+        if (d < this.pullR && d > 1) {
+          const n = BB.Vec.norm(this.x - pr.x, this.y - pr.y);
+          const s = (1 - d / this.pullR) * this.strength * 0.85;
+          pr.vx += n.x * s * dt; pr.vy += n.y * s * dt;
+        }
+      }
       BB.Particles.list.push({ x: this.x + BB.rand(-this.pullR, this.pullR), y: this.y + BB.rand(-this.pullR, this.pullR), vx: 0, vy: 0, life: 0.3, maxLife: 0.3, r: 2, color: "#b98cff", gravity: 0 });
       return this.life > 0;
     },
@@ -486,11 +496,11 @@ BB.Abilities = {
     },
   },
   roll: {
-    id: "roll", name: "Roll", desc: "Roll along the ground, bowling foes over.",
-    color: "#b8c8e8", cooldown: 2.2, role: "attack", botRange: 240,
+    id: "roll", name: "Roll", desc: "Become a rolling ball — keep your momentum, steer, and bowl foes over.",
+    color: "#b8c8e8", cooldown: 2.4, role: "attack", botRange: 300,
     activate(blob, game, ax, ay, lvl) {
       const dir = BB.sign(ax - blob.x) || blob.facing || 1;
-      blob.vx = dir * 880; blob.vy = -40; blob.dashing = 0.34; blob.dashDamage = true; blob.dashDmg = 16; blob.dashKnock = 460; blob.dashLevel = lvl; blob.facing = dir; blob.invuln = Math.max(blob.invuln, 0.1); blob.frozen = false;
+      blob.vx = dir * 720; blob.rolling = 1.0 + 0.15 * (lvl - 1); blob.dashDamage = true; blob.dashDmg = 15; blob.dashKnock = 440; blob.dashLevel = lvl; blob.facing = dir; blob.frozen = false;
       BB.Particles.burst(blob.x, blob.y, "#b8c8e8", 10, 160); BB.Audio.play("whoosh");
     },
   },
@@ -504,12 +514,13 @@ BB.Abilities = {
     },
   },
   grapple: {
-    id: "grapple", name: "Grappling Hook", desc: "Hook a surface and yank in.",
+    id: "grapple", name: "Grappling Hook", desc: "Latch onto a surface and SWING on the rope as it reels you in.",
     color: "#4be0c0", cooldown: 1.6, role: "mobility", botRange: 999,
     activate(blob, game, ax, ay, lvl) {
       const range = 520 * (1 + 0.1 * (lvl - 1));
       const hit = BB.raycastPlatforms(game, blob.x, blob.y, ax - blob.x, ay - blob.y, range);
-      blob.grapple = { x: hit.x, y: hit.y, t: 0.55 + 0.1 * (lvl - 1), power: 1900 * (1 + 0.15 * (lvl - 1)) };
+      const len = BB.dist(blob.x, blob.y, hit.x, hit.y);
+      blob.grapple = { x: hit.x, y: hit.y, len: Math.max(40, len), reel: 240 + 30 * (lvl - 1), t: 1.5 + 0.2 * (lvl - 1) };
       blob.frozen = false;
       BB.Particles.burst(hit.x, hit.y, "#4be0c0", 6, 120); BB.Audio.play("shoot");
     },
