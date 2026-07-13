@@ -359,6 +359,69 @@ BB.makeBeam = (x1, y1, x2, y2, color, width) => ({
   },
 });
 
+/* Bopl-style Spike: a row of spikes that erupts from the FAR face of the
+   platform you're standing on. (dx,dy) is the outward spike direction; the
+   base sits on the opposite surface. Rides the island if it drifts, grows in
+   quickly, then retracts. Launches any blob it catches. */
+BB.makeSpikeWall = (owner, plat, c, dx, dy, level) => {
+  const life = 3.2 + 0.5 * (level - 1);
+  return {
+    kind: "spikewall", owner, plat,
+    bx: c.x + dx * (plat ? plat.r : 20), by: c.y + dy * (plat ? plat.r : 20),
+    dx, dy, level,
+    len: 30 + 6 * (level - 1),   // how far the spikes stick out
+    half: 42 + 7 * (level - 1),  // half-width of the row along the surface
+    count: 5, age: 0, maxLife: life, life,
+    cds: [],
+    _reach() {
+      const grow = BB.clamp(this.age / 0.13, 0, 1);          // shoot up fast
+      const fade = this.life < 0.35 ? BB.clamp(this.life / 0.35, 0, 1) : 1; // retract at the end
+      return this.len * grow * fade;
+    },
+    update(dt, game) {
+      if (this.plat) { this.bx += this.plat.mvx || 0; this.by += this.plat.mvy || 0; } // ride the island
+      this.age += dt; this.life -= dt;
+      for (const e of this.cds) e.t -= dt;
+      const reach = this._reach();
+      const tx = -this.dy, ty = this.dx;
+      for (const b of game.blobs) {
+        if (b.dead) continue;
+        if (b === this.owner && this.age < 0.18) continue;    // don't nick the caster on spawn
+        const rx = b.x - this.bx, ry = b.y - this.by;
+        const along = rx * tx + ry * ty;                      // along the surface
+        const out = rx * this.dx + ry * this.dy;              // outward from the face
+        if (Math.abs(along) < this.half + b.r && out > -b.r && out < reach + b.r) {
+          const e = this.cds.find((x) => x.b === b);
+          if (e && e.t > 0) continue;                         // per-target re-hit cooldown
+          b.hurt(11 + 2 * this.level, this.dx * (430 + 55 * this.level), this.dy * (430 + 55 * this.level) - 130, this.owner);
+          b.vx += this.dx * 90; b.vy += this.dy * 90;         // shove clear of the spikes
+          if (e) e.t = 0.5; else this.cds.push({ b, t: 0.5 });
+          BB.Shake.add(6); BB.Hit.add(0.04);
+        }
+      }
+      return this.life > 0;
+    },
+    draw(ctx) {
+      const reach = this._reach();
+      if (reach < 1) return;
+      const tx = -this.dy, ty = this.dx, n = this.count;
+      ctx.save();
+      ctx.fillStyle = "#cdd6e0"; ctx.strokeStyle = "#7f8b99"; ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+      for (let i = 0; i < n; i++) {
+        const f = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;        // -1..1 across the width
+        const cx = this.bx + tx * f * this.half, cy = this.by + ty * f * this.half;
+        const w = (this.half / n) * 0.85;
+        ctx.beginPath();
+        ctx.moveTo(cx - tx * w, cy - ty * w);
+        ctx.lineTo(cx + this.dx * reach, cy + this.dy * reach);
+        ctx.lineTo(cx + tx * w, cy + ty * w);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      ctx.restore();
+    },
+  };
+};
+
 BB.raycastPlatforms = (game, x, y, dx, dy, maxLen) => {
   const step = 6;
   const n = BB.Vec.norm(dx, dy);
@@ -481,20 +544,23 @@ BB.Abilities = {
     activate(blob, game, ax, ay, lvl) { game.spawn(BB.makeTesla(blob, blob.x, blob.y - 4, lvl)); BB.Audio.play("click"); },
   },
   spike: {
-    id: "spike", name: "Spike", desc: "Bopl-style: sprout spikes and lunge toward your aim — a spiky ball that knocks foes back on contact.",
-    color: "#d0d8e0", cooldown: 3.6, role: "attack", botRange: 140,
+    id: "spike", name: "Spike", desc: "Standing on a platform, sprout a row of spikes from its FAR side — a hazard that launches any blob it catches. (Stand on top → spikes erupt underneath.)",
+    color: "#d0d8e0", cooldown: 4.0, role: "attack", botRange: 150,
+    canUse: (blob) => !!(blob.grip || blob.gripPlat || blob.onGround),
     activate(blob, game, ax, ay, lvl) {
-      blob.spikeTime = Math.max(blob.spikeTime, 3 + 0.8 * (lvl - 1));
-      const n = BB.Vec.norm(ax - blob.x, ay - blob.y);
-      const sp = 360 + 45 * (lvl - 1);                 // spike thrust toward the aim
-      blob.vx += n.x * sp; blob.vy += n.y * sp - 40;
-      blob.facing = BB.sign(n.x) || blob.facing || 1; blob.frozen = false;
-      const reach = blob.r + 26 + 4 * (lvl - 1);        // immediate jab on a foe right in front
-      for (const b of game.blobs) {
-        if (b === blob || b.dead) continue;
-        if (BB.dist(blob.x, blob.y, b.x, b.y) <= reach + b.r) b.hurt(9 + lvl, n.x * (420 + 60 * lvl), n.y * 220 - 200, blob);
+      const A = game.arena;
+      const plats = blob.mirror ? A.mirrorPlatforms : A.platforms;
+      let best = null, bestD = Infinity, bc = null;
+      for (const p of plats) {
+        const c = BB.closestOnSeg(blob.x, blob.y, p.x1, p.y1, p.x2, p.y2);
+        const d = BB.dist(blob.x, blob.y, c.x, c.y);
+        if (d < bestD) { bestD = d; best = p; bc = c; }
       }
-      BB.Particles.burst(blob.x, blob.y, "#d0d8e0", 14, 200); BB.Audio.play("whoosh");
+      if (!best) return;
+      let nx = blob.x - bc.x, ny = blob.y - bc.y; const nl = Math.hypot(nx, ny) || 1; // outward normal → the blob's side
+      nx /= nl; ny /= nl;
+      game.spawn(BB.makeSpikeWall(blob, best, bc, -nx, -ny, lvl)); // spikes erupt from the OPPOSITE face
+      BB.Shake.add(4); BB.Audio.play("whoosh");
     },
   },
 
@@ -709,7 +775,10 @@ BB.drawAbilityIcon = (ctx, id, cx, cy, s, color) => {
       for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; line(Math.cos(a) * u * 0.55, Math.sin(a) * u * 0.55, Math.cos(a) * u * 0.95, Math.sin(a) * u * 0.95); }
       break;
     case "tesla": ctx.beginPath(); ctx.moveTo(u * 0.25, -u * 0.9); ctx.lineTo(-u * 0.3, -u * 0.05); ctx.lineTo(u * 0.12, -u * 0.05); ctx.lineTo(-u * 0.25, u * 0.9); ctx.stroke(); break;
-    case "spike": for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; line(0, 0, Math.cos(a) * u * 0.95, Math.sin(a) * u * 0.95); } break;
+    case "spike":
+      line(-u * 0.9, u * 0.55, u * 0.9, u * 0.55); // ground line
+      for (const bx of [-u * 0.6, -u * 0.2, u * 0.2, u * 0.6]) poly([[bx - u * 0.18, u * 0.55], [bx, -u * 0.45], [bx + u * 0.18, u * 0.55]], true);
+      break;
     case "dash": for (const dx of [-u * 0.7, -u * 0.1, u * 0.5]) { ctx.beginPath(); ctx.moveTo(dx, -u * 0.55); ctx.lineTo(dx + u * 0.38, 0); ctx.lineTo(dx, u * 0.55); ctx.stroke(); } break;
     case "roll": arc(u * 0.72, Math.PI * 0.85, Math.PI * 2.25); { const ea = Math.PI * 2.25; head(Math.cos(ea) * u * 0.72, Math.sin(ea) * u * 0.72, ea + Math.PI / 2, u * 0.3); } break;
     case "drill":

@@ -54,6 +54,7 @@ BB.Blob = class {
     this.drilling = 0; // drilling through terrain (ignores platform collision)
     this.rolling = 0;  // Bopl-style roll: a momentum ball you steer
     this.rollSpeed = 0; this.rollHand = -1; // roll follows surfaces at this speed / handedness
+    this._wasRolling = false; // detect the frame the roll ends (so we can shed its speed)
     this.drillSpeed = 0;
     this.dashLevel = 1;
     this.dashDamage = false; // Roll/Drill deal contact damage; plain Dash does not
@@ -65,8 +66,6 @@ BB.Blob = class {
     this.shrink = 0;
     this.shield = 0; // blocks all knockback while > 0
     this.stun = 0;   // frozen: can't move or act
-    this.spikeTime = 0;
-    this._spikeCd = 0;
     this.reviveArmed = false;
     this.grapple = null;
     this.hitFlash = 0;
@@ -164,15 +163,17 @@ BB.Blob = class {
       // walk ALONG the island surface (works on walls & ceilings)
       const n = this.grip;
       let tx = -n.ny, ty = n.nx; // tangent to the surface
-      // keep controls screen-relative: "right" stays +x on the floor AND ceiling
-      // (otherwise the ceiling feels inverted); on walls, "right" climbs up
+      // base tangent is screen-relative: "right" stays +x; on walls "right" climbs up
       if (tx < -0.001 || (Math.abs(tx) < 0.001 && ty > 0)) { tx = -tx; ty = -ty; }
+      // upside down (hanging under a ceiling, normal points DOWN): invert controls
+      const upsideDown = n.ny > 0.35;
+      const md = upsideDown ? -moveDir : moveDir;
       let vt = this.vx * tx + this.vy * ty;        // tangential speed
       const vn = this.vx * n.nx + this.vy * n.ny;  // keep the normal part (stick/gravity)
-      vt = BB.approach(vt, target, accel * dt);    // accelerate along the surface
+      vt = BB.approach(vt, md * MAX_SPEED, accel * dt); // accelerate along the surface
       this.vx = vt * tx + vn * n.nx;
       this.vy = vt * ty + vn * n.ny;
-      if (moveDir !== 0) this.facing = BB.sign(moveDir);
+      if (md !== 0) this.facing = BB.sign(md);
     } else if (moveDir !== 0) {
       if (!(BB.sign(this.vx) === BB.sign(target) && Math.abs(this.vx) > MAX_SPEED)) {
         this.vx = BB.approach(this.vx, target, accel * dt);
@@ -221,8 +222,6 @@ BB.Blob = class {
     this.shrink = Math.max(0, this.shrink - dt);
     this.shield = Math.max(0, this.shield - dt);
     this.stun = Math.max(0, this.stun - dt);
-    this.spikeTime = Math.max(0, this.spikeTime - dt);
-    this._spikeCd = Math.max(0, this._spikeCd - dt);
     this.squash = BB.approach(this.squash, 0, dt * 3);
     for (const id in this.cooldowns) this.cooldowns[id] = Math.max(0, this.cooldowns[id] - dt);
 
@@ -312,6 +311,16 @@ BB.Blob = class {
     }
     if (this.drilling > 0) BB.Particles.burst(this.x, this.y, "#b0f0ff", 3, 130, { life: 0.28 });
 
+    // the roll pins you to full roll speed every sub-step; the instant it ends,
+    // cap your speed to a runnable value so you don't rocket off (ground friction
+    // then eases you to a stop). The gap-carry happens DURING the roll, so
+    // capping at the end is safe — and a hard cap is robust to the grip state.
+    if (this._wasRolling && this.rolling <= 0) {
+      const cap = 380, sp = Math.hypot(this.vx, this.vy);
+      if (sp > cap) { const k = cap / sp; this.vx *= k; this.vy *= k; }
+    }
+    this._wasRolling = this.rolling > 0;
+
     // Roll/Drill/Dash contact hit
     if ((this.dashing > 0 || this.rolling > 0) && this.dashDamage) {
       const lv = this.dashLevel || 1;
@@ -323,19 +332,6 @@ BB.Blob = class {
           BB.Shake.add(10); BB.Hit.add(0.07);
           if (this.dashing > 0) { this.dashing = 0; this.vx *= -0.3; } // dash/drill stop on hit
           else { this.vx *= 0.8; } // a roll bowls through and keeps going
-        }
-      }
-    }
-
-    // Spike contact damage (spikes out)
-    if (this.spikeTime > 0 && this._spikeCd <= 0) {
-      for (const b of this.game.blobs) {
-        if (b === this || b.dead) continue;
-        if (BB.dist(this.x, this.y, b.x, b.y) < this.r + b.r + 8) {
-          const n = BB.Vec.norm(b.x - this.x, b.y - this.y);
-          b.hurt(14, n.x * 460, -220, this);
-          this._spikeCd = 0.35;
-          BB.Shake.add(6);
         }
       }
     }
@@ -429,20 +425,6 @@ BB.Blob = class {
     const airborne = !this.onGround;
     const hitFace = this.hitFlash > 0;
     const surprised = spd > 520 || (airborne && Math.abs(this.vy) > 260);
-
-    // spikes (world space, drawn under the body)
-    if (this.spikeTime > 0) {
-      ctx.fillStyle = "#d0d8e0";
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * Math.PI * 2 + this.game.time * 2;
-        const c = Math.cos(a), s = Math.sin(a);
-        ctx.beginPath();
-        ctx.moveTo(this.x + c * r, this.y + s * r);
-        ctx.lineTo(this.x + c * (r + 10), this.y + s * (r + 10));
-        ctx.lineTo(this.x + Math.cos(a + 0.25) * r, this.y + Math.sin(a + 0.25) * r);
-        ctx.fill();
-      }
-    }
 
     // procedural animation: walk bounce, idle breath, speed stretch, lean
     const walkT = this.animT * 15;
