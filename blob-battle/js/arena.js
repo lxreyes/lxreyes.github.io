@@ -48,45 +48,45 @@ BB.Arena = class {
     }
 
     const layout = this.forcedLayout >= 0 ? Math.min(this.forcedLayout, BB.MAP_NAMES.length - 1) : BB.randInt(0, BB.MAP_NAMES.length - 1);
+    // big, chunky Bopl-style landmasses you walk right around
     if (layout === 0) {
-      add(0.14, 0.64, 0.34, 0.64, 30);       // left bean
-      add(0.66, 0.64, 0.86, 0.64, 30);       // right bean
-      add(0.5, 0.44, 0.5, 0.44, 24);         // high middle perch
+      add(0.13, 0.64, 0.37, 0.64, 46);       // left landmass
+      add(0.63, 0.64, 0.87, 0.64, 46);       // right landmass
+      add(0.5, 0.40, 0.5, 0.40, 36);         // high middle island
     } else if (layout === 1) {
-      add(0.08, 0.70, 0.40, 0.70, 30);       // wide ground, split by a center gap
-      add(0.60, 0.70, 0.92, 0.70, 30);
+      add(0.06, 0.70, 0.42, 0.70, 44);       // wide ground, split by a center gap
+      add(0.58, 0.70, 0.94, 0.70, 44);
     } else if (layout === 2) {
-      add(0.10, 0.72, 0.30, 0.72, 28);       // staircase of three beans
-      add(0.42, 0.56, 0.58, 0.56, 26);
-      add(0.70, 0.72, 0.90, 0.72, 28);
+      add(0.08, 0.72, 0.32, 0.72, 40);       // staircase of three
+      add(0.40, 0.54, 0.60, 0.54, 38);
+      add(0.68, 0.72, 0.92, 0.72, 40);
     } else if (layout === 3) {
-      add(0.22, 0.62, 0.22, 0.62, 40);       // two big round islands
-      add(0.78, 0.62, 0.78, 0.62, 40);
+      add(0.24, 0.58, 0.24, 0.58, 62);       // two huge round islands
+      add(0.76, 0.58, 0.76, 0.58, 62);
     } else if (layout === 4) {
-      add(0.10, 0.66, 0.34, 0.66, 28);       // offset beans + floating center circle
-      add(0.66, 0.56, 0.90, 0.56, 28);
-      add(0.5, 0.40, 0.5, 0.40, 20);
+      add(0.08, 0.66, 0.36, 0.66, 42);       // offset landmasses + high circle
+      add(0.64, 0.54, 0.92, 0.54, 42);
+      add(0.5, 0.36, 0.5, 0.36, 30);
     } else if (layout === 5) {
-      add(0.20, 0.52, 0.20, 0.92, 18);       // three tall pillars
-      add(0.50, 0.46, 0.50, 0.92, 18);
-      add(0.80, 0.52, 0.80, 0.92, 18);
+      add(0.20, 0.48, 0.20, 0.80, 30);       // three thick pillars
+      add(0.50, 0.42, 0.50, 0.80, 30);
+      add(0.80, 0.48, 0.80, 0.80, 30);
     } else if (layout === 6) {
-      add(0.20, 0.74, 0.80, 0.74, 22);       // long low bridge + high side beans
-      add(0.10, 0.48, 0.24, 0.48, 22);
-      add(0.76, 0.48, 0.90, 0.48, 22);
+      add(0.16, 0.76, 0.84, 0.76, 34);       // long fat bridge + high side isles
+      add(0.07, 0.46, 0.27, 0.46, 36);
+      add(0.73, 0.46, 0.93, 0.46, 36);
     } else if (layout === 7) {
-      add(0.10, 0.62, 0.24, 0.62, 22);       // archipelago of four beans
-      add(0.34, 0.70, 0.46, 0.70, 22);
-      add(0.54, 0.70, 0.66, 0.70, 22);
-      add(0.76, 0.62, 0.90, 0.62, 22);
+      add(0.08, 0.60, 0.26, 0.60, 34);       // archipelago of chunky isles
+      add(0.40, 0.72, 0.60, 0.72, 34);
+      add(0.74, 0.60, 0.92, 0.60, 34);
     } else if (layout === 8) {
-      add(0.30, 0.70, 0.70, 0.70, 34);       // huge center island + two side beans
-      add(0.08, 0.56, 0.20, 0.56, 24);
-      add(0.80, 0.56, 0.92, 0.56, 24);
+      add(0.28, 0.70, 0.72, 0.70, 54);       // one massive island + two side isles
+      add(0.06, 0.52, 0.22, 0.52, 36);
+      add(0.78, 0.52, 0.94, 0.52, 36);
     } else {
-      add(0.10, 0.76, 0.28, 0.76, 22);       // ascending diagonal steps
-      add(0.41, 0.62, 0.59, 0.62, 22);
-      add(0.72, 0.48, 0.90, 0.48, 22);
+      add(0.08, 0.78, 0.30, 0.78, 34);       // ascending steps
+      add(0.40, 0.60, 0.60, 0.60, 34);
+      add(0.70, 0.44, 0.92, 0.44, 34);
     }
 
     // spawn resting ON the leftmost & rightmost islands (small blob radius clearance)

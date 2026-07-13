@@ -567,10 +567,10 @@ BB.Abilities = {
     id: "platform", name: "Platform", desc: "Conjure a temporary ledge.",
     color: "#4be0c0", cooldown: 3.5, role: "mobility", botRange: 300,
     activate(blob, game, ax, ay, lvl) {
-      const len = 90 + 20 * (lvl - 1), r = 14;
+      const len = 150 + 30 * (lvl - 1), r = 20;
       const cx = BB.clamp(ax, 40, game.w - 40);
       const cy = BB.clamp(ay, 60, game.h - 30);
-      game.arena.addTemp(cx, cy, len, r, 5.0 + (lvl - 1));
+      game.arena.addTemp(cx, cy, len, r, 5.5 + (lvl - 1));
       BB.Particles.burst(cx, cy, "#4be0c0", 10, 120); BB.Audio.play("click");
     },
   },
