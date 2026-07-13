@@ -42,6 +42,7 @@ BB.Blob = class {
     this.onGround = false;
     this.grip = null;   // {nx,ny}: surface normal of the island you're walking on (Bopl surface-walk)
     this.gripCd = 0;    // brief no-grip window after jumping off a surface
+    this.gripPlat = null; // the platform you're riding, so drifting islands carry you
     this.jumps = 0;
     this.jumpBuffer = 0;
     this.jumpCut = false;
@@ -201,6 +202,9 @@ BB.Blob = class {
     const portal = !!this.game.atMatchPoint; // the water is a mirror portal at match point
     this.mirror = portal && this.y > wy;
 
+    // ride the drifting island you're standing on
+    if (this.gripPlat) { this.x += this.gripPlat.mvx || 0; this.y += this.gripPlat.mvy || 0; }
+
     // spawn-hover ends the instant you actually move (walk, jump, dash, knockback…)
     if (this.frozen && (Math.abs(this.vx) > 6 || Math.abs(this.vy) > 6)) this.frozen = false;
 
@@ -274,7 +278,7 @@ BB.Blob = class {
     const steps = BB.clamp(Math.ceil(stepLen / (this.r * 0.45)), 1, 12);
     const sdt = (dt * ts) / steps;
     for (let s = 0; s < steps; s++) {
-      this.onGround = false; this.grip = null;
+      this.onGround = false; this.grip = null; this.gripPlat = null;
       this.x += this.vx * sdt;
       this.y += this.vy * sdt;
       // grapple rope constraint — pendulum swing + reel-in
@@ -409,6 +413,7 @@ BB.Blob = class {
     // a rolling ball grips too, so it can roll floor -> wall -> ceiling
     if (this.gripCd <= 0) {
       this.grip = { nx, ny };
+      this.gripPlat = p; // ride this platform if it drifts
       this.jumps = 0;
       if (ny < -0.35) this.onGround = true; // top-ish surface (for land juice / animation)
     }
