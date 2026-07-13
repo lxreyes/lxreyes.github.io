@@ -430,8 +430,8 @@ BB.Blob = class {
     const walkT = this.animT * 15;
     const bounce = moving ? Math.abs(Math.sin(walkT)) * r * 0.14 : 0;
     const breathe = this.onGround && !moving ? Math.sin(this.animT * 3) * 0.035 : 0;
-    const vStretch = BB.clamp(Math.abs(this.vy) / 1500, 0, 0.24);
-    const hStretch = BB.clamp(Math.abs(this.vx) / 1300, 0, 0.18);
+    const vStretch = BB.clamp(Math.abs(this.vy) / 1800, 0, 0.17);
+    const hStretch = BB.clamp(Math.abs(this.vx) / 1600, 0, 0.13);
     const lean = BB.clamp(this.vx / 1000, -0.32, 0.32);
     let sx = 1 - sq * 0.4 + breathe - vStretch * 0.7 + hStretch;
     let sy = 1 + sq * 0.4 - breathe + vStretch - hStretch * 0.7;
@@ -459,23 +459,51 @@ BB.Blob = class {
 
     ctx.scale(sx, sy);
 
-    // wobbly jelly body
-    const jiggle = 0.028 + BB.clamp(spd / 4000, 0, 0.05) + (hitFace ? 0.05 : 0);
-    ctx.fillStyle = flashing ? "#ffffff" : this.healFx > 0 ? "#7dffb0" : (this.bodyColor || this.color);
-    ctx.beginPath();
-    const N = 22;
-    for (let i = 0; i <= N; i++) {
+    // --- gooey blob body: a smooth organic outline, not a scaled circle ---
+    const rolling = this.rolling > 0;
+    const grounded = this.onGround && !rolling;
+    const jiggle = 0.05 + BB.clamp(spd / 3400, 0, 0.06) + (hitFace ? 0.06 : 0);
+    const nose = (airborne && !rolling) ? BB.clamp(spd / 1500, 0, 0.13) : 0; // lead with a rounded nose when flying
+    const ndir = Math.atan2(this.vy, this.vx);
+    const N = 40;
+    const pts = [];
+    for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const wob = 1 + Math.sin(a * 3 + this.animT * 6 + this.wobblePhase) * jiggle + Math.sin(a * 2 - this.animT * 4) * jiggle * 0.6;
+      // organic, smooth, multi-frequency wobble (jelly surface)
+      let wob = 1
+        + Math.sin(a * 2 + this.animT * 3.0 + this.wobblePhase) * jiggle
+        + Math.sin(a * 3 - this.animT * 4.5 + this.wobblePhase * 1.7) * jiggle * 0.55;
+      const down = Math.sin(a); // +1 = bottom of the body in local space
+      if (grounded) wob += Math.max(0, down) * (moving ? 0.03 : 0.075); // sag/settle at rest
+      if (nose) wob += Math.cos(a - ndir) * nose;                       // teardrop toward motion
       const rr = r * wob;
-      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
     }
-    ctx.closePath(); ctx.fill();
+    // trace a smooth closed curve THROUGH the points (quadratic midpoints => gooey)
+    ctx.beginPath();
+    ctx.moveTo((pts[N - 1][0] + pts[0][0]) / 2, (pts[N - 1][1] + pts[0][1]) / 2);
+    for (let i = 0; i < N; i++) {
+      const nxt = pts[(i + 1) % N];
+      ctx.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + nxt[0]) / 2, (pts[i][1] + nxt[1]) / 2);
+    }
+    ctx.closePath();
 
-    // shine
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.38, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    // fill with a top-lit / bottom-shaded gradient for a soft gel volume
+    const base = flashing ? "#ffffff" : this.healFx > 0 ? "#7dffb0" : (this.bodyColor || this.color);
+    const grad = ctx.createLinearGradient(0, -r, 0, r);
+    grad.addColorStop(0, BB.mixHex(base, "#ffffff", 0.24));
+    grad.addColorStop(0.55, base);
+    grad.addColorStop(1, BB.mixHex(base, "#0a0e1a", 0.22));
+    ctx.fillStyle = grad;
+    ctx.fill();
+    if (!flashing) { ctx.strokeStyle = BB.mixHex(base, "#0a0e1a", 0.35); ctx.lineWidth = Math.max(1.4, r * 0.05); ctx.stroke(); }
+
+    // glossy highlight — a soft ball of light, upper-left
+    const hl = ctx.createRadialGradient(-r * 0.3, -r * 0.4, r * 0.04, -r * 0.3, -r * 0.4, r * 0.62);
+    hl.addColorStop(0, "rgba(255,255,255,0.5)");
+    hl.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = hl;
+    ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.4, r * 0.62, 0, Math.PI * 2); ctx.fill();
 
     this._drawFace(ctx, r, hitFace, surprised);
     ctx.restore();
