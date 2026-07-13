@@ -13,7 +13,7 @@ BB.DIFFICULTY = {
 /* Bot personalities (separate from difficulty): each has a kit it drafts from
    and multipliers that reshape how it fights. */
 BB.PLAYSTYLES = [
-  { name: "Rusher",    pool: ["roll", "drill", "dash", "spike", "rock", "grenade", "sword"],           spacing: 0.35, aggro: 1.3, dodge: 0.7,  preferMelee: true },
+  { name: "Rusher",    pool: ["roll", "drill", "dash", "spike", "rock", "grenade"],                     spacing: 0.35, aggro: 1.3, dodge: 0.7,  preferMelee: true },
   { name: "Zoner",     pool: ["bow", "beam", "missile", "meteor", "mine", "tesla", "boomerang"],        spacing: 1.7,  aggro: 0.95, dodge: 1.1, preferMelee: false },
   { name: "Trickster", pool: ["dash", "teleport", "blinkgun", "grapple", "trampoline", "freeze", "shrink"], spacing: 1.15, aggro: 1.0, dodge: 1.4, preferMelee: false },
   { name: "Bruiser",   pool: ["grenade", "push", "gust", "blackhole", "growth", "shield", "magnet"],    spacing: 0.9,  aggro: 1.1, dodge: 0.55, preferMelee: false },

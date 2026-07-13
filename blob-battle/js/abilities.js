@@ -274,19 +274,6 @@ BB.makeBlinkOrb = (owner, x, y, vx, vy) => ({
   },
 });
 
-BB.makeSlash = (x, y, ang, reach, color) => ({
-  kind: "slash", owner: null, x, y, ang, reach, color, life: 0.18,
-  update(dt) { this.life -= dt; return this.life > 0; },
-  draw(ctx) {
-    const a = BB.clamp(this.life / 0.18, 0, 1);
-    ctx.globalAlpha = a; ctx.lineCap = "round";
-    ctx.strokeStyle = this.color; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.arc(this.x, this.y, this.reach, this.ang - 0.95, this.ang + 0.95); ctx.stroke();
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(this.x, this.y, this.reach, this.ang - 0.95, this.ang + 0.95); ctx.stroke();
-    ctx.globalAlpha = 1;
-  },
-});
 
 BB.makeBoomerang = (owner, x, y, vx, vy, level) => ({
   kind: "boomerang", owner, x, y, vx, vy, r: 9, t: 0, phase: "out", life: 2.6, spin: 0, level: level || 1, struck: [],
@@ -494,9 +481,21 @@ BB.Abilities = {
     activate(blob, game, ax, ay, lvl) { game.spawn(BB.makeTesla(blob, blob.x, blob.y - 4, lvl)); BB.Audio.play("click"); },
   },
   spike: {
-    id: "spike", name: "Spike", desc: "Sprout spikes; touching foes get knocked back.",
-    color: "#d0d8e0", cooldown: 4.5, role: "attack", botRange: 90,
-    activate(blob, game, ax, ay, lvl) { blob.spikeTime = Math.max(blob.spikeTime, 3 + 0.8 * (lvl - 1)); BB.Particles.burst(blob.x, blob.y, "#d0d8e0", 12, 160); BB.Audio.play("whoosh"); },
+    id: "spike", name: "Spike", desc: "Bopl-style: sprout spikes and lunge toward your aim — a spiky ball that knocks foes back on contact.",
+    color: "#d0d8e0", cooldown: 3.6, role: "attack", botRange: 140,
+    activate(blob, game, ax, ay, lvl) {
+      blob.spikeTime = Math.max(blob.spikeTime, 3 + 0.8 * (lvl - 1));
+      const n = BB.Vec.norm(ax - blob.x, ay - blob.y);
+      const sp = 360 + 45 * (lvl - 1);                 // spike thrust toward the aim
+      blob.vx += n.x * sp; blob.vy += n.y * sp - 40;
+      blob.facing = BB.sign(n.x) || blob.facing || 1; blob.frozen = false;
+      const reach = blob.r + 26 + 4 * (lvl - 1);        // immediate jab on a foe right in front
+      for (const b of game.blobs) {
+        if (b === blob || b.dead) continue;
+        if (BB.dist(blob.x, blob.y, b.x, b.y) <= reach + b.r) b.hurt(9 + lvl, n.x * (420 + 60 * lvl), n.y * 220 - 200, blob);
+      }
+      BB.Particles.burst(blob.x, blob.y, "#d0d8e0", 14, 200); BB.Audio.play("whoosh");
+    },
   },
 
   /* --- movement / melee --- */
@@ -639,23 +638,6 @@ BB.Abilities = {
   },
 
   /* --- new abilities --- */
-  sword: {
-    id: "sword", name: "Sword", desc: "Slash an arc in front of you — strong close-range knockback.",
-    color: "#e8eefc", cooldown: 0.75, role: "attack", botRange: 110,
-    activate(blob, game, ax, ay, lvl) {
-      const ang = Math.atan2(ay - blob.y, ax - blob.x);
-      const reach = blob.r + 40 + 6 * (lvl - 1);
-      for (const b of game.blobs) {
-        if (b === blob || b.dead) continue;
-        if (BB.dist(blob.x, blob.y, b.x, b.y) > reach + b.r) continue;
-        let da = Math.abs(Math.atan2(b.y - blob.y, b.x - blob.x) - ang);
-        if (da > Math.PI) da = 2 * Math.PI - da;
-        if (da < 1.0) b.hurt(11, Math.cos(ang) * (560 + 70 * lvl), Math.sin(ang) * 260 - 200, blob);
-      }
-      game.spawn(BB.makeSlash(blob.x, blob.y, ang, reach, "#e8eefc"));
-      BB.Shake.add(5); BB.Hit.add(0.04); BB.Audio.play("whoosh");
-    },
-  },
   boomerang: {
     id: "boomerang", name: "Boomerang", desc: "Throw a boomerang that flies out and curves back.",
     color: "#ffd24b", cooldown: 2.2, role: "attack", botRange: 560,
@@ -750,10 +732,6 @@ BB.drawAbilityIcon = (ctx, id, cx, cy, s, color) => {
       line(u * 0.35, 0, u * 0.95, 0); poly([[u * 0.95, 0], [u * 0.6, -u * 0.3], [u * 0.6, u * 0.3]], true);
       break;
     case "revival": ctx.save(); ctx.lineWidth = s * 0.16; line(0, -u * 0.85, 0, u * 0.85); line(-u * 0.85, 0, u * 0.85, 0); ctx.restore(); break;
-    case "sword":
-      line(-u * 0.6, u * 0.6, u * 0.7, -u * 0.7);          // blade
-      line(-u * 0.75, u * 0.35, -u * 0.35, u * 0.75);      // crossguard
-      break;
     case "boomerang": ctx.beginPath(); ctx.moveTo(-u * 0.2, -u * 0.8); ctx.lineTo(u * 0.7, u * 0.1); ctx.lineTo(-u * 0.2, u * 0.35); ctx.stroke(); break;
     case "magnet":
       arc(u * 0.6, Math.PI * 0.15, Math.PI * 0.85);
