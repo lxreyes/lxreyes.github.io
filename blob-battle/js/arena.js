@@ -28,13 +28,13 @@ BB.Arena = class {
     this.hazards = [];
     // capsule: segment (x1,y1)-(x2,y2) + radius r. horizontal => flat top.
     const add = (x1, y1, x2, y2, r) =>
-      this.platforms.push({ x1: x1 * w, y1: y1 * h, x2: x2 * w, y2: y2 * h, r, life: Infinity, pvx: BB.rand(-22, 22), pvy: BB.rand(-14, 14), mvx: 0, mvy: 0 });
+      this.platforms.push({ x1: x1 * w, y1: y1 * h, x2: x2 * w, y2: y2 * h, r, life: Infinity, mvx: 0, mvy: 0 });
 
     // every layout has a distinct LEFT and RIGHT ground island so both fighters
     // spawn on solid ground, spread apart (never perched on a tiny floating disc)
     // custom map from the editor (platforms stored in absolute coords)
     if (this.forcedLayout >= BB.MAP_NAMES.length && this.customMap && this.customMap.platforms.length) {
-      this.platforms = this.customMap.platforms.map((p) => ({ x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, r: p.r, life: Infinity, pvx: BB.rand(-20, 20), pvy: BB.rand(-12, 12), mvx: 0, mvy: 0 }));
+      this.platforms = this.customMap.platforms.map((p) => ({ x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, r: p.r, life: Infinity, mvx: 0, mvy: 0 }));
       if (this.customMap.spawns && this.customMap.spawns.length === 2) {
         this.spawns = this.customMap.spawns.map((s) => ({ x: s.x, y: s.y }));
       } else {
@@ -144,26 +144,15 @@ BB.Arena = class {
   }
 
   update(dt) {
-    // islands slowly DRIFT (Bopl-style movable platforms), bouncing off the side
-    // bounds and staying between the sky and the water. Temp ledges just expire.
-    const nIsl = this.mirrorPlatforms ? this.mirrorPlatforms.length : 0;
+    // Islands are stationary — they don't drift on their own. Temporary ledges
+    // (the Platform ability) fade out. mvx/mvy stay 0 so the ride-along carry is
+    // a no-op unless something actually moves a platform.
     for (let i = this.platforms.length - 1; i >= 0; i--) {
       const p = this.platforms[i];
-      if (p.temp) {
-        p.mvx = 0; p.mvy = 0;
-        p.life -= dt;
-        if (p.life <= 0) { BB.Particles.burst((p.x1 + p.x2) / 2, p.y1, "#4be0c0", 10, 120, { gravity: 400 }); this.platforms.splice(i, 1); }
-        continue;
-      }
-      if (p.pvx === undefined) { p.mvx = 0; p.mvy = 0; continue; }
-      const cx = (p.x1 + p.x2) / 2, cy = (p.y1 + p.y2) / 2;
-      if ((cx <= this.leftBound + p.r + 40 && p.pvx < 0) || (cx >= this.rightBound - p.r - 40 && p.pvx > 0)) p.pvx *= -1;
-      if ((cy <= this.h * 0.16 && p.pvy < 0) || (cy >= this.waterY - p.r - 30 && p.pvy > 0)) p.pvy *= -1;
-      const ddx = p.pvx * dt, ddy = p.pvy * dt;
-      p.x1 += ddx; p.x2 += ddx; p.y1 += ddy; p.y2 += ddy;
-      p.mvx = ddx; p.mvy = ddy;
-      if (p.decor) for (const d of p.decor) { d.x += ddx; d.y += ddy; }
-      if (i < nIsl) { const m = this.mirrorPlatforms[i]; m.x1 += ddx; m.x2 += ddx; m.y1 -= ddy; m.y2 -= ddy; m.mvx = ddx; m.mvy = -ddy; } // keep the reflection in sync
+      p.mvx = 0; p.mvy = 0;
+      if (!p.temp) continue;
+      p.life -= dt;
+      if (p.life <= 0) { BB.Particles.burst((p.x1 + p.x2) / 2, p.y1, "#4be0c0", 10, 120, { gravity: 400 }); this.platforms.splice(i, 1); }
     }
   }
 
